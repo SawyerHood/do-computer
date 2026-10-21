@@ -1,5 +1,6 @@
 import {
   type AgentSummary,
+  boundedAdapterStatus,
   type ComputerKind,
   type ComputerSummary,
   isPersonalWorkspace,
@@ -196,7 +197,9 @@ function ComputerCard({
           <dl className="grid grid-cols-[5.5rem_1fr] items-center gap-x-3 gap-y-2.5 text-sm">
             {!machine &&
               (["screen", "browser"] as const).map((what) => {
-                const adapter = what === "screen" ? computer.screenAdapter : computer.browserAdapter
+                const reported =
+                  what === "screen" ? computer.screenAdapter : computer.browserAdapter
+                const adapter = reported && boundedAdapterStatus(reported)
                 return (
                   <Fragment key={what}>
                     <dt className="text-muted-foreground">

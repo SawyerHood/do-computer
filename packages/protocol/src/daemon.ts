@@ -225,6 +225,34 @@ export type ComputerAdapterStatus = {
   actions?: string[]
 }
 
+/** The longest adapter reason shown to an agent or in settings; tool output can run to kilobytes. */
+export const ADAPTER_REASON_CHARS = 300
+
+/**
+ * An adapter status cut down to what is safe to put in an agent's prompt or on a settings page:
+ * a daemon reports it, so it is bounded here whatever the daemon sent.
+ */
+export function boundedAdapterStatus(status: ComputerAdapterStatus): ComputerAdapterStatus {
+  const clip = (text: unknown, max: number) => {
+    const flat = String(text).replace(/\s+/g, " ").trim()
+    return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat
+  }
+  const list = (items: unknown) =>
+    Array.isArray(items) ? items.slice(0, 12).map((item) => clip(item, 40)) : undefined
+  const states = ["unsupported", "disabled", "blocked", "ready"] as const
+  const tools = list(status.tools)
+  const actions = list(status.actions)
+  return {
+    name: clip(status.name, 40),
+    state: states.includes(status.state) ? status.state : "unsupported",
+    ...(typeof status.reason === "string" && status.reason.trim()
+      ? { reason: clip(status.reason, ADAPTER_REASON_CHARS) }
+      : {}),
+    ...(tools ? { tools } : {}),
+    ...(actions ? { actions } : {}),
+  }
+}
+
 /** Sent on connect and when diagnostics change: what this computer is, and what its owner allows. */
 export type HelloFrame = {
   t: "hello"

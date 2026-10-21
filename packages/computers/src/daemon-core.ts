@@ -487,7 +487,7 @@ export class DaemonCore {
         frame.id,
         "refused",
         this.#io.screenUnavailable ??
-          "Screen sharing is unavailable. Its owner can enable it in the desktop app, or configure the daemon with --enable-screen and inspect --doctor. This screen API cannot change the owner's permission.",
+          "This computer does not let Doods use its screen. Whoever it belongs to can switch that on in the Do Computer app there, under This Computer, or on a Linux daemon with --enable-screen (--doctor says what is missing). It cannot be switched on from here.",
       )
     }
     const wait = Math.min(Math.max(0, frame.waitMs ?? 0), VIEW_WAIT_MS)

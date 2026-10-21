@@ -520,6 +520,26 @@ describe("computers the agent was not given", () => {
     }
   })
 
+  it("cut a daemon's long adapter reason before it reaches the prompt", async () => {
+    const before = nearby
+    const reason = `grim failed (1): ${"compositor said no\n".repeat(150)}`
+    nearby = nearby.map((computer) =>
+      computer.id === "c1"
+        ? { ...computer, screenAdapter: { name: "hyprland", state: "blocked", reason } }
+        : computer,
+    )
+    try {
+      faux.setResponses(useTool("computers", { action: "list" }))
+      const listed = lastTool(await say(chat.id, "what is wrong with the screen?"))
+      expect(listed.output).toContain("screen: hyprland [blocked]: grim failed (1): compositor")
+      expect(listed.output).not.toContain("\n".repeat(2) + "compositor said no")
+      expect(listed.output.length).toBeLessThan(reason.length)
+      expect(listed.output).toContain("…")
+    } finally {
+      nearby = before
+    }
+  })
+
   it("are asked for once, from the chat the answer should come back to", async () => {
     faux.setResponses(
       useTool("computers", { action: "request", name: "Studio", reason: "to read the designs" }),

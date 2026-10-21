@@ -1,5 +1,5 @@
 import type { BrowserIO, ScreenIO } from "@do-computer/computers/daemon"
-import type { ComputerAdapterStatus } from "@do-computer/protocol"
+import { boundedAdapterStatus, type ComputerAdapterStatus } from "@do-computer/protocol"
 import { nodeBrowserIO } from "@do-computer/computers/browser"
 import { appScreen } from "../screen.ts"
 import { commands } from "./command.ts"
@@ -17,6 +17,8 @@ export type AdapterReport = {
   reason?: string
   tools?: string[]
   actions?: string[]
+  /** Off, so nothing was probed: whether it would work here is not known. */
+  unprobed?: boolean
 }
 export type SelectedScreen = {
   screen?: ScreenIO
@@ -37,19 +39,46 @@ const desktopActions = [
   "key",
   "wait",
 ]
+/** Reasons can carry tool output; what leaves the daemon is bounded. */
 export function adapterStatus(report: AdapterReport): ComputerAdapterStatus {
-  return {
+  return boundedAdapterStatus({
     name: report.adapter,
-    state: !report.available
-      ? "unsupported"
-      : !report.enabled
-        ? "disabled"
-        : !report.ready
-          ? "blocked"
-          : "ready",
+    // Off is off: nothing is probed while the owner has not opted in.
+    state: report.unprobed
+      ? "disabled"
+      : !report.available
+        ? "unsupported"
+        : !report.enabled
+          ? "disabled"
+          : !report.ready
+            ? "blocked"
+            : "ready",
     reason: report.reason ?? (!report.enabled ? "Disabled by the owner." : undefined),
     tools: report.tools,
     actions: report.actions,
+  })
+}
+
+/**
+ * The screen while its owner has not enabled it: nothing is probed, run, or waited for, so a
+ * daemon with the screen off behaves as it did before there were native adapters.
+ */
+export function screenOff(
+  adapter: ScreenAdapterName | undefined,
+  embedded: boolean,
+): SelectedScreen {
+  return {
+    report: {
+      adapter: adapter ?? (embedded ? "ipc" : "auto"),
+      enabled: false,
+      available: false,
+      ready: false,
+      unprobed: true,
+      reason: embedded
+        ? "Screen sharing is off in the desktop app."
+        : "Screen sharing is off. Its owner can turn it on here with --enable-screen (see --doctor).",
+    },
+    dispose() {},
   }
 }
 
@@ -173,19 +202,26 @@ export async function selectScreen(options: {
         throw new Error(
           "The IPC adapter requires a desktop-app parent, not just a screen environment flag.",
         )
+      // One transport for the life of the process. The app started this daemon with screen
+      // sharing on, as it always has, so nothing waits for the handshake: refresh() asks the
+      // app for details later and only ever narrows what is announced.
       const ipc = appScreen(options.print ?? console.log, options.input ?? process.stdin)
       result.dispose = () => ipc.dispose()
-      try {
-        const status = await ipc.inspect(options.enabled)
-        report.available = status.available
-        report.enabled = options.enabled && status.enabled
-        report.ready = status.available
-        report.reason = status.reason
-        if (report.enabled && report.available) result.screen = ipc
-        else ipc.dispose()
-      } catch (error) {
-        ipc.dispose()
-        throw error
+      report.available = true
+      report.ready = true
+      if (options.enabled) result.screen = ipc
+      result.refresh = async () => {
+        try {
+          const status = await ipc.inspect()
+          report.available = status.available
+          report.enabled = options.enabled && status.enabled
+          report.ready = status.available
+          report.reason = status.reason
+        } catch (error) {
+          // No answer is not a refusal; an app that cannot answer cannot be used either, and
+          // each use says so itself.
+          report.reason = `The desktop app did not confirm its screen status: ${(error as Error).message}`
+        }
       }
     } else {
       if (platform !== "linux") throw new Error(`${adapter} is available only on Linux`)

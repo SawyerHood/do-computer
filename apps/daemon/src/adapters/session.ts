@@ -139,7 +139,9 @@ export async function discoverSession(
       const directory = await lstat(hypr).catch(() => undefined)
       if (
         directory &&
-        (!directory.isDirectory() || directory.uid !== uid || (directory.mode & WORLD_WRITABLE) !== 0)
+        (!directory.isDirectory() ||
+          directory.uid !== uid ||
+          (directory.mode & WORLD_WRITABLE) !== 0)
       )
         return {
           env: found,

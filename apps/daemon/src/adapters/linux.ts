@@ -207,10 +207,10 @@ export function linuxDriver(id: "hyprland" | "x11", options: LinuxOptions): Scre
     }[]
     // Hyprland's own record of a session lock (ext-session-lock), which logind's LockedHint
     // misses for lockers that do not report to logind.
-    if (values.some((m) => Array.isArray(m.solitaryBlockedBy) && m.solitaryBlockedBy.includes("LOCK")))
-      throw new ScreenNotReady(
-        "The Hyprland session is locked. Unlock it yourself before sharing.",
-      )
+    if (
+      values.some((m) => Array.isArray(m.solitaryBlockedBy) && m.solitaryBlockedBy.includes("LOCK"))
+    )
+      throw new ScreenNotReady("The Hyprland session is locked. Unlock it yourself before sharing.")
     const selected = monitorName
       ? values.find((m) => m.name === monitorName)
       : values.find((m) => m.focused && !m.disabled)
@@ -289,7 +289,8 @@ export function linuxDriver(id: "hyprland" | "x11", options: LinuxOptions): Scre
       steps.push({ do: "wait", ms: 50 }, { do: "button", button: "left", pressed: false })
     } else if (action.do === "scroll") {
       const sign = action.direction === "up" || action.direction === "left" ? -1 : 1
-      const axis = action.direction === "up" || action.direction === "down" ? "vertical" : "horizontal"
+      const axis =
+        action.direction === "up" || action.direction === "down" ? "vertical" : "horizontal"
       for (let i = 0; i < (action.amount ?? 3); i++)
         steps.push({ do: "scroll", axis, notches: sign }, { do: "wait", ms: 15 })
     }

@@ -1,5 +1,5 @@
 import { computerSandbox } from "@do-computer/computers"
-import type { ComputerAdapterStatus } from "@do-computer/protocol"
+import { boundedAdapterStatus, type ComputerAdapterStatus } from "@do-computer/protocol"
 import type { ActorNamespace } from "@do-computer/runtime"
 import { type Sandbox, SandboxEnv } from "@do-computer/sandbox"
 import type { Context } from "@earendil-works/chord"
@@ -1000,6 +1000,7 @@ export class Computers {
                 ["browser", computer.browserAdapter],
               ] as const
             )
+              .map(([what, adapter]) => [what, adapter && boundedAdapterStatus(adapter)] as const)
               .flatMap(([what, adapter]) =>
                 adapter
                   ? [

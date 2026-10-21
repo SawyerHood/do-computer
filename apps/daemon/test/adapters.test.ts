@@ -660,40 +660,57 @@ describe("versioned and bounded app IPC", () => {
     await expect(ipc.probe()).rejects.toThrow(/disabled/)
     ipc.dispose()
   })
-  it("verifies a legacy app with its existing view request", async () => {
+  it.each([
+    'The screen has no "hello".',
+    "Unknown request",
+    "Das Bildschirm-Protokoll kennt hello nicht",
+  ])(
+    "takes a released app's ordinary error for hello as on, whatever it says (%s)",
+    async (message) => {
+      const input = new PassThrough()
+      const ops: string[] = []
+      const ipc = appScreen((line) => {
+        const call = parseCall(line)!
+        ops.push(call.op)
+        input.write(JSON.stringify({ id: call.id, error: { refused: false, message } }) + "\n")
+      }, input)
+      expect(await ipc.inspect()).toEqual({ available: true, enabled: true, legacy: true })
+      await ipc.probe()
+      // No screenshot is taken to find out.
+      expect(ops).toEqual(["hello", "hello"])
+      ipc.dispose()
+    },
+  )
+  it("takes a refusal of hello as the app saying no", async () => {
     const input = new PassThrough()
-    const ops: string[] = []
     const ipc = appScreen((line) => {
       const call = parseCall(line)!
-      ops.push(call.op)
-      input.write(
-        JSON.stringify(
-          call.op === "hello"
-            ? { id: call.id, error: { refused: false, message: 'The screen has no "hello".' } }
-            : { id: call.id, value: { active: false, seq: 0 } },
-        ) + "\n",
-      )
-    }, input)
-    await ipc.probe()
-    expect(ops).toEqual(["hello", "view"])
-    ipc.dispose()
-  })
-  it("inspects a disabled legacy parent without taking a screenshot", async () => {
-    const input = new PassThrough()
-    const ops: string[] = []
-    const ipc = appScreen((line) => {
-      const call = parseCall(line)!
-      ops.push(call.op)
       input.write(
         JSON.stringify({
           id: call.id,
-          error: { refused: false, message: 'The screen has no "hello".' },
+          error: { refused: true, message: "This computer does not let Doods use its screen." },
         }) + "\n",
       )
     }, input)
-    expect(await ipc.inspect(false)).toMatchObject({ available: true })
-    expect(ops).toEqual(["hello"])
+    expect(await ipc.inspect()).toMatchObject({ available: true, enabled: false })
     ipc.dispose()
+  })
+  it("does not wait for the desktop app before the daemon can connect", async () => {
+    const input = new PassThrough()
+    const printed: string[] = []
+    const selected = await selectScreen({
+      enabled: true,
+      adapter: "ipc",
+      embedded: true,
+      env: {},
+      input,
+      print: (line) => printed.push(line),
+    })
+    // Selected and usable at once, as before the handshake existed; nothing asked yet.
+    expect(printed).toEqual([])
+    expect(selected.screen).toBeDefined()
+    expect(adapterStatus(selected.report).state).toBe("ready")
+    selected.dispose()
   })
   it("distinguishes an unavailable app driver from owner permission", async () => {
     const input = new PassThrough()
@@ -716,12 +733,13 @@ describe("versioned and bounded app IPC", () => {
           }) + "\n",
         ),
     })
+    await selected.refresh?.()
     expect(adapterStatus(selected.report)).toMatchObject({
       name: "ipc",
       state: "unsupported",
       reason: "No screen driver on this platform.",
     })
-    expect(selected.screen).toBeUndefined()
+    expect(selected.report.enabled).toBe(false)
     selected.dispose()
   })
   it("cannot confuse a late answer with a replacement adapter's handshake", async () => {

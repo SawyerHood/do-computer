@@ -7,15 +7,16 @@ import { type AppAnswer, type AppCall, formatCall, parseAnswer } from "./events.
 // A replacement adapter must not accept a late answer intended for its predecessor.
 let counter = 0
 
+/** The app answered a request with an error it did not mark as a refusal. */
+export class AppAnswerError extends Error {}
+
 export function appScreen(
   print: (line: string) => void,
   input: NodeJS.ReadableStream,
   options: { timeoutMs?: number; probeTimeoutMs?: number } = {},
 ): ScreenIO & {
   probe(): Promise<void>
-  inspect(
-    verifyLegacyView?: boolean,
-  ): Promise<{ available: boolean; enabled: boolean; reason?: string }>
+  inspect(): Promise<{ available: boolean; enabled: boolean; reason?: string; legacy?: boolean }>
   dispose(): void
 } {
   const waiting = new Map<string, { answer(answer: AppAnswer): void; fail(error: Error): void }>()
@@ -80,7 +81,7 @@ export function appScreen(
             reject(
               answer.error.refused
                 ? new UseRefused(answer.error.message)
-                : new Error(answer.error.message),
+                : new AppAnswerError(answer.error.message),
             )
           else resolve(answer.value as T)
         },
@@ -93,35 +94,43 @@ export function appScreen(
       }
     })
   }
-  const inspect = async (verifyLegacyView = true) => {
+  /**
+   * Asks the app what it allows. An app that answered with a handshake says so; an app from
+   * before the handshake answers an op it does not know with an ordinary (not refused) error,
+   * whatever its wording, and it was started with screen sharing on, so that is taken as on.
+   * A refusal is the app saying no. Silence or a closed transport is thrown, not guessed at.
+   */
+  const inspect = async () => {
+    let hello: {
+      protocolVersion?: unknown
+      screen?: unknown
+      available?: unknown
+      reason?: unknown
+    }
     try {
-      const hello = await ask<{
-        protocolVersion: number
-        screen: boolean
-        available?: boolean
-        reason?: string
-      }>({ op: "hello", protocolVersion: 1 }, options.probeTimeoutMs ?? 5000)
-      if (
-        typeof hello?.screen !== "boolean" ||
-        (hello.available !== undefined && typeof hello.available !== "boolean") ||
-        (hello.reason !== undefined && typeof hello.reason !== "string")
-      )
-        throw new Error("The desktop app returned an invalid screen IPC handshake")
-      if (hello?.protocolVersion !== 1)
-        throw new Error("The desktop app uses an unsupported screen IPC version")
-      return {
-        available: hello.available !== false,
-        enabled: hello.screen === true,
-        reason:
-          hello.reason ??
-          (hello.screen !== true ? "Screen sharing is disabled in the desktop app" : undefined),
-      }
+      hello = await ask({ op: "hello", protocolVersion: 1 }, options.probeTimeoutMs ?? 5000)
     } catch (error) {
-      // Old apps already implement view. Verify that transport without requiring an app upgrade.
-      if (!(error instanceof Error) || !/screen has no .*hello/.test(error.message)) throw error
-      if (verifyLegacyView)
-        await ask<LiveView>({ op: "view", waitMs: 0 }, options.probeTimeoutMs ?? 5000)
-      return { available: true, enabled: true, reason: undefined }
+      if (error instanceof UseRefused)
+        return { available: true, enabled: false, reason: error.message }
+      if (error instanceof AppAnswerError) return { available: true, enabled: true, legacy: true }
+      throw error
+    }
+    if (
+      typeof hello !== "object" ||
+      hello === null ||
+      typeof hello.screen !== "boolean" ||
+      (hello.available !== undefined && typeof hello.available !== "boolean") ||
+      (hello.reason !== undefined && typeof hello.reason !== "string")
+    )
+      throw new Error("The desktop app returned an invalid screen IPC handshake")
+    if (hello.protocolVersion !== 1)
+      throw new Error("The desktop app uses an unsupported screen IPC version")
+    return {
+      available: hello.available !== false,
+      enabled: hello.screen === true,
+      reason:
+        (hello.reason as string | undefined) ??
+        (hello.screen !== true ? "Screen sharing is disabled in the desktop app" : undefined),
     }
   }
   return {

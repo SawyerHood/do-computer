@@ -8,6 +8,7 @@ import {
 import { linkStatus } from "@do-computer/computers"
 import {
   type AddComputerRequest,
+  boundedAdapterStatus,
   type ComputerRequest,
   type ComputerSummary,
   type ConfirmPairingRequest,
@@ -768,8 +769,12 @@ export async function listComputers(user: SessionUser): Promise<Response> {
         lastSeenAt: status?.lastSeenAt ?? null,
         ...(status?.hello?.screen === true ? { screen: true } : {}),
         ...(status?.hello?.browser === true ? { browser: true } : {}),
-        ...(hello?.screenAdapter ? { screenAdapter: hello.screenAdapter } : {}),
-        ...(hello?.browserAdapter ? { browserAdapter: hello.browserAdapter } : {}),
+        ...(hello?.screenAdapter
+          ? { screenAdapter: boundedAdapterStatus(hello.screenAdapter) }
+          : {}),
+        ...(hello?.browserAdapter
+          ? { browserAdapter: boundedAdapterStatus(hello.browserAdapter) }
+          : {}),
         ...(daemon === undefined ? {} : { daemon }),
       }
     }),

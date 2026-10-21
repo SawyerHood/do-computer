@@ -1,5 +1,5 @@
 import { expect, it } from "vitest"
-import { parseArguments } from "../src/args.ts"
+import { parseArguments, withScreenArguments } from "../src/args.ts"
 
 it("keeps selecting an adapter separate from granting screen access", () => {
   expect(parseArguments(["--screen-adapter=hyprland"])).toMatchObject({
@@ -64,4 +64,42 @@ it.each([
   ["--screen-adapter", "--enable-screen"],
 ])("rejects invalid adapter arguments %s", (...args) => {
   expect(() => parseArguments(args)).toThrow()
+})
+it.each([["--screen"], ["--browser"]])(
+  "reads %s like its sibling: a server or option after it is not its mode",
+  (flag) => {
+    const what = flag === "--screen" ? "screen" : "browser"
+    for (const args of [
+      [flag, "https://do.example"],
+      ["https://do.example", flag],
+      [flag, "--name", "desk"],
+      [flag],
+    ]) {
+      const asked = parseArguments(args)
+      expect(asked[what]).toBe(true)
+      if (args.includes("https://do.example")) expect(asked.server).toBe("https://do.example")
+    }
+    expect(parseArguments([flag, "off", "https://do.example"])).toMatchObject({
+      [what]: false,
+      server: "https://do.example",
+    })
+  },
+)
+it("lets --enable-screen undo an earlier --screen=off, and keeps a named adapter", () => {
+  const off = withScreenArguments({}, parseArguments(["--screen=off"]))
+  expect(off).toEqual({ screen: false, screenAdapter: "none" })
+  expect(withScreenArguments(off, parseArguments(["--enable-screen"]))).toEqual({ screen: true })
+  expect(withScreenArguments(off, parseArguments(["--screen"]))).toEqual({ screen: true })
+  expect(withScreenArguments(off, parseArguments(["--screen=auto"]))).toEqual({
+    screen: true,
+    screenAdapter: "auto",
+  })
+  expect(
+    withScreenArguments(
+      { screen: false, screenAdapter: "x11" },
+      parseArguments(["--enable-screen"]),
+    ),
+  ).toEqual({ screen: true, screenAdapter: "x11" })
+  // Saying nothing about the screen changes nothing.
+  expect(withScreenArguments(off, parseArguments(["--read-only"]))).toEqual(off)
 })
