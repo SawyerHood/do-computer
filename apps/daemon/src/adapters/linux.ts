@@ -4,6 +4,7 @@ import { delimiter, join } from "node:path"
 import type { DesktopAction } from "@do-computer/protocol"
 import { UseRefused } from "@do-computer/computers/use"
 import type { Command } from "./command.ts"
+import { virtualPointer, waylandSocket, type Layout, type PointerStep } from "./wayland-pointer.ts"
 
 export type Rect = { x: number; y: number; width: number; height: number }
 export type Capture = { png: Buffer; rect: Rect }
@@ -19,10 +20,18 @@ export type LinuxOptions = {
   uid?: number
   wakeDisplay?: boolean
   has?: (file: string) => Promise<boolean>
+  /** Hyprland pointer input; the wlr virtual-pointer client unless a test replaces it. */
+  pointer?: (
+    socket: string,
+    layout: Layout,
+    steps: readonly PointerStep[],
+    signal?: AbortSignal,
+  ) => Promise<void>
 }
 
 export const LINUX_TOOLS = {
-  hyprland: ["loginctl", "hyprctl", "grim", "wtype", "wlrctl"],
+  // Pointer input speaks the wlr virtual-pointer protocol itself, so wlrctl is not needed.
+  hyprland: ["loginctl", "hyprctl", "grim", "wtype"],
   x11: ["loginctl", "xdotool", "xset", "import"],
 } as const
 
@@ -165,10 +174,22 @@ export function linuxDriver(id: "hyprland" | "x11", options: LinuxOptions): Scre
     if (said !== "ok")
       throw new Error(`Hyprland did not accept this operation: ${said.slice(0, 200)}`)
   }
+  // Hyprland with a Lua config (0.55+) takes dispatchers as Lua; older ones take the classic form.
+  const dpmsOn = async (name: string, signal?: AbortSignal) => {
+    if (!/^[A-Za-z0-9_.-]+$/.test(name)) throw new Error("Unexpected monitor name")
+    try {
+      await dispatch(["dpms", `on ${name}`], signal)
+    } catch (error) {
+      signal?.throwIfAborted()
+      await dispatch([`hl.dsp.dpms({ action = "on", monitor = "${name}" })`], signal).catch(() => {
+        throw error
+      })
+    }
+  }
   const monitor = async (
     signal?: AbortSignal,
     allowWake = false,
-  ): Promise<Rect & { name: string }> => {
+  ): Promise<Rect & { name: string; layout: Layout }> => {
     const values = JSON.parse(
       (await run("hyprctl", ["-j", "monitors"], { signal })).toString(),
     ) as {
@@ -182,7 +203,14 @@ export function linuxDriver(id: "hyprland" | "x11", options: LinuxOptions): Scre
       width: number
       height: number
       scale: number
+      solitaryBlockedBy?: string[]
     }[]
+    // Hyprland's own record of a session lock (ext-session-lock), which logind's LockedHint
+    // misses for lockers that do not report to logind.
+    if (values.some((m) => Array.isArray(m.solitaryBlockedBy) && m.solitaryBlockedBy.includes("LOCK")))
+      throw new ScreenNotReady(
+        "The Hyprland session is locked. Unlock it yourself before sharing.",
+      )
     const selected = monitorName
       ? values.find((m) => m.name === monitorName)
       : values.find((m) => m.focused && !m.disabled)
@@ -191,7 +219,7 @@ export function linuxDriver(id: "hyprland" | "x11", options: LinuxOptions): Scre
     monitorName = selected.name
     if (selected.dpmsStatus !== true) {
       if (selected.dpmsStatus === false && allowWake && options.wakeDisplay) {
-        await dispatch(["dpms", `on ${selected.name}`], signal)
+        await dpmsOn(selected.name, signal)
         return monitor(signal, false)
       }
       throw new ScreenNotReady(
@@ -210,7 +238,17 @@ export function linuxDriver(id: "hyprland" | "x11", options: LinuxOptions): Scre
     )
       throw new Error("Invalid monitor geometry")
     monitorName = selected.name
+    const shown = values.filter((m) => !m.disabled && m.width > 0 && m.height > 0 && m.scale > 0)
+    const left = Math.min(...shown.map((m) => m.x))
+    const top = Math.min(...shown.map((m) => m.y))
+    const layout = {
+      x: left,
+      y: top,
+      width: Math.max(...shown.map((m) => m.x + m.width / m.scale)) - left,
+      height: Math.max(...shown.map((m) => m.y + m.height / m.scale)) - top,
+    }
     return {
+      layout,
       name: selected.name,
       x: selected.x,
       y: selected.y,
@@ -220,21 +258,48 @@ export function linuxDriver(id: "hyprland" | "x11", options: LinuxOptions): Scre
   }
   const move = async (x: number, y: number, signal: AbortSignal) => {
     if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error("Invalid pointer coordinates")
-    if (id === "hyprland")
-      await dispatch(["movecursor", `${Math.round(x)} ${Math.round(y)}`], signal)
-    else
-      await run("xdotool", ["mousemove", "--sync", String(Math.round(x)), String(Math.round(y))], {
-        signal,
-      })
+    await run("xdotool", ["mousemove", "--sync", String(Math.round(x)), String(Math.round(y))], {
+      signal,
+    })
   }
-  const button = async (which: "left" | "right", signal: AbortSignal) => {
-    if (id === "hyprland") await run("wlrctl", ["pointer", "click", which], { signal })
-    else await run("xdotool", ["click", which === "left" ? "1" : "3"], { signal })
+  /** One connection per action: a drag holds its button across motion, a double click is quick. */
+  const hyprPointer = async (action: DesktopAction, layout: Layout, signal: AbortSignal) => {
+    const steps: PointerStep[] = "x" in action ? [{ do: "move", x: action.x, y: action.y }] : []
+    const click = (button: "left" | "right"): PointerStep[] => [
+      { do: "button", button, pressed: true },
+      { do: "button", button, pressed: false },
+    ]
+    if (action.do === "click" || action.do === "right_click")
+      steps.push(...click(action.do === "click" ? "left" : "right"))
+    else if (action.do === "double_click")
+      steps.push(...click("left"), { do: "wait", ms: 60 }, ...click("left"))
+    else if (action.do === "drag") {
+      steps.push({ do: "wait", ms: 30 }, { do: "button", button: "left", pressed: true })
+      // Real motion while the button is held, so apps that track the pointer see a drag.
+      const count = 12
+      for (let i = 1; i <= count; i++)
+        steps.push(
+          { do: "wait", ms: 16 },
+          {
+            do: "move",
+            x: action.x + ((action.toX - action.x) * i) / count,
+            y: action.y + ((action.toY - action.y) * i) / count,
+          },
+        )
+      steps.push({ do: "wait", ms: 50 }, { do: "button", button: "left", pressed: false })
+    } else if (action.do === "scroll") {
+      const sign = action.direction === "up" || action.direction === "left" ? -1 : 1
+      const axis = action.direction === "up" || action.direction === "down" ? "vertical" : "horizontal"
+      for (let i = 0; i < (action.amount ?? 3); i++)
+        steps.push({ do: "scroll", axis, notches: sign }, { do: "wait", ms: 15 })
+    }
+    if (steps.length)
+      await (options.pointer ?? virtualPointer)(waylandSocket(env), layout, steps, signal)
   }
   const geometry = async (signal: AbortSignal): Promise<Rect> => {
     await check(signal, true)
     if (id === "hyprland") {
-      const { name: _name, ...rect } = await monitor(signal, true)
+      const { name: _name, layout: _layout, ...rect } = await monitor(signal, true)
       return rect
     }
     const [width, height] = (await run("xdotool", ["getdisplaygeometry"], { signal }))
@@ -271,7 +336,7 @@ export function linuxDriver(id: "hyprland" | "x11", options: LinuxOptions): Scre
     async capture(signal) {
       await check(signal, true)
       if (id === "hyprland") {
-        const { name, ...rect } = await monitor(signal, true)
+        const { name, layout: _layout, ...rect } = await monitor(signal, true)
         const png = await run("grim", ["-o", name, "-"], { signal })
         pngDimensions(png)
         return { png, rect }
@@ -288,86 +353,81 @@ export function linuxDriver(id: "hyprland" | "x11", options: LinuxOptions): Scre
           !["up", "down", "left", "right"].includes(action.direction))
       )
         throw new Error("Invalid scroll direction or amount")
-      await check(signal, true)
-      if (id === "hyprland") await monitor(signal, true)
-      if ("x" in action) await move(action.x, action.y, signal)
-      if (action.do === "click" || action.do === "right_click" || action.do === "double_click") {
-        await button(action.do === "right_click" ? "right" : "left", signal)
-        if (action.do === "double_click") await button("left", signal)
-      } else if (action.do === "type") {
-        if (Buffer.byteLength(action.text) > 64 * 1024)
-          throw new Error("Too much text for one screen action")
-        await run(
-          id === "hyprland" ? "wtype" : "xdotool",
-          id === "hyprland" ? ["-"] : ["type", "--clearmodifiers", "--delay", "0", "--file", "-"],
-          { signal, input: action.text },
+      if (
+        "x" in action &&
+        ![action.x, action.y, ...(action.do === "drag" ? [action.toX, action.toY] : [])].every(
+          Number.isFinite,
         )
-      } else if (action.do === "key") {
-        const parsed = keys(action.keys)
-        if (id === "hyprland")
+      )
+        throw new Error("Invalid pointer coordinates")
+      if (action.do === "type" && Buffer.byteLength(action.text) > 64 * 1024)
+        throw new Error("Too much text for one screen action")
+      const parsed = action.do === "key" ? keys(action.keys) : undefined
+      await check(signal, true)
+      if (id === "hyprland") {
+        const { layout } = await monitor(signal, true)
+        if (action.do === "type") await run("wtype", ["-"], { signal, input: action.text })
+        else if (parsed)
           await run(
             "wtype",
             [
               ...parsed.modifiers.flatMap((m) => ["-M", m]),
               "-k",
               parsed.key,
-              ...parsed.modifiers.reverse().flatMap((m) => ["-m", m]),
+              ...[...parsed.modifiers].reverse().flatMap((m) => ["-m", m]),
             ],
             { signal },
           )
-        else
-          await run(
-            "xdotool",
-            [
-              "key",
-              "--clearmodifiers",
-              [...parsed.modifiers.map((m) => (m === "logo" ? "super" : m)), parsed.key].join("+"),
-            ],
-            { signal },
-          )
-      } else if (action.do === "scroll") {
-        const amount = action.amount ?? 3
-        if (!Number.isInteger(amount) || amount < 1 || amount > 100)
-          throw new Error("Scroll amount must be between 1 and 100")
-        if (id === "hyprland") {
-          const delta = amount * 15
-          await run(
-            "wlrctl",
-            [
-              "pointer",
-              "scroll",
-              String(action.direction === "up" ? -delta : action.direction === "down" ? delta : 0),
-              String(
-                action.direction === "left" ? -delta : action.direction === "right" ? delta : 0,
-              ),
-            ],
-            { signal },
-          )
-        } else
-          await run(
-            "xdotool",
-            [
-              "click",
-              "--repeat",
-              String(amount),
-              { up: "4", down: "5", left: "6", right: "7" }[action.direction],
-            ],
-            { signal },
-          )
-      } else if (action.do === "drag") {
-        const down =
-          id === "hyprland" ? ["dispatch", "sendkeystate", ",mouse:272,down,"] : ["mousedown", "1"]
-        const up =
-          id === "hyprland" ? ["dispatch", "sendkeystate", ",mouse:272,up,"] : ["mouseup", "1"]
-        const file = id === "hyprland" ? "hyprctl" : "xdotool"
+        else await hyprPointer(action, layout, signal)
+        return
+      }
+      if ("x" in action) await move(action.x, action.y, signal)
+      if (action.do === "click" || action.do === "right_click")
+        await run("xdotool", ["click", action.do === "click" ? "1" : "3"], { signal })
+      else if (action.do === "double_click")
+        // One process, so both clicks land within the double-click time.
+        await run("xdotool", ["click", "--repeat", "2", "--delay", "60", "1"], { signal })
+      else if (action.do === "type")
+        await run("xdotool", ["type", "--clearmodifiers", "--delay", "0", "--file", "-"], {
+          signal,
+          input: action.text,
+        })
+      else if (parsed)
+        await run(
+          "xdotool",
+          [
+            "key",
+            "--clearmodifiers",
+            [...parsed.modifiers.map((m) => (m === "logo" ? "super" : m)), parsed.key].join("+"),
+          ],
+          { signal },
+        )
+      else if (action.do === "scroll")
+        await run(
+          "xdotool",
+          [
+            "click",
+            "--repeat",
+            String(action.amount ?? 3),
+            { up: "4", down: "5", left: "6", right: "7" }[action.direction],
+          ],
+          { signal },
+        )
+      else if (action.do === "drag") {
+        let failed = false
         try {
-          if (id === "hyprland") await dispatch(down.slice(1), signal)
-          else await run(file, down, { signal })
+          await run("xdotool", ["mousedown", "1"], { signal })
           await move(action.toX, action.toY, signal)
+        } catch (error) {
+          failed = true
+          throw error
         } finally {
-          if (id === "hyprland") await dispatch(up.slice(1))
-          else await run(file, up)
-        } // Always release a held button, even after cancellation.
+          // Always release a held button, even after cancellation (so no signal here), but never
+          // let a failed release hide why the drag itself failed.
+          await run("xdotool", ["mouseup", "1"]).catch((error: unknown) => {
+            if (!failed) throw error
+          })
+        }
       }
     },
   }

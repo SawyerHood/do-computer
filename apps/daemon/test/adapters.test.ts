@@ -6,6 +6,7 @@ import { nativeScreen } from "../src/adapters/native-screen.ts"
 import { appScreen } from "../src/screen.ts"
 import { parseCall } from "../src/events.ts"
 import type { Command } from "../src/adapters/command.ts"
+import type { Layout, PointerStep } from "../src/adapters/wayland-pointer.ts"
 
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
@@ -29,6 +30,7 @@ function machine() {
     transform: 0,
     x: 10,
     monitor: "DP-1",
+    sessionLocked: false,
   }
   const calls: { file: string; args: string[]; input?: string }[] = []
   const run: Command = async (file, args, options) => {
@@ -51,6 +53,7 @@ function machine() {
             scale: 2,
             dpmsStatus: state.dpms,
             transform: state.transform,
+            solitaryBlockedBy: state.sessionLocked ? ["LOCK", "WINDOWED"] : ["WINDOWED"],
           },
         ]),
       )
@@ -59,7 +62,18 @@ function machine() {
     if (file === "grim" || file === "import") return png
     return Buffer.from("ok")
   }
-  return { env, state, calls, run, linux: { run, uid: 1000, has: async () => true } }
+  const pointed: { socket: string; layout: Layout; steps: readonly PointerStep[] }[] = []
+  const pointer = async (socket: string, layout: Layout, steps: readonly PointerStep[]) => {
+    pointed.push({ socket, layout, steps })
+  }
+  return {
+    env,
+    state,
+    calls,
+    pointed,
+    run,
+    linux: { run, uid: 1000, has: async () => true, pointer },
+  }
 }
 
 describe("adapter selection and permission", () => {
@@ -385,7 +399,15 @@ describe("native session safety and coordinates", () => {
     )
     await screen.act(agent, { do: "screenshot" }, undefined)
     await screen.act(agent, { do: "click", x: 0.5, y: 0.5 }, undefined)
-    expect(m.calls.some((c) => c.file === "hyprctl" && c.args.includes("60 45"))).toBe(true)
+    expect(m.pointed.at(-1)).toEqual({
+      socket: "/run/user/1000/wayland-1",
+      layout: { x: 10, y: 20, width: 100, height: 50 },
+      steps: [
+        { do: "move", x: 60, y: 45 },
+        { do: "button", button: "left", pressed: true },
+        { do: "button", button: "left", pressed: false },
+      ],
+    })
     m.state.x = 11
     await expect(screen.act(agent, { do: "click", x: 0, y: 0 }, undefined)).rejects.toThrow(
       /geometry changed/,
@@ -417,36 +439,101 @@ describe("native session safety and coordinates", () => {
     })
     expect(() => keys("ctrl+--evil")).toThrow()
   })
-  it("releases a drag button even if movement fails", async () => {
+  it("drags with the button held across real motion, in one pointer connection", async () => {
     const m = machine()
+    const driver = linuxDriver("hyprland", { ...m.linux, env: m.env })
+    await driver.act({ do: "drag", x: 10, y: 20, toX: 70, toY: 50 }, new AbortController().signal)
+    expect(m.pointed).toHaveLength(1)
+    const steps = m.pointed[0]!.steps.filter((step) => step.do !== "wait")
+    expect(steps[0]).toEqual({ do: "move", x: 10, y: 20 })
+    expect(steps[1]).toEqual({ do: "button", button: "left", pressed: true })
+    expect(steps.at(-1)).toEqual({ do: "button", button: "left", pressed: false })
+    expect(steps.at(-2)).toEqual({ do: "move", x: 70, y: 50 })
+    // Intermediate motion while held, not a warp.
+    expect(steps.filter((step) => step.do === "move").length).toBeGreaterThan(5)
+  })
+  it("double-clicks within one connection and scrolls by wheel notches", async () => {
+    const m = machine()
+    const driver = linuxDriver("hyprland", { ...m.linux, env: m.env })
+    await driver.act({ do: "double_click", x: 30, y: 30 }, new AbortController().signal)
+    const presses = m.pointed[0]!.steps.filter((step) => step.do === "button" && step.pressed)
+    expect(presses).toHaveLength(2)
+    const waits = m.pointed[0]!.steps.flatMap((step) => (step.do === "wait" ? [step.ms] : []))
+    expect(waits.reduce((a, b) => a + b, 0)).toBeLessThan(200)
+    await driver.act(
+      { do: "scroll", x: 30, y: 30, direction: "up", amount: 2 },
+      new AbortController().signal,
+    )
+    expect(m.pointed[1]!.steps.filter((step) => step.do === "scroll")).toEqual([
+      { do: "scroll", axis: "vertical", notches: -1 },
+      { do: "scroll", axis: "vertical", notches: -1 },
+    ])
+    expect(m.calls.some((c) => c.file === "wlrctl")).toBe(false)
+  })
+  it("refuses a Hyprland session that Hyprland reports locked, whatever logind says", async () => {
+    const m = machine()
+    m.state.sessionLocked = true
+    const driver = linuxDriver("hyprland", { ...m.linux, env: m.env })
+    await expect(driver.probe()).rejects.toThrow(/locked/)
+    await expect(driver.capture(new AbortController().signal)).rejects.toThrow(/locked/)
+    await expect(
+      driver.act({ do: "type", text: "hunter2" }, new AbortController().signal),
+    ).rejects.toThrow(/locked/)
+    expect(m.calls.some((c) => c.file === "wtype" || c.file === "grim")).toBe(false)
+    expect(m.pointed).toEqual([])
+  })
+  it("wakes a monitor with the Lua dispatcher on Hyprland with a Lua config", async () => {
+    const m = machine()
+    m.state.dpms = false
     const driver = linuxDriver("hyprland", {
       ...m.linux,
       env: m.env,
+      wakeDisplay: true,
       run: async (file, args, options) => {
-        if (args.includes("20 30")) throw new Error("movement failed")
+        if (file === "hyprctl" && args[0] === "dispatch") {
+          m.calls.push({ file, args })
+          if (args[1] === "dpms") return Buffer.from("error: ')' expected near 'on'")
+          m.state.dpms = true
+          return Buffer.from("ok")
+        }
+        return m.run(file, args, options)
+      },
+    })
+    await driver.capture(new AbortController().signal)
+    expect(m.calls.filter((c) => c.args[0] === "dispatch").map((c) => c.args[1])).toEqual([
+      "dpms",
+      'hl.dsp.dpms({ action = "on", monitor = "DP-1" })',
+    ])
+  })
+  it("releases an X11 drag button after a failure without hiding the failure", async () => {
+    const m = machine()
+    m.state.type = "x11"
+    const env = { PATH: "/usr/bin", DISPLAY: ":0", XDG_SESSION_ID: "3" }
+    const driver = linuxDriver("x11", {
+      ...m.linux,
+      env,
+      run: async (file, args, options) => {
+        if (args[0] === "mousemove" && args.includes("20")) throw new Error("movement failed")
+        if (args[0] === "mouseup") {
+          m.calls.push({ file, args })
+          throw new Error("release failed too")
+        }
         return m.run(file, args, options)
       },
     })
     await expect(
       driver.act({ do: "drag", x: 0, y: 0, toX: 20, toY: 30 }, new AbortController().signal),
     ).rejects.toThrow(/movement failed/)
-    expect(m.calls.some((c) => c.args.includes(",mouse:272,up,"))).toBe(true)
-  })
-  it("checks drag dispatch responses instead of claiming unsupported input worked", async () => {
-    const m = machine()
-    const driver = linuxDriver("hyprland", {
-      ...m.linux,
-      env: m.env,
-      run: async (file, args, options) => {
-        const result = await m.run(file, args, options)
-        return args.includes(",mouse:272,down,") ? Buffer.from("Invalid dispatcher") : result
-      },
-    })
-    await expect(
-      driver.act({ do: "drag", x: 0, y: 0, toX: 20, toY: 30 }, new AbortController().signal),
-    ).rejects.toThrow(/did not accept/)
-    expect(m.calls.some((c) => c.args.includes("20 30"))).toBe(false)
-    expect(m.calls.some((c) => c.args.includes(",mouse:272,up,"))).toBe(true)
+    expect(m.calls.some((c) => c.args[0] === "mouseup")).toBe(true)
+    await driver.act({ do: "double_click", x: 5, y: 5 }, new AbortController().signal)
+    expect(m.calls.filter((c) => c.args[0] === "click").at(-1)?.args).toEqual([
+      "click",
+      "--repeat",
+      "2",
+      "--delay",
+      "60",
+      "1",
+    ])
   })
   it("supports X11 separately and refuses XWayland", async () => {
     const m = machine()
@@ -465,6 +552,31 @@ describe("native session safety and coordinates", () => {
 })
 
 describe("native lifecycle", () => {
+  it("waits for a picture newer than the watcher's and captures only when one is due", async () => {
+    const m = machine()
+    const screen = nativeScreen(linuxDriver("hyprland", { ...m.linux, env: m.env }))
+    const grims = () => m.calls.filter((c) => c.file === "grim").length
+    await screen.act(agent, { do: "screenshot" }, undefined)
+    expect(grims()).toBe(1)
+    // Newer than what the watcher has: returned at once, no capture.
+    expect(await screen.view(0, 5_000)).toMatchObject({ active: true, seq: 1 })
+    // Nothing newer and no time to wait: the same picture, still no capture.
+    expect(await screen.view(1, 0)).toMatchObject({ seq: 1 })
+    expect(grims()).toBe(1)
+    // Two watchers waiting share one capture, taken when it is due.
+    const started = Date.now()
+    const [a, b] = await Promise.all([screen.view(1, 5_000), screen.view(1, 5_000)])
+    expect(a.seq).toBe(2)
+    expect(b.seq).toBe(2)
+    expect(grims()).toBe(2)
+    expect(Date.now() - started).toBeGreaterThanOrEqual(300)
+    // An action's picture wakes a waiting watcher early.
+    const waiting = screen.view(2, 5_000)
+    await screen.act(agent, { do: "screenshot" }, undefined)
+    expect((await waiting).seq).toBe(3)
+    expect(grims()).toBe(3)
+    screen.dispose()
+  })
   it("serializes actions and does not run queued work after disposal", async () => {
     const m = machine()
     const started = Promise.withResolvers<void>()

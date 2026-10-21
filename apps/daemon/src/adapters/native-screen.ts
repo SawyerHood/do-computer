@@ -6,11 +6,14 @@ import {
   SHOT_EDGE,
   USE_HELD_WAIT_MS,
   type DesktopAction,
-  type LiveView,
   type ScreenActed,
   type Shot,
 } from "@do-computer/protocol"
 import type { Capture, ScreenDriver } from "./linux.ts"
+
+/** How often a new picture is taken for someone watching; the desktop app uses 400ms. */
+export const VIEW_EVERY_MS = 500
+const MAX_VIEW_WAIT_MS = 10_000
 
 function bounded<T>(
   work: (signal: AbortSignal) => Promise<T>,
@@ -56,8 +59,24 @@ export function nativeScreen(driver: ScreenDriver): ScreenIO & { dispose(): void
   const pending = new Set<AbortController>()
   let disposed = false
   let seq = 0
-  let viewing: Promise<LiveView> | undefined
-  let cached: { at: number; view: LiveView } | undefined
+  let viewing: Promise<void> | undefined
+  /** The newest picture, from an action or from someone watching; `seq` counts them. */
+  let latest: { shot: Shot; at: number } | undefined
+  const waiters = new Set<() => void>()
+  const changed = () => {
+    for (const wake of [...waiters]) wake()
+  }
+  /** Sleeps for up to `ms`, waking early when a picture is taken, use is held, or it stops. */
+  const nap = (ms: number) =>
+    new Promise<void>((resolve) => {
+      const done = () => {
+        clearTimeout(timer)
+        waiters.delete(done)
+        resolve()
+      }
+      const timer = setTimeout(done, Math.max(0, ms))
+      waiters.add(done)
+    })
   const point = (x: number, y: number) => {
     if (!frame) throw new Error("Take a screenshot before sending pointer coordinates")
     if (
@@ -79,8 +98,9 @@ export function nativeScreen(driver: ScreenDriver): ScreenIO & { dispose(): void
       disposed = true
       for (const controller of pending) controller.abort(new Error("Screen adapter stopped"))
       state.stop()
-      cached = undefined
+      latest = undefined
       frame = undefined
+      changed()
     },
     act(agent, action, say) {
       if (disposed) return Promise.reject(new Error("Screen adapter stopped"))
@@ -144,8 +164,9 @@ export function nativeScreen(driver: ScreenDriver): ScreenIO & { dispose(): void
               const image = shot(capture)
               frame = { image, capture }
               seq++
+              latest = { shot: image, at: Date.now() }
               state.touch()
-              cached = undefined
+              changed()
               return { shot: image }
             } finally {
               signal.removeEventListener("abort", abort)
@@ -163,32 +184,49 @@ export function nativeScreen(driver: ScreenDriver): ScreenIO & { dispose(): void
     async hold(held) {
       state.hold(held)
       if (held) active?.abort(new UseRefused("Screen use was paused by its owner."))
-      cached = undefined
+      // Watchers waiting for something newer are told at once.
+      seq++
+      changed()
     },
-    async view() {
+    /**
+     * What someone watching sees: returns as soon as there is a picture newer than `after`, and
+     * otherwise waits up to `waitMs`, taking a new picture at most every VIEW_EVERY_MS however
+     * many watch. Nothing is captured while nobody is using the screen.
+     */
+    async view(after, waitMs) {
+      const until = Date.now() + Math.min(Math.max(0, waitMs), MAX_VIEW_WAIT_MS)
+      while (!disposed && state.active && !(latest && seq > after) && !state.held) {
+        const wait = (latest?.at ?? Number.NEGATIVE_INFINITY) + VIEW_EVERY_MS - Date.now()
+        if (wait > 0) {
+          // No newer picture is due in the time there is: the one there is has to do.
+          if (Date.now() + wait > until) break
+          await nap(wait)
+          continue
+        }
+        viewing ??= bounded(
+          async (signal) => {
+            const image = shot(await driver.capture(signal))
+            if (disposed || !state.active) return
+            seq++
+            latest = { shot: image, at: Date.now() }
+            changed()
+          },
+          10_000,
+          pending,
+        ).finally(() => {
+          viewing = undefined
+        })
+        await viewing
+      }
       if (disposed || !state.active) return { active: false, seq }
-      if (cached && Date.now() - cached.at < 400) return cached.view
-      viewing ??= bounded(
-        async (signal) => {
-          const image = shot(await driver.capture(signal))
-          if (!state.active || disposed) return { active: false, seq }
-          const view: LiveView = {
-            active: state.active,
-            seq: ++seq,
-            shot: image,
-            held: state.held,
-            agent: state.agent,
-            say: state.say,
-          }
-          cached = { at: Date.now(), view }
-          return view
-        },
-        10_000,
-        pending,
-      ).finally(() => {
-        viewing = undefined
-      })
-      return viewing
+      return {
+        active: true,
+        seq,
+        ...(latest === undefined ? {} : { shot: latest.shot }),
+        held: state.held,
+        agent: state.agent,
+        say: state.say,
+      }
     },
   }
 }
