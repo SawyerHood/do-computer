@@ -27,10 +27,6 @@ const REFRESH_AFTER_MS = 20 * 24 * 60 * 60_000
 const MAX_FILE_BYTES = 64 * 1024 * 1024
 const SIGTERM = 15
 const SIGKILL = 9
-/** Optional deployment setup must not hold every command indefinitely. */
-const BOOT_TIMEOUT_MS = 120_000
-// Longer than boundedArgv's five-second kill grace, so it can kill the group first.
-const BOOT_GRACE_MS = 10_000
 
 /** The parts of `ExecProcess` the machine uses. */
 export interface ContainerProcessLike {
@@ -83,14 +79,6 @@ export type MachineConfig = {
   readonly internet: boolean
   /** The directory commands start in. Created when the machine first starts. */
   readonly home: string
-  /**
-   * A script run on every start of the machine, before any command, so a deployment can put
-   * something of its own on the machine each time it comes up: a VPN client, an agent of its own.
-   * Its environment carries whatever keys it needs, which are the Worker's secrets. A failure is
-   * logged and the machine is used anyway: what it sets up is the deployment's, not the agent's.
-   * Setup is limited to two minutes plus ten seconds for termination and provider grace.
-   */
-  readonly boot?: { readonly script: string; readonly env?: Record<string, string> }
 }
 
 export type ExecRequest = {
@@ -225,8 +213,6 @@ export class ContainerMachine {
       )
       signal.throwIfAborted()
       if (exitCode !== 0) throw new Error(`The machine could not be prepared: ${decode(stdout)}`)
-      await this.#boot(container)
-      signal.throwIfAborted()
       await this.#store.put({ needsSetup: false })
       signal.throwIfAborted()
       this.#needsSetup = false
@@ -278,63 +264,6 @@ export class ContainerMachine {
       expired = true
       kill()
     })
-  }
-
-  /** Run the deployment's script of its own once, on a machine that has just started. */
-  async #boot(container: ContainerLike): Promise<void> {
-    const boot = this.#config.boot
-    if (boot === undefined) return
-    let process: ContainerProcessLike | undefined
-    let expired = false
-    let exited = false
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const kill = () => {
-      if (process !== undefined && !exited) {
-        try {
-          process.kill(SIGKILL)
-        } catch {
-          // It may have exited between checking and signalling it.
-        }
-      }
-    }
-    try {
-      // GNU timeout bounds the script's process group. The Worker deadline also bounds
-      // exec/output RPCs and pipes held open by stray descendants.
-      const deadline = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => {
-          expired = true
-          kill()
-          reject(new Error(`Boot script timed out after ${BOOT_TIMEOUT_MS / 1000} seconds`))
-        }, BOOT_TIMEOUT_MS + BOOT_GRACE_MS)
-      })
-      const run = (async () => {
-        process = await container.exec(boundedArgv(boot.script, BOOT_TIMEOUT_MS), {
-          cwd: this.#config.home,
-          ...(boot.env === undefined ? {} : { env: boot.env }),
-          stderr: "combined",
-        })
-        void process.exitCode.then(
-          () => (exited = true),
-          () => (exited = true),
-        )
-        // A slow exec RPC can return a process after the Worker deadline has fired.
-        if (expired) {
-          kill()
-          throw new Error("Boot process arrived after its deadline")
-        }
-        return process.output()
-      })()
-      const { exitCode, stdout } = await Promise.race([run, deadline])
-      const said = decode(stdout).trim()
-      // Reported either way: a boot script that cannot set up what it is for is worth seeing.
-      if (said !== "") console.log(`The boot script said:\n${said.slice(0, 4000)}`)
-      if (exitCode !== 0) console.warn(`The boot script exited ${exitCode}`)
-    } catch (error) {
-      const said = error instanceof Error ? error.message : String(error)
-      console.warn(`The boot script did not run: ${said}`)
-    } finally {
-      clearTimeout(timer)
-    }
   }
 
   /** Who commands run as and where that user lives, asked of the image once per object. */

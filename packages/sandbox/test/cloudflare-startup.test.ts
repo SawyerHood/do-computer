@@ -5,9 +5,9 @@ import {
   type ContainerLike,
   type ContainerProcessLike,
 } from "../src/cloudflare/index.ts"
+import { SETUP_TIMEOUT_MS } from "../src/cloudflare/deadline.ts"
 import { fakeStore } from "./fake-container.ts"
 
-const BOOT = "deployment boot"
 const never = <T>() => new Promise<T>(() => {})
 const deferred = <T>() => Promise.withResolvers<T>()
 const process = (): ContainerProcessLike => ({
@@ -39,7 +39,6 @@ function world() {
     instance: "standard-1",
     internet: true,
     home: "/workspace",
-    boot: { script: BOOT },
   })
   const sandbox = containerSandbox({ id: "test", fetch: (request) => machine.fetch(request) })
   const begin = (id: string, command = "requested command") =>
@@ -65,74 +64,64 @@ afterEach(() => {
 })
 
 describe("cloudflare startup deadlines and cancellation", () => {
-  it("bounds boot output even if the provider never finishes it", async () => {
+  it("bounds setup output even if the provider never finishes it", async () => {
     vi.useFakeTimers()
-    const warning = vi.spyOn(console, "warn").mockImplementation(() => {})
     const w = world()
-    const boot = {
+    const setup = {
       ...process(),
       exitCode: never<number>(),
       output: () => never<Awaited<ReturnType<ContainerProcessLike["output"]>>>(),
     }
-    w.exec.mockImplementation(async (argv) => (argv.includes(BOOT) ? boot : process()))
-    const result = w.sandbox.exec("echo alive")
-    await vi.advanceTimersByTimeAsync(0)
-    expect(w.exec.mock.calls.find(([argv]) => argv.includes(BOOT))?.[0]).toEqual([
-      "timeout",
-      "--kill-after=5",
-      "120.000",
-      "bash",
-      "-c",
-      BOOT,
-    ])
-    await vi.advanceTimersByTimeAsync(130_000)
-    expect((await result).exitCode).toBe(0)
-    expect(boot.kill).toHaveBeenCalledWith(9)
-    expect(warning).toHaveBeenCalledWith(expect.stringContaining("timed out"))
-    expect(vi.getTimerCount()).toBe(0)
+    w.exec.mockImplementation(async (argv) => (argv[0] === "mkdir" ? setup : process()))
+    const result = w.sandbox.exec("must not run")
+    const failed = expect(result).rejects.toThrow()
+    await vi.advanceTimersByTimeAsync(SETUP_TIMEOUT_MS + 1_000)
+    await failed
+    expect(setup.kill).toHaveBeenCalledWith(9)
+    expect(w.exec.mock.calls.some(([argv]) => argv.includes("must not run"))).toBe(false)
   })
 
-  it("bounds a pending boot exec RPC and kills a process that arrives late", async () => {
+  it("bounds a pending setup exec RPC and kills a process that arrives late", async () => {
     vi.useFakeTimers()
-    vi.spyOn(console, "warn").mockImplementation(() => {})
     const w = world()
     const created = deferred<ContainerProcessLike>()
-    w.exec.mockImplementation(async (argv) => (argv.includes(BOOT) ? created.promise : process()))
-    const result = w.sandbox.exec("echo alive")
-    await vi.advanceTimersByTimeAsync(130_000)
-    expect((await result).exitCode).toBe(0)
+    w.exec.mockImplementation(async (argv) => (argv[0] === "mkdir" ? created.promise : process()))
+    const result = w.sandbox.exec("must not run")
+    const failed = expect(result).rejects.toThrow()
+    await vi.advanceTimersByTimeAsync(SETUP_TIMEOUT_MS + 1_000)
+    await failed
     const late = { ...process(), exitCode: never<number>() }
     created.resolve(late)
     await vi.advanceTimersByTimeAsync(0)
     expect(late.kill).toHaveBeenCalledWith(9)
   })
 
-  it("aborts a startup waiter without cancelling boot for another caller", async () => {
+  it("aborts a startup waiter without cancelling setup for another caller", async () => {
     const w = world()
     const entered = deferred<void>()
     const output = deferred<Awaited<ReturnType<ContainerProcessLike["output"]>>>()
-    const boot = {
+    const setup = {
       ...process(),
       output: () => {
         entered.resolve()
         return output.promise
       },
     }
-    w.exec.mockImplementation(async (argv) => (argv.includes(BOOT) ? boot : process()))
+    w.exec.mockImplementation(async (argv) => (argv[0] === "mkdir" ? setup : process()))
     const first = w.begin("first", "must not run")
     await entered.promise
     const second = w.begin("second", "must run")
     await w.abort("first")
     expect((await first).status).toBe(500)
-    expect(boot.kill).not.toHaveBeenCalled()
+    expect(setup.kill).not.toHaveBeenCalled()
     output.resolve({ stdout: new ArrayBuffer(0), stderr: new ArrayBuffer(0), exitCode: 0 })
     expect(await (await second).text()).toContain('"exitCode":0')
     expect(w.exec.mock.calls.some(([argv]) => argv.includes("must not run"))).toBe(false)
     expect(w.exec.mock.calls.some(([argv]) => argv.includes("must run"))).toBe(true)
-    expect(w.exec.mock.calls.filter(([argv]) => argv.includes(BOOT))).toHaveLength(1)
+    expect(w.exec.mock.calls.filter(([argv]) => argv[0] === "mkdir")).toHaveLength(1)
   })
 
-  it("can abort during preparation before boot starts", async () => {
+  it("can abort during preparation", async () => {
     const w = world()
     const entered = deferred<void>()
     const prepared = deferred<ContainerProcessLike>()
@@ -172,12 +161,12 @@ describe("cloudflare startup deadlines and cancellation", () => {
     expect(w.exec.mock.calls.some(([argv]) => argv.includes("must not run"))).toBe(false)
   })
 
-  it("propagates caller cancellation through the sandbox client during boot", async () => {
+  it("propagates caller cancellation through the sandbox client during setup", async () => {
     const w = world()
     const entered = deferred<void>()
     const output = deferred<Awaited<ReturnType<ContainerProcessLike["output"]>>>()
     w.exec.mockImplementation(async (argv) =>
-      argv.includes(BOOT)
+      argv[0] === "mkdir"
         ? {
             ...process(),
             output: () => {
@@ -238,7 +227,7 @@ describe("cloudflare startup deadlines and cancellation", () => {
     expect(stuck.kill).toHaveBeenCalledWith(15)
   })
 
-  it("clears the boot deadline after a successful boot", async () => {
+  it("clears startup deadlines after a successful start", async () => {
     vi.useFakeTimers()
     const w = world()
     await w.sandbox.exec("true")
