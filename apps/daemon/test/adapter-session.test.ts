@@ -193,3 +193,22 @@ it("cancels discovery before running any command", async () => {
     ),
   ).rejects.toMatchObject({ name: "AbortError" })
 })
+it.skipIf(uid === 0 || process.platform === "win32")(
+  "accepts group-writable Hyprland directories (umask 0002) but not world-writable ones",
+  async () => {
+    const path = await runtime()
+    await chmod(join(path, "hypr"), 0o775)
+    await chmod(join(path, "hypr", "owned-instance"), 0o775)
+    const discovered = await discoverSession({ XDG_RUNTIME_DIR: path }, runFor(uid))
+    expect(discovered.reason).toBeUndefined()
+    expect(discovered.env.HYPRLAND_INSTANCE_SIGNATURE).toBe("owned-instance")
+    await chmod(join(path, "hypr", "owned-instance"), 0o777)
+    const instance = await discoverSession({ XDG_RUNTIME_DIR: path }, runFor(uid))
+    expect(instance.env.HYPRLAND_INSTANCE_SIGNATURE).toBeUndefined()
+    await chmod(join(path, "hypr", "owned-instance"), 0o700)
+    await chmod(join(path, "hypr"), 0o777)
+    expect((await discoverSession({ XDG_RUNTIME_DIR: path }, runFor(uid))).reason).toMatch(
+      /not a private owned/,
+    )
+  },
+)

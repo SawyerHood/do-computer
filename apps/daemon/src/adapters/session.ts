@@ -2,6 +2,13 @@ import { lstat, readdir } from "node:fs/promises"
 import { join } from "node:path"
 import type { Command } from "./command.ts"
 
+/**
+ * Owned and not writable by everyone. Group-write is allowed: a umask of 0002 (one group per
+ * user) gives Hyprland's own directories that mode, and the 0700 runtime directory above them is
+ * what keeps other users out.
+ */
+const WORLD_WRITABLE = 0o002
+
 /** Discover only this UID's runtime sockets and a unique owned graphical logind session.
  * Explicit values win. Never inspect process environments, other users' sockets, or /tmp.
  */
@@ -132,7 +139,7 @@ export async function discoverSession(
       const directory = await lstat(hypr).catch(() => undefined)
       if (
         directory &&
-        (!directory.isDirectory() || directory.uid !== uid || (directory.mode & 0o022) !== 0)
+        (!directory.isDirectory() || directory.uid !== uid || (directory.mode & WORLD_WRITABLE) !== 0)
       )
         return {
           env: found,
@@ -147,7 +154,8 @@ export async function discoverSession(
         const socket = await lstat(join(dir, ".socket.sock")).catch(() => undefined)
         if (
           owner.uid === uid &&
-          (owner.mode & 0o022) === 0 &&
+          owner.isDirectory() &&
+          (owner.mode & WORLD_WRITABLE) === 0 &&
           socket?.isSocket() &&
           socket.uid === uid
         )
