@@ -259,7 +259,7 @@ async function run(config: Config): Promise<void> {
       report: {
         adapter: config.screenAdapter ?? (EMBEDDED ? "ipc" : "auto"),
         enabled: true,
-        available: false,
+        available: true,
         ready: false,
         reason: "Checking the screen adapter.",
       },
@@ -404,7 +404,7 @@ async function run(config: Config): Promise<void> {
         describeScreen()
         hello()
       })
-  } else if (!FAKE_SCREEN) describeScreen()
+  }
 
   let attempt = 0
   for (;;) {
