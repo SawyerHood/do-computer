@@ -280,6 +280,7 @@ export class DaemonCore {
         while (this.#expired.size > 1024) this.#expired.delete(this.#expired.keys().next().value!)
         try {
           this.#sendOrBuffer(
+            id,
             JSON.stringify({
               t: "err",
               id,
@@ -306,8 +307,9 @@ export class DaemonCore {
     }
   }
 
-  #sendOrBuffer(frame: string, allowExpired = false): void {
-    if (!allowExpired && this.#expired.has((JSON.parse(frame) as { id?: string }).id ?? "")) return
+  /** `id` is the request the frame answers: one already answered as timed out is not answered again. */
+  #sendOrBuffer(id: string, frame: string, allowExpired = false): void {
+    if (!allowExpired && this.#expired.has(id)) return
     if (this.#outbox.length > 0 || !this.#send(frame)) {
       this.#outbox.push(frame)
       // Bounded: drop the oldest. Whoever waited for a result that old has given up.
@@ -316,7 +318,7 @@ export class DaemonCore {
   }
 
   #error(id: string, code: DaemonErrorCode, message: string): void {
-    this.#sendOrBuffer(JSON.stringify({ t: "err", id, code, message }))
+    this.#sendOrBuffer(id, JSON.stringify({ t: "err", id, code, message }))
   }
 
   #refuse(id: string, what: string): void {
@@ -449,6 +451,7 @@ export class DaemonCore {
       ms: this.#now() - startedAt,
     })
     this.#sendOrBuffer(
+      id,
       JSON.stringify({
         t: "exec_result",
         id,
@@ -508,7 +511,7 @@ export class DaemonCore {
           await jobs.remove(frame.jobs ?? [])
           break
       }
-      this.#sendOrBuffer(JSON.stringify({ t: "job_result", id: frame.id, value }))
+      this.#sendOrBuffer(frame.id, JSON.stringify({ t: "job_result", id: frame.id, value }))
     } catch (error) {
       this.#error(frame.id, errorCode(error), (error as Error)?.message ?? String(error))
     }
@@ -518,7 +521,7 @@ export class DaemonCore {
   async #use(id: string, work: () => Promise<unknown>): Promise<void> {
     try {
       const value = (await work()) ?? true
-      this.#sendOrBuffer(JSON.stringify({ t: "use_result", id, value }))
+      this.#sendOrBuffer(id, JSON.stringify({ t: "use_result", id, value }))
     } catch (error) {
       const message = (error as Error)?.message ?? String(error)
       this.#error(id, error instanceof UseRefused ? "refused" : "io", message)
@@ -697,6 +700,7 @@ export class DaemonCore {
     const chunks = chunkBytes(bytes)
     chunks.forEach((data, seq) => {
       this.#sendOrBuffer(
+        id,
         JSON.stringify({ t: "file_chunk", id, seq, data, last: seq === chunks.length - 1 }),
       )
     })
@@ -708,7 +712,7 @@ export class DaemonCore {
    */
   async #image(frame: ImageFrame): Promise<void> {
     const answer = (value: unknown) =>
-      this.#sendOrBuffer(JSON.stringify({ t: "image_result", id: frame.id, value }))
+      this.#sendOrBuffer(frame.id, JSON.stringify({ t: "image_result", id: frame.id, value }))
     const prepare = this.#io.prepareImage
     if (prepare === undefined) return answer(null)
     const size = await this.#io.statSize(frame.path).catch(() => null)
@@ -771,7 +775,7 @@ export class DaemonCore {
       if (MUTATING_FS_OPS.has(frame.op)) {
         this.#io.audit({ ts: this.#now(), kind: frame.op, path: frame.path, to: frame.to })
       }
-      this.#sendOrBuffer(JSON.stringify({ t: "fs_result", id: frame.id, value }))
+      this.#sendOrBuffer(frame.id, JSON.stringify({ t: "fs_result", id: frame.id, value }))
     } catch (error) {
       this.#error(frame.id, errorCode(error), (error as Error)?.message ?? String(error))
     }
@@ -803,7 +807,7 @@ export class DaemonCore {
       return this.#error(id, "io", `Could not write ${pending.path}: ${(error as Error)?.message}`)
     }
     this.#io.audit({ ts: this.#now(), kind: "write", path: pending.path, bytes: total })
-    this.#sendOrBuffer(JSON.stringify({ t: "ok", id }))
+    this.#sendOrBuffer(id, JSON.stringify({ t: "ok", id }))
   }
 
   #collectStaleWrites(): void {

@@ -84,18 +84,22 @@ const ANSWER_GRACE_MS = 20_000
  * whole group at the limit, or when it is itself asked to stop; the shell around it is outside
  * that group, and lives to write how it ended, and how long it took by bash's own clock: a
  * \`date\` that is not GNU's cannot be trusted with milliseconds. `dd` passes on what is printed as it comes and
- * stops at the cap, which ends a job that prints without end.
+ * stops at the cap, which ends a job that prints without end. The job's id is claimed by linking
+ * its identity into place whole, so a start that races another never reads half of it.
  */
 const START = `d=$1
 claim="\${d%/*}/.claims/\${d##*/}"
 mkdir -p "$claim" || exit 1
 chmod 700 "$claim"
 [ -e "$claim/stopped" ] && exit 0
-if ! mkdir "$claim/started" 2>/dev/null; then
+t="$claim/identity.$$"
+printf '%s' "$5" > "$t" || exit 1
+if ! ln "$t" "$claim/identity" 2>/dev/null; then
+  rm -f "$t"
   [ "$(cat "$claim/identity" 2>/dev/null)" = "$5" ] || exit 1
   exit 0
 fi
-printf '%s' "$5" > "$claim/identity"
+rm -f "$t"
 [ -e "$claim/stopped" ] && exit 0
 [ -e "$d/command" ] && exit 0
 mkdir -p "$d" || exit 1
