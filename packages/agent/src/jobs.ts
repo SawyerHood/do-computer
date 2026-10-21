@@ -431,7 +431,9 @@ export class Jobs {
     const run = async () => {
       if (this.#harness === undefined) return
       try {
-        await this.#look(context)
+        // Intents after the running commands, so a computer that is slow to answer about one it
+        // was starting does not hold up word of the others.
+        await this.#look(context).finally(() => this.#reconcile(context))
         const now = this.#options.now()
         const running = Object.values(await this.#jobs(context)).filter(
           (job) => job.status === "running",
@@ -447,33 +449,6 @@ export class Jobs {
   }
 
   async #look(context: Context): Promise<void> {
-    // Anything no longer owned by a live foreground call must be reconciled, even
-    // if the tool never reached its background handoff. Retain on uncertain cleanup.
-    const intents = (await this.#require().snapshot(JobsDoc, context))?.intents ?? {}
-    for (const [folder, intent] of Object.entries(intents)) {
-      if (this.#foreground.has(folder)) continue
-      let timer: ReturnType<typeof setTimeout> | undefined
-      try {
-        await Promise.race([
-          (async () => {
-            const runner = await this.#reach(intent, context)
-            // The snapshot above may predate a completed background handoff.
-            const current = (await this.#require().snapshot(JobsDoc, context))?.intents?.[folder]
-            if (current === undefined || this.#foreground.has(folder)) return
-            await runner.stop(folder)
-            const state = (await runner.check([folder]))[folder]
-            if (state !== undefined && state.state !== "running") await this.#forgetIntent(folder)
-          })(),
-          new Promise<never>((_, reject) => {
-            timer = setTimeout(() => reject(new Error("Job cleanup timed out")), 30_000)
-          }),
-        ])
-      } catch (error) {
-        this.#options.onError?.(error)
-      } finally {
-        clearTimeout(timer)
-      }
-    }
     const now = this.#options.now()
     const jobs = await this.#jobs(context)
     const stale = Object.entries(jobs).filter(
@@ -519,6 +494,51 @@ export class Jobs {
         await this.#ended(id, job, state, runner, gone ? "computer" : undefined, context)
       }
     }
+  }
+
+  /**
+   * Anything no longer owned by a live foreground call is stopped and forgotten, even if the
+   * tool never reached its background handoff. Each is reconciled at once, and each on its own
+   * deadline, so that one computer that does not answer holds up none of the others.
+   */
+  async #reconcile(context: Context): Promise<void> {
+    const intents = (await this.#require().snapshot(JobsDoc, context))?.intents ?? {}
+    const now = this.#options.now()
+    await Promise.allSettled(
+      Object.entries(intents).map(async ([folder, intent]) => {
+        if (this.#foreground.has(folder)) return
+        let timer: ReturnType<typeof setTimeout> | undefined
+        try {
+          await Promise.race([
+            (async () => {
+              const runner = await this.#reach(intent, context)
+              // The snapshot above may predate a completed background handoff.
+              const current = (await this.#require().snapshot(JobsDoc, context))?.intents?.[folder]
+              if (current === undefined || this.#foreground.has(folder)) return
+              await runner.stop(folder)
+              const state = (await runner.check([folder]))[folder]
+              if (state !== undefined && state.state !== "running") {
+                await this.#forgetIntent(folder)
+              }
+            })(),
+            new Promise<never>((_, reject) => {
+              timer = setTimeout(() => reject(new Error("Job cleanup timed out")), 30_000)
+            }),
+          ])
+        } catch (error) {
+          // Its computer was taken away or removed: nothing is left there to stop, and nobody to
+          // ask. One that is past its time limit by far has been stopped by its computer anyway,
+          // if the computer is ever there to; it is not kept looking in on forever.
+          if (error instanceof JobError || now - intent.startedAt > intent.lifeMs + OVERDUE_MS) {
+            await this.#forgetIntent(folder).catch((error) => this.#options.onError?.(error))
+          }
+          // A computer that cannot be reached right now is asked again at the next look. A
+          // laptop that is asleep is not worth a report each time.
+        } finally {
+          clearTimeout(timer)
+        }
+      }),
+    )
   }
 
   /** A command has ended: read the last of what it printed, send word, and write it down. */
@@ -678,7 +698,7 @@ export class Jobs {
       if (state.intents) delete state.intents[input.folder]
       return id
     }, context)
-    this.#options.onStarted?.()
+    // `onStarted` was called when its intent was written down, which this only takes over.
     this.#soon(0)
     return id
   }

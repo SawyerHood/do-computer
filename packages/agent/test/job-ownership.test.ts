@@ -58,12 +58,13 @@ function world() {
     ),
   } as unknown as Harness
   const errors: unknown[] = []
+  const computer = vi.fn(async (_id: string): Promise<ComputerTarget | string> => target)
   const create = () => {
     const jobs = new Jobs({
       agentId: "a",
       now: Date.now,
       context: BACKGROUND_CONTEXT,
-      computer: async () => target,
+      computer: (id) => computer(id),
       onError: (error) => errors.push(error),
     })
     jobs.attach(harness)
@@ -80,7 +81,7 @@ function world() {
       context,
     )
   }
-  return { state, runner, harness, create, invoke, errors, live }
+  return { state, runner, harness, create, invoke, errors, live, computer, target }
 }
 
 it("commits durable ownership before issuing start and removes it on foreground completion", async () => {
@@ -159,11 +160,13 @@ it("does not reclaim a successfully handed-off job from a stale intent snapshot"
   const result = w.invoke(jobs)
   await entered.promise
   const snapshot = Promise.withResolvers<void>()
-  vi.mocked(w.harness.snapshot).mockImplementationOnce(async () => {
-    const stale = structuredClone(w.state)
+  // Both the look at running commands and the reconciliation of intents read before handoff.
+  const stale = async () => {
+    const before = structuredClone(w.state)
     await snapshot.promise
-    return stale as never
-  })
+    return before as never
+  }
+  vi.mocked(w.harness.snapshot).mockImplementationOnce(stale).mockImplementationOnce(stale)
   const tick = jobs.tick()
   await Promise.resolve()
   await Promise.resolve()
@@ -196,5 +199,68 @@ it("bounds a reconciliation attempt without discarding an uncertain intent", asy
   await vi.advanceTimersByTimeAsync(30_000)
   await tick
   expect(w.state.intents.orphan).toBeDefined()
-  expect(w.errors.map(String)).toContain("Error: Job cleanup timed out")
+  // A computer that does not answer, such as a laptop asleep, is not worth a report each time.
+  expect(w.errors).toEqual([])
+})
+
+const intent = (folder: string, extra: Partial<JobRecord> = {}): JobRecord => ({
+  chatId: "chat",
+  computerId: "computer",
+  computer: "paired",
+  command: "test command",
+  folder,
+  log: "/log",
+  status: "running",
+  startedAt: Date.now(),
+  lifeMs: 60_000,
+  seen: 0,
+  ...extra,
+})
+
+it("drops an intent whose computer is gone, without reporting it, and stops looking", async () => {
+  const w = world(),
+    jobs = w.create()
+  w.state.intents.orphan = intent("orphan")
+  expect(await jobs.working(BACKGROUND_CONTEXT)).toBe(true)
+  w.computer.mockResolvedValue('The computer "paired" is no longer connected to you.')
+  await jobs.tick()
+  expect(w.state.intents).toEqual({})
+  expect(w.errors).toEqual([])
+  expect(await jobs.working(BACKGROUND_CONTEXT)).toBe(false)
+})
+
+it("gives up on an unreachable intent once it is long past its time limit", async () => {
+  vi.useFakeTimers()
+  const w = world(),
+    jobs = w.create()
+  w.state.intents.recent = intent("recent")
+  w.state.intents.overdue = intent("overdue", { startedAt: Date.now() - 2 * 60 * 60_000 })
+  w.computer.mockRejectedValue(new Error("connection refused"))
+  await jobs.tick()
+  expect(Object.keys(w.state.intents)).toEqual(["recent"])
+  expect(w.errors).toEqual([])
+})
+
+it("reconciles intents at once, after the running commands, so one stuck computer delays none", async () => {
+  vi.useFakeTimers()
+  const w = world(),
+    jobs = w.create()
+  w.state.intents.stuck = intent("stuck", { computerId: "stuck" })
+  w.state.intents.fine = intent("fine")
+  w.state.jobs.b1 = intent("server")
+  w.live.add("server")
+  const order: string[] = []
+  w.computer.mockImplementation(async (id) => {
+    order.push(id)
+    return id === "stuck" ? new Promise<never>(() => {}) : w.target
+  })
+  const tick = jobs.tick()
+  await vi.advanceTimersByTimeAsync(0)
+  // The running command was looked at first, and the reachable intent did not wait.
+  expect(order[0]).toBe("computer")
+  expect(w.runner.check).toHaveBeenCalledWith(["server"])
+  expect(Object.keys(w.state.intents)).toEqual(["stuck"])
+  await vi.advanceTimersByTimeAsync(30_000)
+  await tick
+  expect(Object.keys(w.state.intents)).toEqual(["stuck"])
 })
