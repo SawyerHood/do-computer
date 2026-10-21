@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { createServer, type Server, type Socket } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, expect, it } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 import { virtualPointer, waylandSocket } from "../src/adapters/wayland-pointer.ts"
 
 type Request = { object: number; opcode: number; body: Buffer }
@@ -78,71 +78,74 @@ async function compositor(offer = true) {
 }
 const layout = { x: 0, y: 0, width: 3200, height: 1080 }
 
-it("binds the manager, sends absolute motion in layout space, and frames each step", async () => {
-  const wl = await compositor()
-  await virtualPointer(wl.path, layout, [
-    { do: "move", x: 1600, y: 270 },
-    { do: "button", button: "left", pressed: true },
-    { do: "button", button: "left", pressed: false },
-    { do: "scroll", axis: "vertical", notches: -1 },
-  ])
-  await wl.disconnected
-  const bind = wl.requests.find((r) => r.object === 2 && r.opcode === 0)!
-  expect(bind.body.readUInt32LE(0)).toBe(9)
-  expect(bind.body.toString("utf8", 8, 39)).toBe("zwlr_virtual_pointer_manager_v1")
-  const ops = wl.pointerRequests().map((r) => r.opcode)
-  // motion_absolute, frame, button, frame, button, frame, axis_source, axis_discrete, frame, destroy
-  expect(ops).toEqual([1, 4, 2, 4, 2, 4, 5, 7, 4, 8])
-  const motion = wl.pointerRequests()[0]!.body
-  expect([motion.readUInt32LE(4), motion.readUInt32LE(8), motion.readUInt32LE(12)]).toEqual([
-    500_000, 250_000, 1_000_000,
-  ])
-  const press = wl.pointerRequests()[2]!.body
-  expect([press.readUInt32LE(4), press.readUInt32LE(8)]).toEqual([0x110, 1])
-  const discrete = wl.pointerRequests()[7]!.body
-  expect([discrete.readInt32LE(8), discrete.readInt32LE(12)]).toEqual([-15 * 256, -1])
-})
-
-it("releases a held button and keeps the original error when a step fails", async () => {
-  const wl = await compositor()
-  await expect(
-    virtualPointer(wl.path, layout, [
+// Unix-domain sockets at filesystem paths: Wayland exists only where those do.
+describe.skipIf(process.platform === "win32")("on a Unix socket", () => {
+  it("binds the manager, sends absolute motion in layout space, and frames each step", async () => {
+    const wl = await compositor()
+    await virtualPointer(wl.path, layout, [
+      { do: "move", x: 1600, y: 270 },
       { do: "button", button: "left", pressed: true },
-      { do: "move", x: 99_999, y: 0 },
-    ]),
-  ).rejects.toThrow(/outside every output/)
-  await wl.disconnected
-  const buttons = wl.pointerRequests().filter((r) => r.opcode === 2)
-  expect(buttons.map((r) => r.body.readUInt32LE(8))).toEqual([1, 0])
-})
+      { do: "button", button: "left", pressed: false },
+      { do: "scroll", axis: "vertical", notches: -1 },
+    ])
+    await wl.disconnected
+    const bind = wl.requests.find((r) => r.object === 2 && r.opcode === 0)!
+    expect(bind.body.readUInt32LE(0)).toBe(9)
+    expect(bind.body.toString("utf8", 8, 39)).toBe("zwlr_virtual_pointer_manager_v1")
+    const ops = wl.pointerRequests().map((r) => r.opcode)
+    // motion_absolute, frame, button, frame, button, frame, axis_source, axis_discrete, frame, destroy
+    expect(ops).toEqual([1, 4, 2, 4, 2, 4, 5, 7, 4, 8])
+    const motion = wl.pointerRequests()[0]!.body
+    expect([motion.readUInt32LE(4), motion.readUInt32LE(8), motion.readUInt32LE(12)]).toEqual([
+      500_000, 250_000, 1_000_000,
+    ])
+    const press = wl.pointerRequests()[2]!.body
+    expect([press.readUInt32LE(4), press.readUInt32LE(8)]).toEqual([0x110, 1])
+    const discrete = wl.pointerRequests()[7]!.body
+    expect([discrete.readInt32LE(8), discrete.readInt32LE(12)]).toEqual([-15 * 256, -1])
+  })
 
-it("releases a held button when aborted mid-drag", async () => {
-  const wl = await compositor()
-  const controller = new AbortController()
-  setTimeout(() => controller.abort(new Error("stopped by owner")), 50)
-  await expect(
-    virtualPointer(
-      wl.path,
-      layout,
-      [
+  it("releases a held button and keeps the original error when a step fails", async () => {
+    const wl = await compositor()
+    await expect(
+      virtualPointer(wl.path, layout, [
         { do: "button", button: "left", pressed: true },
-        { do: "wait", ms: 5_000 },
-        { do: "move", x: 10, y: 10 },
-      ],
-      controller.signal,
-    ),
-  ).rejects.toThrow(/stopped by owner/)
-  await wl.disconnected
-  const buttons = wl.pointerRequests().filter((r) => r.opcode === 2)
-  expect(buttons.map((r) => r.body.readUInt32LE(8))).toEqual([1, 0])
-  expect(wl.pointerRequests().some((r) => r.opcode === 1)).toBe(false)
-})
+        { do: "move", x: 99_999, y: 0 },
+      ]),
+    ).rejects.toThrow(/outside every output/)
+    await wl.disconnected
+    const buttons = wl.pointerRequests().filter((r) => r.opcode === 2)
+    expect(buttons.map((r) => r.body.readUInt32LE(8))).toEqual([1, 0])
+  })
 
-it("says so when the compositor has no virtual pointers", async () => {
-  const wl = await compositor(false)
-  await expect(virtualPointer(wl.path, layout, [{ do: "move", x: 1, y: 1 }])).rejects.toThrow(
-    /does not offer virtual pointers/,
-  )
+  it("releases a held button when aborted mid-drag", async () => {
+    const wl = await compositor()
+    const controller = new AbortController()
+    setTimeout(() => controller.abort(new Error("stopped by owner")), 50)
+    await expect(
+      virtualPointer(
+        wl.path,
+        layout,
+        [
+          { do: "button", button: "left", pressed: true },
+          { do: "wait", ms: 5_000 },
+          { do: "move", x: 10, y: 10 },
+        ],
+        controller.signal,
+      ),
+    ).rejects.toThrow(/stopped by owner/)
+    await wl.disconnected
+    const buttons = wl.pointerRequests().filter((r) => r.opcode === 2)
+    expect(buttons.map((r) => r.body.readUInt32LE(8))).toEqual([1, 0])
+    expect(wl.pointerRequests().some((r) => r.opcode === 1)).toBe(false)
+  })
+
+  it("says so when the compositor has no virtual pointers", async () => {
+    const wl = await compositor(false)
+    await expect(virtualPointer(wl.path, layout, [{ do: "move", x: 1, y: 1 }])).rejects.toThrow(
+      /does not offer virtual pointers/,
+    )
+  })
 })
 
 it("finds the socket as libwayland does", () => {

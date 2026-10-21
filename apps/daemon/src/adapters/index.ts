@@ -85,7 +85,10 @@ export function screenOff(
 export function screenRefusal(report: AdapterReport): string {
   const status = adapterStatus(report)
   if (status.state === "disabled")
-    return `Screen sharing is disabled by its owner. ${report.adapter === "ipc" ? "Its owner can enable it in the desktop app and check daemon --screen=auto if it was explicitly disabled there." : "Its owner can enable it locally with --screen=auto or --enable-screen."} Screen sharing must not be enabled without the owner\'s consent.`
+    // The desktop app's wording, which agents and the app's own tests know, is kept as it was.
+    return report.adapter === "ipc"
+      ? "This computer does not let Doods use its screen. Whoever it belongs to can switch that on in the Do Computer app there, under This Computer. It cannot be switched on from here."
+      : "This computer does not let Doods use its screen (screen sharing is disabled by its owner). Its owner can enable it on this computer with --enable-screen or --screen=auto. It cannot be switched on from here, and must not be without the owner's consent."
   if (status.state === "ready") return "The screen adapter is starting. Retry shortly."
   return `Screen sharing is ${status.state === "blocked" ? "available but currently blocked" : "unsupported here"} (${status.name}). ${status.reason ?? "Run --doctor on this computer for diagnostics."}`
 }

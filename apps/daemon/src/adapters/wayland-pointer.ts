@@ -6,7 +6,8 @@
  * socket, only the plain wire protocol.
  */
 import { connect, type Socket } from "node:net"
-import { isAbsolute, join } from "node:path"
+// Wayland is Linux-only: its paths are POSIX paths wherever this code is built or tested.
+import { isAbsolute, join } from "node:path/posix"
 
 /** One step of pointer input. Coordinates are in the compositor's global layout space. */
 export type PointerStep =

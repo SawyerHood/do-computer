@@ -201,7 +201,7 @@ describe("adapter selection and permission", () => {
     expect(adapterStatus(selected.report).state).toBe("blocked")
     expect(screenRefusal(selected.report)).toMatch(/available but currently blocked/)
     expect(screenRefusal({ ...selected.report, available: true, enabled: false })).toMatch(
-      /disabled by its owner.*--screen=auto/,
+      /does not let Doods use its screen.*disabled by its owner.*--screen=auto/,
     )
     expect(screenRefusal({ ...selected.report, available: false })).toMatch(/unsupported here/)
     expect(screenRefusal({ ...selected.report, available: false })).not.toMatch(

@@ -531,10 +531,11 @@ describe("computers the agent was not given", () => {
     try {
       faux.setResponses(useTool("computers", { action: "list" }))
       const listed = lastTool(await say(chat.id, "what is wrong with the screen?"))
-      expect(listed.output).toContain("screen: hyprland [blocked]: grim failed (1): compositor")
-      expect(listed.output).not.toContain("\n".repeat(2) + "compositor said no")
-      expect(listed.output.length).toBeLessThan(reason.length)
-      expect(listed.output).toContain("…")
+      const output = String(listed.output)
+      expect(output).toContain("screen: hyprland [blocked]: grim failed (1): compositor")
+      expect(output).not.toContain("\n".repeat(2) + "compositor said no")
+      expect(output.length).toBeLessThan(reason.length)
+      expect(output).toContain("…")
     } finally {
       nearby = before
     }
