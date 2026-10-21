@@ -109,7 +109,7 @@ export function nodeJobs(options: NodeJobsOptions): (scope: string) => SandboxJo
     typeof options.shell === "string" ? posixShell(options.shell) : (options.shell ?? findShell())
   const windows = process.platform === "win32"
   /** The program a job is, and what it is given. */
-  const program = (command: string, dir: string, lifeMs: number): [string, string[]] => {
+  const program = (command: string, dir: string, deadline: number): [string, string[]] => {
     if (!windows) {
       return [
         process.execPath,
@@ -121,7 +121,7 @@ export function nodeJobs(options: NodeJobsOptions): (scope: string) => SandboxJo
           path.join(claimOf(dir), "stopped"),
           shell.file,
           JSON.stringify(shell.args(command)),
-          String(process.hrtime.bigint() + BigInt(Math.ceil(lifeMs)) * 1_000_000n),
+          String(deadline),
           String(cap),
         ],
       ]
@@ -172,6 +172,11 @@ export function nodeJobs(options: NodeJobsOptions): (scope: string) => SandboxJo
     )
     await fs.rename(path.join(dir, "exit.tmp"), path.join(dir, "exit"))
   }
+  const exists = (file: string) =>
+    fs.stat(file).then(
+      () => true,
+      () => false,
+    )
   const number = async (file: string) =>
     Number(await fs.readFile(file, "utf8").catch(() => "")) || 0
   const sizeOf = async (dir: string) =>
@@ -184,9 +189,12 @@ export function nodeJobs(options: NodeJobsOptions): (scope: string) => SandboxJo
     if (live.has(dir)) return { state: "running" }
     const pid = await number(path.join(dir, "pid"))
     if (pid > 0 && alive(pid)) {
-      // A daemon that restarted has no timer for it. Its limit is on record all the same.
+      // A daemon that restarted has no timer for it. Its limit is on record all the same. A
+      // supervised job's supervisor stops it at its limit itself; this is only for one whose
+      // supervisor has failed to.
       const deadline = await number(path.join(dir, "deadline"))
-      if (deadline > 0 && Date.now() > deadline) {
+      const grace = (await exists(path.join(dir, "supervised"))) ? KILL_AFTER_MS * 2 : 0
+      if (deadline > 0 && Date.now() > deadline + grace) {
         stopGroup(pid, dir)
         await writeExit(dir, 124, true)
         return { state: "exited", exitCode: 124, timedOut: true }
@@ -241,15 +249,17 @@ export function nodeJobs(options: NodeJobsOptions): (scope: string) => SandboxJo
     }
     await fs.mkdir(dir, { recursive: true })
     await fs.writeFile(path.join(dir, "command"), `${job.command}\n`)
-    if (!windows) await fs.writeFile(path.join(dir, "supervised"), "1", { mode: 0o600 })
+    const supervised = !windows
+    if (supervised) await fs.writeFile(path.join(dir, "supervised"), "1", { mode: 0o600 })
     const log = openSync(path.join(dir, "output.log"), "a")
     const startedAt = Date.now()
+    const deadline = startedAt + job.lifeMs
     let child: ChildProcess
     try {
       // Its own process group, so that stopping it stops what it started, and so that it is
       // not stopped with the daemon. Not on Windows, where a program started apart from the
       // daemon has no console, and neither bash nor PowerShell prints anything without one.
-      const [file, args] = program(job.command, dir, job.lifeMs)
+      const [file, args] = program(job.command, dir, deadline)
       child = spawn(file, args, {
         cwd: job.cwd === undefined ? options.home : options.resolve(job.cwd),
         env: windows
@@ -288,15 +298,20 @@ export function nodeJobs(options: NodeJobsOptions): (scope: string) => SandboxJo
       ).catch(() => {})
       if (live.get(dir) === entry) live.delete(dir)
     }
-    const limit = setTimeout(() => stop("limit"), job.lifeMs)
-    limit.unref()
-    entry.timers.push(limit)
-    const measure = setInterval(() => {
-      void sizeOf(dir).then((size) => {
-        if (size !== undefined && size > cap) stop("output")
-      })
-    }, MEASURE_EVERY_MS)
-    measure.unref()
+    // A supervised job's supervisor keeps its limit and its cap, and is the one to say it was
+    // stopped at its limit: a timer here as well would race it and could record a stop instead.
+    let measure: ReturnType<typeof setInterval> | undefined
+    if (!supervised) {
+      const limit = setTimeout(() => stop("limit"), job.lifeMs)
+      limit.unref()
+      entry.timers.push(limit)
+      measure = setInterval(() => {
+        void sizeOf(dir).then((size) => {
+          if (size !== undefined && size > cap) stop("output")
+        })
+      }, MEASURE_EVERY_MS)
+      measure.unref()
+    }
     child.on("error", (error) => {
       void fs
         .appendFile(path.join(dir, "output.log"), `Could not start the command: ${error.message}\n`)
@@ -313,7 +328,7 @@ export function nodeJobs(options: NodeJobsOptions): (scope: string) => SandboxJo
       if (!(windows && shell.posix)) {
         await fs.writeFile(path.join(dir, "pid"), String(child.pid))
       }
-      await fs.writeFile(path.join(dir, "deadline"), String(Date.now() + job.lifeMs))
+      await fs.writeFile(path.join(dir, "deadline"), String(deadline))
     }
   }
 

@@ -162,50 +162,65 @@ it("does not replay a command after its short output folder was removed", async 
   expect(await readFile(join(dir, "marker"), "utf8")).toBe("once\n")
 })
 
-for (const background of [false, true]) {
+const gone = async (pid: number) => {
+  try {
+    process.kill(pid, 0)
+  } catch {
+    return true
+  }
+  const stat = await readFile(`/proc/${pid}/stat`, "utf8").catch(() => "")
+  return stat !== "" && stat.slice(stat.lastIndexOf(")") + 2).startsWith("Z")
+}
+
+const cases = {
+  // The command ends by itself: what it started in the background is meant to outlive it, as
+  // `server &` or `nohup server &` does, and as the Linux sandbox's jobs leave it.
+  exits: { command: "sleep 30 & echo $! > child-marker; echo started", survives: true },
+  stopped: { command: "sleep 30 & echo $! > child-marker; wait", survives: false },
+  "TERM-ignoring": {
+    command: "trap '' TERM; echo $$ > child-marker; while :; do sleep 1; done",
+    survives: false,
+  },
+}
+for (const [name, { command, survives }] of Object.entries(cases)) {
   it.skipIf(process.platform === "win32")(
-    background
-      ? "cleans up background children after the command leader exits"
-      : "does not orphan a TERM-ignoring command when stopping its supervisor",
+    survives
+      ? "leaves a background child running after the command exits by itself"
+      : `stops the whole group of a ${name} command, not just its supervisor`,
     async () => {
       const dir = await home(),
         jobs = keeper(dir),
-        id = background ? "descendant" : "stubborn"
+        id = name.replace(/[^a-z]/gi, "")
       const folder = join(dir, ".do-computer", "jobs", "audit", id)
       let child = 0,
         supervisor = 0
       try {
-        const command = background
-          ? "sleep 30 & echo $! > child-marker"
-          : "trap '' TERM; echo $$ > child-marker; while :; do sleep 1; done"
         await jobs.start({ id, command, lifeMs: 20_000 }, { waitMs: 150 })
+        await expect
+          .poll(() => readFile(join(dir, "child-marker"), "utf8").catch(() => ""))
+          .not.toBe("")
         child = Number(await readFile(join(dir, "child-marker"), "utf8"))
         supervisor = Number(await readFile(join(folder, "pid"), "utf8"))
-        if (!background) await jobs.stop(id)
-        await expect
-          .poll(
-            async () => {
-              try {
-                process.kill(child, 0)
-              } catch {
-                return false
-              }
-              const stat = await readFile(`/proc/${child}/stat`, "utf8").catch(() => "")
-              return stat === "" || !stat.slice(stat.lastIndexOf(")") + 2).startsWith("Z")
-            },
-            { timeout: 6500 },
-          )
-          .toBe(false)
+        if (survives) {
+          const ended = await jobs.follow(id, { from: 0, waitMs: 3000 })
+          expect(ended).toMatchObject({ state: "exited", exitCode: 0, output: "started\n" })
+          // Past the supervisor's four-second escalation, which must not have been armed.
+          await delay(4500)
+          expect(await gone(child)).toBe(false)
+        } else {
+          await jobs.stop(id)
+          await expect.poll(() => gone(child), { timeout: 6500 }).toBe(true)
+        }
       } finally {
         for (const pid of [child, supervisor])
           if (pid > 0) {
             try {
-              process.kill(-pid, "SIGKILL")
+              process.kill(survives ? pid : -pid, "SIGKILL")
             } catch {}
           }
       }
     },
-    10_000,
+    15_000,
   )
 }
 
@@ -215,10 +230,10 @@ it.skipIf(process.platform === "win32")(
     const dir = await home(),
       stopped = join(dir, "stopped"),
       childFile = join(dir, "command-pid")
-    const deadline = process.hrtime.bigint() + 1_000_000_000n
+    const deadline = Date.now() + 1_000
     const args = [
       "-e",
-      "const realNow = Date.now; Date.now = () => realNow() - 60000;\n" + JOB_RUNNER,
+      JOB_RUNNER,
       "--",
       dir,
       stopped,
@@ -252,6 +267,44 @@ it.skipIf(process.platform === "win32")(
           } catch {}
         }
       await delay(20)
+    }
+  },
+)
+
+it.skipIf(process.platform === "win32")(
+  "stops a job at its wall-clock deadline even when the monotonic clock did not move, as across sleep",
+  async () => {
+    const dir = await home(),
+      childFile = join(dir, "command-pid")
+    // What waking from sleep looks like to the supervisor: an hour has passed on the wall clock,
+    // and none on the monotonic one its timers run on.
+    const wake =
+      "const realNow = Date.now; let slept = 0; setTimeout(() => (slept = 3600000), 300).unref(); Date.now = () => realNow() + slept;\n"
+    const args = [
+      "-e",
+      wake + JOB_RUNNER,
+      "--",
+      dir,
+      join(dir, "stopped"),
+      "sh",
+      JSON.stringify(["-c", `echo $$ > '${childFile}'; exec sleep 30`]),
+      String(Date.now() + 60 * 60_000 - 1),
+      "100000",
+    ]
+    const { spawn } = await import("node:child_process")
+    const supervisor = spawn(process.execPath, args, { detached: true, stdio: "ignore" })
+    try {
+      await expect
+        .poll(() => readFile(join(dir, "exit"), "utf8").catch(() => ""), { timeout: 3000 })
+        .toMatch(/^124 1 /)
+    } finally {
+      const child = Number(await readFile(childFile, "utf8").catch(() => "0"))
+      for (const pid of [child, supervisor.pid ?? 0])
+        if (pid > 0) {
+          try {
+            process.kill(-pid, "SIGKILL")
+          } catch {}
+        }
     }
   },
 )

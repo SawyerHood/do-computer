@@ -3,14 +3,22 @@
  * the daemon exiting. Arguments, not interpolation, carry commands and paths. The supervised
  * command has its own process group; the supervisor stays outside it to enforce escalation.
  * This is used on POSIX; Windows keeps its existing console/launcher handling.
+ *
+ * The deadline is wall-clock milliseconds, the clock the server's deadline for the job is on: a
+ * monotonic clock stands still while a laptop sleeps, and the job would run on after the server
+ * has called it lost. Timers are monotonic, so the clock is also checked as the log is measured.
+ *
+ * A command that ends by itself leaves what it started in the background running, as the Linux
+ * sandbox's jobs do: `server &` is meant to outlive the shell. Only a stop, the deadline or the
+ * output cap stops the whole group.
  */
 export const JOB_RUNNER = String.raw`
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const [dir, stopped, file, args, deadlineText, capText] = process.argv.slice(1);
-const startedAt = process.hrtime.bigint(), deadline = BigInt(deadlineText), cap = Number(capText);
-const remaining = () => Number(deadline - process.hrtime.bigint()) / 1e6;
+const startedAt = Date.now(), deadline = Number(deadlineText), cap = Number(capText);
+const remaining = () => deadline - Date.now();
 let child, done = false, ended, limit, measure, escalation;
 const signal = (what) => {
   if (!child || child.pid === undefined) return;
@@ -23,16 +31,18 @@ const finish = (code) => {
   const late = ended === "limit";
   try {
     const tmp = path.join(dir, "exit." + process.pid + ".tmp");
-    fs.writeFileSync(tmp, (late ? 124 : code) + " " + (late ? 1 : 0) + " " + Math.floor(Number(process.hrtime.bigint() - startedAt) / 1e6) + "\n");
+    fs.writeFileSync(tmp, (late ? 124 : code) + " " + (late ? 1 : 0) + " " + Math.max(0, Date.now() - startedAt) + "\n");
     fs.renameSync(tmp, path.join(dir, "exit"));
   } catch {}
-  // The leader exiting does not prove its background children left the group.
+  process.exitCode = late ? 124 : code;
+  // Ended by itself: what it left running in the background is its own business.
+  if (ended === undefined) return;
+  // Stopped: the leader exiting does not prove its background children left the group.
   signal("SIGTERM");
   let remains = false;
   if (child && child.pid !== undefined) { try { process.kill(-child.pid, 0); remains = true; } catch {} }
   if (remains && !escalation) escalation = setTimeout(() => signal("SIGKILL"), 4000);
   if (!remains) { clearTimeout(escalation); escalation = undefined; }
-  process.exitCode = late ? 124 : code;
 };
 const stop = (why) => {
   if (ended || done) return;
@@ -56,6 +66,7 @@ try {
     measure = setInterval(() => {
       try {
         if (fs.existsSync(stopped)) stop("stop");
+        else if (remaining() <= 0) stop("limit");
         else if (fs.statSync(path.join(dir, "output.log")).size > cap) stop("output");
       } catch {}
     }, 100);
