@@ -76,7 +76,7 @@ const MARKS: Record<NonNullable<NoticePart["outcome"]>, IconName> = {
 
 /**
  * Word from a sub-agent in the chat that started it: how it ended, a way into its chat, and
- * what it reported, folded away.
+ * what it reported, shown open.
  */
 export const SubagentWord = memo(function SubagentWord({ part }: { part: NoticePart }) {
   const { agentId } = useChatScope()
@@ -120,7 +120,10 @@ export const SubagentWord = memo(function SubagentWord({ part }: { part: NoticeP
         </Pressable>
       )}
       {part.detail === undefined ? null : (
-        <Fold label={part.outcome === "failed" ? "What went wrong" : "What it reported"}>
+        <Fold
+          defaultOpen
+          label={part.outcome === "failed" ? "What went wrong" : "What it reported"}
+        >
           <View
             style={{
               borderRadius: radius.sm,

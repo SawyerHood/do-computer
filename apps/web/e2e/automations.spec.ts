@@ -247,7 +247,6 @@ test("an agent writes to another agent of the workspace, whose answer comes back
   await expect(
     transcript.getByText(/You said: \[Bramble, the agent you sent a message to/),
   ).toBeVisible()
-  await transcript.getByText("What it said").first().click()
   await expect(transcript.getByText("You said: When is the launch?").first()).toBeVisible()
 
   // Where it was sent leads to what the two said, on the other agent, which says whose it is.

@@ -259,7 +259,7 @@ export function SubagentChip({ part }: { part: ToolPart }) {
   )
 }
 
-/** Word from a sub-agent in the chat that started it. What it reported is folded away. */
+/** Word from a sub-agent in the chat that started it. What it reported is shown open. */
 export function SubagentWord({ part }: { part: NoticePart }) {
   const agentId = useContext(AgentIdContext)
   if (agentId === undefined) return null
@@ -295,7 +295,7 @@ export function SubagentWord({ part }: { part: NoticePart }) {
         )}
       </div>
       {part.detail === undefined ? null : (
-        <Collapsible className="mt-1">
+        <Collapsible defaultOpen className="mt-1">
           <CollapsibleTrigger
             render={
               <Button

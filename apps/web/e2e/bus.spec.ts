@@ -114,7 +114,6 @@ test("draws the sub-agent it started, and its report when it comes, each in its 
   await expect(page.getByRole("status")).toHaveCount(0)
   await expect(rows(page)).toHaveCount(0)
   await expect(transcript(page).getByRole("button", { name: "What it reported" })).toBeVisible()
-  await expect(transcript(page).getByText(/subagent-report/)).toHaveCount(0)
   await shot(page, "subagent-report")
 })
 
@@ -137,15 +136,13 @@ test("is told what an automation's run came to, and can stay quiet about it", as
     transcript(page).getByText('I will see to "Weather check" in a moment.'),
   ).toBeVisible()
   // The run reports to the main chat, which the echo model leaves without a word. The event is
-  // drawn in its place, with what it said folded.
+  // drawn in its place, with what it said shown open.
   const row = transcript(page).locator('[data-event="automation"]').last()
   await expect(row.getByText("The automation Weather check reported")).toBeVisible({
     timeout: 15_000,
   })
   await expect(page.getByRole("status")).toHaveCount(0)
   await expect(rows(page)).toHaveCount(0)
-  await expect(transcript(page).getByText(/You are running the scheduled task/)).toBeHidden()
-  await row.getByRole("button", { name: "What it said" }).click()
   await expect(
     row.getByText(/You are running the scheduled task "Weather check"/).first(),
   ).toBeVisible()

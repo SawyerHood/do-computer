@@ -275,7 +275,7 @@ function Notice({ part }: { part: NoticePart | undefined }) {
           )}
         </Text>
         {part.kind === "asked" || part.detail === undefined ? null : (
-          <Fold label={part.outcome === "failed" ? "What went wrong" : "What it said"}>
+          <Fold defaultOpen label={part.outcome === "failed" ? "What went wrong" : "What it said"}>
             <Markdown text={part.detail} image={drawNamed} diagram={drawDiagram} />
           </Fold>
         )}
