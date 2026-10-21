@@ -480,10 +480,14 @@ describe("an agent in Slack", () => {
     }
     world.faux.setResponses([sending("Here you are.")])
     await say(world, mention("something"))
-    // It is tried again on the agent's wake-ups, and posted once.
+    // It is tried again while the send waits, and posted once.
     await posted(world, 1)
     expect(world.posts.map((post) => post.text)).toEqual(["Here you are."])
-    expect((await threads(world))[0]!.status).toBe("done")
+    // Posted as it is sent: the run comes to rest, done, just after.
+    await until(
+      () => threads(world),
+      (found) => found[0]?.status === "done",
+    )
 
     world.faux.setResponses([
       fauxAssistantMessage("", { stopReason: "error", errorMessage: "The provider is on fire." }),

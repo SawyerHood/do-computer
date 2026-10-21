@@ -1048,6 +1048,8 @@ test("a page the agent drew puts words in the message box when the reader presse
   const pick = frameOf("plans.html").getByRole("button", { name: "Plan B" })
   await expect(pick).toBeVisible()
   await expect(composer(page)).toHaveValue("")
+  // The chat moves as the turn that drew the page ends: a press is made once it is still.
+  await expect(page.getByRole("button", { name: "Stop", exact: true })).toHaveCount(0)
 
   await pick.click()
   await expect(composer(page)).toHaveValue("Go with plan B")
@@ -1115,6 +1117,8 @@ test("a connector's own page for a tool is shown in the chat, told what the tool
     await expect(frame.locator("html")).toHaveAttribute("data-cookie", "blocked")
     await expect(frame.locator("html")).toHaveAttribute("data-api", "blocked")
     await page.screenshot({ path: "test-results/phone-connector-page.png" })
+    // The chat moves as the turn that drew the page ends: a press is made once it is still.
+    await expect(page.getByRole("button", { name: "Stop", exact: true })).toHaveCount(0)
 
     // A tool that only reads runs at once.
     await frame.getByRole("button", { name: "Refresh" }).click()
@@ -1726,7 +1730,8 @@ test("shows what was sent and what a chat draws anywhere, and no row of working"
   await openChat(page)
   const returned = await words(page, /The tool returned/).count()
   await send(page, '/tool send {"text":"Bus reply from Pip.","done":true}')
-  await expect(words(page, "Bus reply from Pip.")).toBeVisible()
+  // Exactly: what was typed to send it has the same words in it.
+  await expect(words(page, "Bus reply from Pip.", { exact: true })).toBeVisible()
   await send(
     page,
     [
@@ -1734,7 +1739,7 @@ test("shows what was sent and what a chat draws anywhere, and no row of working"
       '/tool send {"text":"A helper is on it."}',
     ].join("\n"),
   )
-  await expect(words(page, "A helper is on it.")).toBeVisible()
+  await expect(words(page, "A helper is on it.", { exact: true })).toBeVisible()
   // The report is drawn in its place, as in any chat; the Dood's own words are not.
   await expect(words(page, /reported back/).last()).toBeVisible({ timeout: 15_000 })
   await expect(words(page, /Work(ed|ing) on it/)).toHaveCount(0)
