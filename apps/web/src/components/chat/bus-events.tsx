@@ -35,7 +35,7 @@ export function BusEvent({ part }: { part: NoticePart }) {
       : part.kind === "asked"
         ? "Open its chat"
         : "Open thread"
-  // What it asked for is said in the line; what the others said is folded away.
+  // What it asked for is said in the line; what the others said is shown open, and can be folded.
   const detail = part.kind === "asked" ? undefined : part.detail
   return (
     <div data-event={part.kind} className="border-l-2 py-0.5 pl-3 text-sm text-muted-foreground">
@@ -53,7 +53,7 @@ export function BusEvent({ part }: { part: NoticePart }) {
         )}
       </div>
       {detail === undefined ? null : (
-        <Collapsible className="mt-1">
+        <Collapsible defaultOpen className="mt-1">
           <CollapsibleTrigger
             render={
               <Button

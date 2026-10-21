@@ -78,7 +78,7 @@ const MARKS: Record<NonNullable<NoticePart["outcome"]>, IconName> = {
 
 /**
  * Another agent's reply, in the chat the message was sent from: how it went, a way into the
- * conversation, and what it said, folded away.
+ * conversation, and what it said, shown open.
  */
 export const AgentWord = memo(function AgentWord({ part }: { part: NoticePart }) {
   const theme = useTheme()
@@ -118,7 +118,7 @@ export const AgentWord = memo(function AgentWord({ part }: { part: NoticePart })
         </Pressable>
       )}
       {part.detail === undefined ? null : (
-        <Fold label={part.outcome === "failed" ? "What went wrong" : "What it said"}>
+        <Fold defaultOpen label={part.outcome === "failed" ? "What went wrong" : "What it said"}>
           <View
             style={{
               borderRadius: radius.sm,

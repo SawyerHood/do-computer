@@ -148,7 +148,7 @@ export function AgentMessageChip({ part }: { part: ToolPart }) {
   )
 }
 
-/** Another agent's reply, in the chat the message was sent from. What it said is folded away. */
+/** Another agent's reply, in the chat the message was sent from. What it said is shown open. */
 export function AgentWord({ part }: { part: NoticePart }) {
   const agents = useAgentsById()
   const peer = part.agentId === undefined ? undefined : agents.get(part.agentId)
@@ -178,7 +178,7 @@ export function AgentWord({ part }: { part: NoticePart }) {
         )}
       </div>
       {part.detail === undefined ? null : (
-        <Collapsible className="mt-1">
+        <Collapsible defaultOpen className="mt-1">
           <CollapsibleTrigger
             render={
               <Button
