@@ -2,8 +2,8 @@ import { SHOT_EDGE, type Shot, type ShotPoint } from "@do-computer/protocol"
 
 /**
  * What a browser looks like now, for someone watching: a second DevTools socket of its own,
- * beside the one dev-browser drives the browser with. It follows the page that was most lately
- * gone to, has Chrome send that page as JPEG frames, and hears where the mouse is from a few
+ * beside the one dev-browser drives the browser with. It follows the page the agent last used,
+ * where it is told which that is, and otherwise the page most lately gone to. It has Chrome send that page as JPEG frames, and hears where the mouse is from a few
  * lines it puts in the page.
  */
 
@@ -54,6 +54,11 @@ export interface Preview {
   front(): Promise<{ url: string; title: string } | undefined>
   /** The page it follows, as the browser names it. Undefined while it follows none. */
   target(): string | undefined
+  /**
+   * The agent used this page: follow it from now on, before the one the owner has in front or
+   * last went to, for as long as it is there.
+   */
+  follow(targetId: string): void
   /** Something else that is shown has changed. */
   bump(): void
   /** Nobody is using the browser: stop the frames and forget the last one. */
@@ -126,6 +131,8 @@ export function createPreview(connectionUrl: string, options: PreviewOptions): P
   let settleTimer: NodeJS.Timeout | null = null
   let running = false
   let closed = false
+  /** The page the agent last used, kept while not connected: Chrome's names for pages stay. */
+  let followed: string | undefined
 
   function bump() {
     seq.n += 1
@@ -165,6 +172,7 @@ export function createPreview(connectionUrl: string, options: PreviewOptions): P
 
   /** The page to show: one that has gone somewhere before a blank one, and then the latest to. */
   function bestTarget(): string | null {
+    if (followed !== undefined && targets.has(followed)) return followed
     let best: { targetId: string; rank: number; activity: number } | null = null
     for (const [targetId, target] of targets) {
       const rank = BLANK.has(target.url) ? 0 : 1
@@ -266,6 +274,7 @@ export function createPreview(connectionUrl: string, options: PreviewOptions): P
         break
       case "Target.targetDestroyed":
         targets.delete(String(params.targetId))
+        if (followed === params.targetId) followed = undefined
         if (cast?.targetId === params.targetId) cast = null
         select(connection)
         break
@@ -425,6 +434,11 @@ export function createPreview(connectionUrl: string, options: PreviewOptions): P
       return page
     },
     target: () => cast?.targetId,
+    follow(targetId) {
+      if (closed || followed === targetId) return
+      followed = targetId
+      if (socket) select(socket)
+    },
     bump,
     rest() {
       if (idleTimer) clearTimeout(idleTimer)
