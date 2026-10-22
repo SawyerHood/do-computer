@@ -52,6 +52,7 @@ export const SkillsDoc = defineDoc<SkillsState>({
   kind: "dc.skills",
   version: 1,
   scope: "session",
+  checkpointWhen: () => false,
   initial: () => ({ skills: {}, removedBundled: [] }),
 })
 
@@ -60,6 +61,7 @@ export const SkillFilesDoc = defineDocFamily<{ files: Record<string, string> }, 
   kind: "dc.skill",
   version: 1,
   scope: "session",
+  checkpointWhen: () => false,
   family: true,
   initial: () => ({ files: {} }),
 })

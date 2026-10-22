@@ -426,6 +426,7 @@ export const CompactionsDoc = defineDoc<{ records: IdleCompactionRecord[] }>({
   kind: "dc.idle-compactions",
   version: 1,
   scope: "session",
+  checkpointWhen: () => false,
   initial: () => ({ records: [] }),
 })
 

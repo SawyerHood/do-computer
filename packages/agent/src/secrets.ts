@@ -67,6 +67,7 @@ export const SecretsDoc = defineDoc<State>({
   kind: "dc.secrets",
   version: 1,
   scope: "session",
+  checkpointWhen: () => false,
   initial: () => ({ requests: {} }),
 })
 

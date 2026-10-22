@@ -212,6 +212,7 @@ export const ComputersDoc = defineDoc<ComputersState>({
   kind: "dc.computers",
   version: 1,
   scope: "session",
+  checkpointWhen: () => false,
   initial: () => ({ computers: {} }),
 })
 

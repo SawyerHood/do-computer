@@ -198,6 +198,7 @@ export const ConnectorsDoc = defineDoc<ConnectorsState>({
   kind: "dc.connectors",
   version: 1,
   scope: "session",
+  checkpointWhen: () => false,
   initial: () => ({ connectors: {} }),
 })
 

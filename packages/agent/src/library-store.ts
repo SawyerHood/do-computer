@@ -64,6 +64,7 @@ export const LibraryDoc = defineDoc<LibraryState>({
   kind: "dc.library",
   version: 1,
   scope: "session",
+  checkpointWhen: () => false,
   initial: () => ({ files: {} }),
 })
 
@@ -81,6 +82,7 @@ export const LibraryPrivateDoc = defineDoc<PrivateState>({
   kind: "dc.library.private",
   version: 1,
   scope: "session",
+  checkpointWhen: () => false,
   initial: () => ({ secret: "", synced: {} }),
 })
 

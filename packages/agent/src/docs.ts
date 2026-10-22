@@ -76,6 +76,7 @@ export const IdentityDoc = defineDoc<IdentityState>({
   kind: "dc.identity",
   version: 1,
   scope: "session",
+  checkpointWhen: () => false,
   initial: () => ({
     name: null,
     avatar: null,
@@ -99,6 +100,7 @@ export const CreatureDoc = defineDoc<CreatureState>({
   kind: "dc.creature",
   version: 1,
   scope: "session",
+  checkpointWhen: () => false,
   initial: () => ({ ...NEW_CREATURE, owned: [], outfit: {} }),
 })
 
@@ -261,6 +263,7 @@ export const ChatsDoc = defineDoc<ChatsState>({
   kind: "dc.chats",
   version: 1,
   scope: "session",
+  checkpointWhen: () => false,
   initial: () => ({ chats: {} }),
 })
 
@@ -280,6 +283,7 @@ export const LatestDoc = defineDoc<LatestState>({
   kind: "dc.latest",
   version: 1,
   scope: "session",
+  checkpointWhen: () => false,
   initial: () => ({ latest: null }),
 })
 
@@ -334,5 +338,6 @@ export const SchedulesDoc = defineDoc<SchedulesState>({
   kind: "dc.schedules",
   version: 1,
   scope: "session",
+  checkpointWhen: () => false,
   initial: () => ({ schedules: {} }),
 })

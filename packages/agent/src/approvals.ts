@@ -74,6 +74,7 @@ export const ApprovalsDoc = defineDoc<State>({
   kind: "dc.approvals",
   version: 1,
   scope: "session",
+  checkpointWhen: () => false,
   initial: () => ({ rules: {}, requests: {}, grants: {} }),
 })
 
