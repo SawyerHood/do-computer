@@ -17,12 +17,24 @@ export type LiveWork = {
  * So none of these count as live work. An agent that counted them would wake itself for as long
  * as they stayed, which is for good.
  */
-export function liveWork(inspection: HarnessInspection): LiveWork {
+export function liveWork(
+  inspection: HarnessInspection,
+  /**
+   * Whether a task asleep (a retry's backoff, say) counts as work going: it does for whether
+   * the agent is at work, and does not for keeping it loaded, since the alarm wakes it when the
+   * sleep is over. A task held up only by sleeping ones, and a message behind them, are then
+   * not live either.
+   */
+  { asleep = true }: { asleep?: boolean } = {},
+): LiveWork {
   const blocked = inspection.tasks.filter((task) => task.state.kind === "blocked")
-  if (blocked.length === 0) {
+  const resting = asleep
+    ? blocked
+    : inspection.tasks.filter((task) => task.state.kind === "blocked" || task.state.kind === "sleeping")
+  if (resting.length === 0) {
     return { live: inspection.tasks.length > 0 || inspection.submissions.length > 0, blocked }
   }
-  const stuck = new Set(blocked.map((task) => String(task.record.id)))
+  const stuck = new Set(resting.map((task) => String(task.record.id)))
   // A task held up only by stuck tasks is stuck too, and so on up the chain.
   for (let grew = true; grew;) {
     grew = false
