@@ -1,7 +1,8 @@
 /**
  * The menu a right click opens. Electron shows none of its own, so without this a word the
  * spellchecker underlined could not be corrected, and text could not be cut, copied or pasted
- * with the mouse. It is offered where there is something to do: in a field, or on a selection.
+ * with the mouse, and an image could not be copied or saved. It is offered where there is
+ * something to do: in a field, on a selection, or on an image.
  */
 import type { ContextMenuParams, MenuItemConstructorOptions, WebContents } from "electron"
 
@@ -11,17 +12,38 @@ export interface MenuActions {
   replace(word: string): void
   /** Stop underlining this word from now on. */
   learn(word: string): void
+  /** Put the image under the pointer on the clipboard. */
+  copyImage(): void
+  /** Put this text on the clipboard. */
+  copyText(text: string): void
+  /** Save the file at this address, asking where. */
+  save(url: string): void
 }
 
 /** The items for a right click, or none where there is nothing to offer. */
 export function contextMenu(
   params: Pick<
     ContextMenuParams,
-    "isEditable" | "selectionText" | "misspelledWord" | "dictionarySuggestions" | "editFlags"
+    | "isEditable"
+    | "selectionText"
+    | "misspelledWord"
+    | "dictionarySuggestions"
+    | "editFlags"
+    | "mediaType"
+    | "srcURL"
   >,
   actions: MenuActions,
 ): MenuItemConstructorOptions[] {
   const items: MenuItemConstructorOptions[] = []
+  if (params.mediaType === "image" && params.srcURL !== "") {
+    const src = params.srcURL
+    items.push({ label: "Copy Image", click: () => actions.copyImage() })
+    // A blob or data address means nothing anywhere else.
+    if (/^https?:/i.test(src)) {
+      items.push({ label: "Copy Image Address", click: () => actions.copyText(src) })
+    }
+    items.push({ label: "Save Image As…", click: () => actions.save(src) }, { type: "separator" })
+  }
   const word = params.misspelledWord
   if (params.isEditable && word !== "") {
     const suggestions = params.dictionarySuggestions.slice(0, 5)
@@ -49,6 +71,8 @@ export function contextMenu(
   } else if (params.selectionText.trim() !== "") {
     items.push({ role: "copy", enabled: flags.canCopy })
   }
+  // Nothing follows the image's items: no separator to end on.
+  if (items.at(-1)?.type === "separator") items.pop()
   return items
 }
 
@@ -56,11 +80,16 @@ export function contextMenu(
 export function withContextMenu(
   contents: WebContents,
   popup: (items: MenuItemConstructorOptions[]) => void,
+  writeText: (text: string) => void,
 ): void {
   contents.on("context-menu", (_event, params) => {
     const items = contextMenu(params, {
       replace: (word) => contents.replaceMisspelling(word),
       learn: (word) => contents.session.addWordToSpellCheckerDictionary(word),
+      copyImage: () => contents.copyImageAt(params.x, params.y),
+      copyText: writeText,
+      // With no save path set, Electron asks where to save it.
+      save: (url) => contents.downloadURL(url),
     })
     if (items.length > 0) popup(items)
   })

@@ -1832,12 +1832,16 @@ if (process.env.APPIMAGE_EXIT_AFTER_INSTALL === "true") {
   })
   // The tray is what ends the program, not its last window closing.
   app.on("window-all-closed", () => {})
-  // Every page gets a right-click menu: spelling corrections, cut, copy and paste.
+  // Every page gets a right-click menu: spelling corrections, cut, copy and paste, images.
   app.on("web-contents-created", (_event, contents) => {
-    withContextMenu(contents, (items) => {
-      const window = BrowserWindow.fromWebContents(contents) ?? undefined
-      Menu.buildFromTemplate(items).popup({ window })
-    })
+    withContextMenu(
+      contents,
+      (items) => {
+        const window = BrowserWindow.fromWebContents(contents) ?? undefined
+        Menu.buildFromTemplate(items).popup({ window })
+      },
+      (text) => void clipboard.writeText(text),
+    )
   })
   app.on("before-quit", () => {
     quitting = true
