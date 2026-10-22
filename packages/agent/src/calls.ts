@@ -91,6 +91,7 @@ export const CallsDoc = defineDoc<CallsDocState>({
   kind: "dc.calls",
   version: 1,
   scope: "session",
+  checkpointWhen: () => false,
   initial: () => ({ calls: {} }),
 })
 

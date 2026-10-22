@@ -67,6 +67,7 @@ export const JournalDoc = defineDoc<JournalState>({
   kind: "dc.journal",
   version: 1,
   scope: "session",
+  checkpointWhen: () => false,
   initial: () => ({ notes: {}, done: [] }),
 })
 

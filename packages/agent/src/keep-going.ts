@@ -38,6 +38,7 @@ const SmallCostDoc = defineDocFamily<SmallCost, null>({
   kind: "dc.activity",
   version: 1,
   scope: "session",
+  checkpointWhen: () => false,
   family: true,
   initial: () => ({ runs: {}, spent: { inputTokens: 0, outputTokens: 0, cost: 0 } }),
 })

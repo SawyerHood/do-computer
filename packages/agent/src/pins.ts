@@ -28,6 +28,7 @@ export const PinsDoc = defineDoc<PinsState>({
   kind: "dc.pins",
   version: 1,
   scope: "session",
+  checkpointWhen: () => false,
   initial: () => ({ pins: [] }),
 })
 

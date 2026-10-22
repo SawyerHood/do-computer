@@ -99,6 +99,7 @@ export const JobsDoc = defineDoc<JobsState>({
   kind: "dc.jobs",
   version: 1,
   scope: "session",
+  checkpointWhen: () => false,
   initial: () => ({ jobs: {}, next: 1, intents: {} }),
 })
 

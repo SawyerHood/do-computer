@@ -182,6 +182,7 @@ const SentDoc = defineDocFamily<{ ids: string[] }, null>({
   kind: "dc.sent",
   version: 1,
   scope: "session",
+  checkpointWhen: () => false,
   family: true,
   initial: () => ({ ids: [] }),
 })
