@@ -115,6 +115,8 @@ export interface DaemonIO {
   jobs?(scope: string): SandboxJobs
   /** The screen, where agents may use it. Absent: there is none for them, and the daemon says so. */
   screen?: ScreenIO
+  /** Local adapter diagnostics, safe for the owner and agent to read. */
+  screenUnavailable?: string
   /** A browser, where agents may use one. Absent: likewise. */
   browser?: BrowserIO
   /**
@@ -534,7 +536,8 @@ export class DaemonCore {
       return this.#error(
         frame.id,
         "refused",
-        "This computer does not let Doods use its screen. Whoever it belongs to can switch that on in the Do Computer app there, under This Computer. It cannot be switched on from here.",
+        this.#io.screenUnavailable ??
+          "This computer does not let Doods use its screen. Whoever it belongs to can switch that on in the Do Computer app there, under This Computer, or on a Linux daemon with --enable-screen (--doctor says what is missing). It cannot be switched on from here.",
       )
     }
     const wait = Math.min(Math.max(0, frame.waitMs ?? 0), VIEW_WAIT_MS)

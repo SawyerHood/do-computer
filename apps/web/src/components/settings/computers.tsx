@@ -1,5 +1,6 @@
 import {
   type AgentSummary,
+  boundedAdapterStatus,
   type ComputerKind,
   type ComputerSummary,
   isPersonalWorkspace,
@@ -8,7 +9,7 @@ import {
 } from "@do-computer/protocol"
 import { ArrowsClockwiseIcon, CopyIcon, PlusIcon, TrashIcon, XIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery } from "@tanstack/react-query"
-import { useRef, useState } from "react"
+import { Fragment, useRef, useState } from "react"
 import { AgentFace } from "@/components/agent-avatar"
 import {
   ComputerRequestCard,
@@ -194,6 +195,53 @@ function ComputerCard({
 
         <CardContent>
           <dl className="grid grid-cols-[5.5rem_1fr] items-center gap-x-3 gap-y-2.5 text-sm">
+            {!machine &&
+              (["screen", "browser"] as const).map((what) => {
+                const reported =
+                  what === "screen" ? computer.screenAdapter : computer.browserAdapter
+                const adapter = reported && boundedAdapterStatus(reported)
+                return (
+                  <Fragment key={what}>
+                    <dt className="text-muted-foreground">
+                      {what === "screen" ? "Screen" : "Browser"}
+                    </dt>
+                    <dd
+                      className="min-w-0"
+                      title="Last reported by the runner; offline diagnostics may be stale."
+                    >
+                      {adapter ? (
+                        <>
+                          <span className="font-mono text-xs">{adapter.name}</span>{" "}
+                          <Badge variant="secondary">
+                            {
+                              {
+                                unsupported: "Unsupported here",
+                                disabled: "Disabled by owner",
+                                blocked: "Currently blocked",
+                                ready: "Ready",
+                              }[adapter.state]
+                            }
+                          </Badge>
+                          {adapter.tools?.length ? (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {adapter.tools.join(" / ")}
+                            </p>
+                          ) : null}
+                          {adapter.reason ? (
+                            <p className="mt-1 text-xs text-muted-foreground">{adapter.reason}</p>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {computer[what]
+                            ? "Enabled (legacy runner)"
+                            : "Not reported by this runner"}
+                        </span>
+                      )}
+                    </dd>
+                  </Fragment>
+                )
+              })}
             <dt className="text-muted-foreground">Belongs to</dt>
             <dd className="min-w-0">
               {!machine && mine && teams.length > 0 ? (

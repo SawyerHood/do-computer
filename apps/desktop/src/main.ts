@@ -748,6 +748,10 @@ function daemon(): DaemonRunner {
     onChange: changed,
     abilities,
     onCall: (call) => screenOf().answer(call),
+    screenStatus: () => ({
+      available: screenUnavailable() === undefined,
+      reason: screenUnavailable(),
+    }),
     onRevoked: () => {
       remember({ share: false })
       changed()

@@ -20,8 +20,8 @@ import {
 } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
-import { nodeBrowserIO } from "@do-computer/computers/browser"
-import { DaemonCore } from "@do-computer/computers/daemon"
+import { DaemonCore, type ScreenIO } from "@do-computer/computers/daemon"
+import { UseRefused } from "@do-computer/computers/use"
 import { fakeScreen } from "@do-computer/computers/fake-screen"
 import { nodeDaemonIO, shownPath } from "@do-computer/computers/node"
 import {
@@ -31,10 +31,18 @@ import {
   SUPERSEDED_CLOSE_CODE,
 } from "@do-computer/protocol"
 import WebSocket from "ws"
-import { parseArguments } from "./args.ts"
+import { parseArguments, withScreenArguments } from "./args.ts"
 import { BROWSER_ENV, type DaemonEvent, formatEvent, SCREEN_ENV } from "./events.ts"
 import { POLL_EAGER_MS, pollDelay } from "./pairing.ts"
-import { appScreen } from "./screen.ts"
+import {
+  selectScreen,
+  selectBrowser,
+  adapterStatus,
+  screenOff,
+  screenRefusal,
+  type ScreenAdapterName,
+  type SelectedScreen,
+} from "./adapters/index.ts"
 import { serviceFile } from "./service.ts"
 import { connectSocket } from "./socket.ts"
 import { supervise } from "./supervisor.ts"
@@ -92,6 +100,10 @@ type Config = {
   autoUpdate?: boolean
   /** False when the owner said agents may not use a browser here. Absent: they may. */
   browser?: boolean
+  screen?: boolean
+  wakeDisplay?: boolean
+  screenAdapter?: ScreenAdapterName
+  browserAdapter?: "dev-browser"
 }
 
 /** What is remembered about updating: the version last installed, and one that would not start. */
@@ -217,24 +229,88 @@ function audit(entry: Record<string, unknown>): void {
   log(what)
 }
 
+/**
+ * Whether the owner lets agents use this screen: the desktop app decides for a daemon it runs
+ * (as it always has); one run by hand needs --enable-screen or --screen=MODE.
+ */
+function screenAllowed(config: Config): boolean {
+  if (config.readOnly || config.screenAdapter === "none") return false
+  return EMBEDDED ? SCREEN && config.screen !== false : config.screen === true
+}
+
 /** Keep one connection open for as long as the process lives. Resolves when it should exit. */
 async function run(config: Config): Promise<void> {
   const url = `${config.server.replace(/^http/, "ws")}/api/computers/connect`
   let socket: WebSocket | undefined
   // The app answers for the screen on the daemon's input, which nothing else is written to.
-  const screen = FAKE_SCREEN
+  const screenOptions = {
+    enabled: screenAllowed(config),
+    adapter: config.screenAdapter,
+    wakeDisplay: config.wakeDisplay,
+    embedded: EMBEDDED,
+    env: process.env,
+  }
+  // With the screen off nothing is probed or waited for. With it on, selection (which may run
+  // loginctl and the backend's tools) happens while the daemon connects, not before.
+  const native = screenOptions.enabled && !FAKE_SCREEN
+  let selected: SelectedScreen = screenOff(config.screenAdapter, EMBEDDED)
+  if (native)
+    selected = {
+      report: {
+        adapter: config.screenAdapter ?? (EMBEDDED ? "ipc" : "auto"),
+        enabled: true,
+        available: true,
+        ready: false,
+        reason: "Checking the screen adapter.",
+      },
+      dispose() {},
+    }
+  let selecting: Promise<void> | undefined
+  process.once("exit", () => selected.dispose())
+  const requireScreen = async () => {
+    await selecting
+    if (!selected.screen || !selected.report.enabled || !selected.report.available)
+      throw new UseRefused(screenRefusal(selected.report))
+    return selected.screen
+  }
+  const screen: ScreenIO | undefined = FAKE_SCREEN
     ? fakeScreen()
-    : SCREEN
-      ? appScreen((line) => console.log(line), process.stdin)
+    : native
+      ? {
+          act: async (...args) => (await requireScreen()).act(...args),
+          view: async (...args) => (await requireScreen()).view(...args),
+          hold: async (...args) => (await requireScreen()).hold(...args),
+        }
       : undefined
-  // A computer that may only be read is not one to browse from.
-  const browser =
-    config.readOnly || config.browser === false || BROWSER_OFF
-      ? undefined
-      : nodeBrowserIO({ dir: path.join(CONFIG_DIR, "browser"), log })
+  const describeScreen = () =>
+    log(
+      `Screen adapter ${selected.report.adapter}: ${adapterStatus(selected.report).state}${selected.report.reason ? `; ${adapterStatus(selected.report).reason}` : ""}`,
+    )
+  let refreshing = false
+  const refreshScreen = async () => {
+    if (!native || selecting) return false
+    const before = JSON.stringify(selected.report)
+    // The desktop app's transport is never replaced; a native backend that is not up yet is
+    // looked for again, but only because its owner turned the screen on.
+    if (selected.report.adapter !== "ipc" && (selected.rediscover || !selected.screen)) {
+      const next = await selectScreen(screenOptions)
+      selected.dispose()
+      selected = next
+    } else await selected.refresh?.()
+    return JSON.stringify(selected.report) !== before
+  }
+  const { browser, report: browserReport } = selectBrowser({
+    enabled: !config.readOnly && config.browser !== false && !BROWSER_OFF,
+    adapter: config.browserAdapter,
+    dir: path.join(CONFIG_DIR, "browser"),
+    log,
+  })
   const core = new DaemonCore(
     {
       ...nodeDaemonIO({ home: HOME, audit, nodeEnv: nodeEnv() }),
+      get screenUnavailable() {
+        return screenRefusal(selected.report)
+      },
       ...(screen === undefined ? {} : { screen }),
       ...(browser === undefined ? {} : { browser }),
     },
@@ -283,6 +359,53 @@ async function run(config: Config): Promise<void> {
   }
   if (updating) setInterval(() => void checkForUpdate(), UPDATE_EVERY_MS).unref()
 
+  const hello = () => {
+    // A metadata probe may complete after reconnecting; announce on the current socket.
+    const target = socket
+    if (target?.readyState !== WebSocket.OPEN) return
+    target.send(
+      JSON.stringify({
+        t: "hello",
+        platform: process.platform,
+        hostname: os.hostname(),
+        home: SHOWN_HOME,
+        readOnly: config.readOnly,
+        version: VERSION,
+        jobs: true,
+        updates: updating,
+        screen:
+          (FAKE_SCREEN || (selected.screen !== undefined && selected.report.enabled)) &&
+          !config.readOnly,
+        screenAdapter: adapterStatus(selected.report),
+        browserAdapter: adapterStatus(browserReport),
+        browser: browser !== undefined,
+        signIn: browser !== undefined,
+        pay: browser !== undefined,
+        images: true,
+      }),
+    )
+  }
+  if (native) {
+    selecting = selectScreen(screenOptions)
+      .then(async (next) => {
+        selected = next
+        // The desktop app's handshake only adds detail; it is not waited for by anything.
+        if (next.report.adapter === "ipc")
+          void next.refresh?.().then(() => {
+            describeScreen()
+            hello()
+          })
+      })
+      .catch((error) => {
+        selected.report.reason = `Could not select a screen adapter: ${(error as Error).message}`
+      })
+      .finally(() => {
+        selecting = undefined
+        describeScreen()
+        hello()
+      })
+  }
+
   let attempt = 0
   for (;;) {
     const closed = await new Promise<number>((resolve) => {
@@ -292,6 +415,20 @@ async function run(config: Config): Promise<void> {
       const ping = setInterval(() => {
         if (current.readyState !== WebSocket.OPEN) return
         current.send(PING_FRAME)
+        // Metadata only: do not capture, inject input, or wake a display in a health check.
+        if (!refreshing) {
+          refreshing = true
+          void refreshScreen()
+            .then((changed) => {
+              if (changed) hello()
+            })
+            .catch((error) =>
+              log(`Could not refresh screen diagnostics: ${(error as Error).message}`),
+            )
+            .finally(() => {
+              refreshing = false
+            })
+        }
         // No answer means the connection is dead even if the socket has not noticed.
         pongDue = setTimeout(() => current.terminate(), PONG_DEADLINE_MS)
       }, PING_INTERVAL_MS)
@@ -309,24 +446,7 @@ async function run(config: Config): Promise<void> {
           computerId: config.computerId,
           readOnly: config.readOnly,
         })
-        current.send(
-          JSON.stringify({
-            t: "hello",
-            platform: process.platform,
-            hostname: os.hostname(),
-            home: SHOWN_HOME,
-            readOnly: config.readOnly,
-            version: VERSION,
-            jobs: true,
-            updates: updating,
-            screen: screen !== undefined && !config.readOnly,
-            browser: browser !== undefined,
-            signIn: browser !== undefined,
-            pay: browser !== undefined,
-            // Pictures an agent reads are made smaller here, before the server keeps them.
-            images: true,
-          }),
-        )
+        hello()
         core.onOpen()
         // A deployment that changed dropped this connection, so this is when to ask.
         void checkForUpdate()
@@ -403,6 +523,15 @@ const USAGE = `Usage: durable-computer-daemon <server-url> [options]
   --install-service   After pairing, keep the daemon running in the background
   --no-auto-update    Do not replace the daemon when the server has a newer one
   --auto-update       Do so again
+  --screen[=MODE]     Enable the screen: auto (bare flag), hyprland, wayland, x11, ipc, or off
+  --browser=MODE      auto|dev-browser|off (independent of screen)
+  --wake-display      Allow waking an unlocked sleeping display during screen use
+  --no-wake-display   Do not wake displays (the default)
+  --enable-screen     Explicitly allow screen sharing (off by default outside the app)
+  --no-screen         Disable screen sharing again
+  --screen-adapter    auto | ipc | hyprland | x11 | none (selection is not permission)
+  --browser-adapter   dev-browser (independent of screen selection)
+  --doctor            Print adapter readiness as JSON; do not pair or connect
   --no-browser        Do not let the Dood use a browser here
   --browser           Let it again
   --unpair            Forget this computer's credentials and exit
@@ -453,6 +582,43 @@ async function main(): Promise<void> {
   const asked = parseArguments(process.argv.slice(2))
   if (asked.version) return void console.log(VERSION)
   if (asked.help) return void console.log(USAGE)
+  if (asked.doctor) {
+    const saved = loadConfig()
+    const readOnly = asked.readOnly || saved?.readOnly === true
+    const merged = withScreenArguments(saved ?? ({} as Config), asked)
+    // The doctor was asked for, so it probes even a screen that is off, to say what would work.
+    const screen = await selectScreen({
+      enabled: screenAllowed({ ...merged, readOnly }),
+      adapter: merged.screenAdapter,
+      embedded: EMBEDDED,
+      env: process.env,
+      wakeDisplay: merged.wakeDisplay,
+    })
+    if (screen.report.adapter === "ipc") await screen.refresh?.()
+    const browser = selectBrowser({
+      enabled: !readOnly && (asked.browser ?? saved?.browser ?? true) && !BROWSER_OFF,
+      adapter: asked.browserAdapter ?? saved?.browserAdapter,
+      dir: path.join(CONFIG_DIR, "browser"),
+      log: () => {},
+    })
+    console.log(
+      JSON.stringify(
+        {
+          screen: { ...screen.report, state: adapterStatus(screen.report).state },
+          browser: { ...browser.report, state: adapterStatus(browser.report).state },
+        },
+        null,
+        2,
+      ),
+    )
+    if (
+      (screen.report.enabled && !screen.report.ready) ||
+      (browser.report.enabled && !browser.report.ready)
+    )
+      process.exitCode = 1
+    screen.dispose()
+    return
+  }
   if (asked.unpair) {
     rmSync(CONFIG_PATH, { force: true })
     return log("Forgot this computer's credentials. Remove it in the app to finish.")
@@ -494,6 +660,18 @@ async function main(): Promise<void> {
     config = { ...config, browser: asked.browser }
     saveConfig(config)
     log(asked.browser ? "Doods may use a browser here." : "Doods may not use a browser here.")
+  }
+  const screenConfig = withScreenArguments(config, asked)
+  if (JSON.stringify(screenConfig) !== JSON.stringify(config)) {
+    if (config.screenAdapter === "none" && screenConfig.screenAdapter !== "none")
+      log("Screen sharing was switched off with --screen=off; it is on again.")
+    config = screenConfig
+    saveConfig(config)
+    log(
+      screenAllowed(config)
+        ? `Doods may use the screen here (adapter ${config.screenAdapter ?? "auto"}).`
+        : "Doods may not use the screen here.",
+    )
   }
   if (asked.installService) return installService([config.server])
   await run(config)

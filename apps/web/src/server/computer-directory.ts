@@ -1,6 +1,6 @@
 import { type AddableKind, computerActorName, type ComputerDirectory } from "@do-computer/agent"
 import { linkStatus } from "@do-computer/computers"
-import { isPersonalWorkspace } from "@do-computer/protocol"
+import { boundedAdapterStatus, isPersonalWorkspace } from "@do-computer/protocol"
 import type { ActorNamespace, AppDatabase } from "@do-computer/runtime"
 import { adoptMachines } from "./computer-adoption.ts"
 import {
@@ -84,6 +84,12 @@ export function computerDirectory(
             readOnly: status?.hello?.readOnly ?? row.read_only === 1,
             online: status?.online ?? false,
             connected: connected.has(row.id),
+            ...(connected.has(row.id) && status?.hello?.screenAdapter
+              ? { screenAdapter: boundedAdapterStatus(status.hello.screenAdapter) }
+              : {}),
+            ...(connected.has(row.id) && status?.hello?.browserAdapter
+              ? { browserAdapter: boundedAdapterStatus(status.hello.browserAdapter) }
+              : {}),
             asked: asked.has(row.id),
             ...(row.added_by_agent === agentId ? { mine: true } : {}),
           }
