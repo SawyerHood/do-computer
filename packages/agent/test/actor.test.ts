@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, readdirSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { DatabaseSync } from "node:sqlite"
 import {
   type AgentActivity,
   type AgentEvent,
@@ -87,6 +88,19 @@ afterEach(async () => {
 })
 
 const temporary = () => mkdtempSync(join(tmpdir(), "dc-agent-"))
+
+/** An agent's pending wake-up as the runtime has it recorded. */
+function alarmOf(directory: string, name: string): number | null {
+  const index = new DatabaseSync(join(directory, "actors", "_alarms.sqlite"), { readOnly: true })
+  try {
+    const row = index.prepare("SELECT at FROM alarms WHERE name = ?").get(name) as
+      | { at: number }
+      | undefined
+    return row?.at ?? null
+  } finally {
+    index.close()
+  }
+}
 
 async function call<T>(world: World, path: string, method = "GET", payload?: unknown): Promise<T> {
   const response = await world.namespace.get("agent-1").fetch(
@@ -428,6 +442,39 @@ describe("agent actor", () => {
       status: "done",
       parts: [{ type: "thinking", text: "Finished after the restart.", written: true }],
     })
+  })
+
+  it("sleeps through a retry's backoff on its alarm, not kept awake, and tries again", async () => {
+    const directory = temporary()
+    const world = open(directory)
+    const chat = await setup(world)
+    world.faux.setResponses([
+      fauxAssistantMessage([], { stopReason: "error", errorMessage: "529 overloaded" }),
+      fauxAssistantMessage("Answered after the wait."),
+    ])
+    await send(world, chat.id, "hello")
+    // The first try failed, and the next waits out its backoff (two seconds and more).
+    const deadline = Date.now() + 10_000
+    while (world.faux.state.callCount < 1 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(world.faux.state.callCount).toBe(1)
+    // Woken when the backoff is over, and not every keep-alive (100 ms here) meanwhile.
+    const at = alarmOf(directory, "agent-1")
+    expect(at).not.toBeNull()
+    expect(at!).toBeGreaterThan(Date.now() + 500)
+    // Unloaded during the wait, as a Durable Object may be: only its alarm brings it back.
+    await world.namespace.close()
+    const after = open(directory)
+    after.faux.setResponses([fauxAssistantMessage("Answered after the wait.")])
+    let state: ChatState
+    do {
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      state = await call<ChatState>(after, `/chats/${chat.id}`)
+    } while (state.busy && Date.now() < deadline + 10_000)
+    expect(after.faux.state.callCount).toBe(1)
+    expect(state.messages.at(-1)).toMatchObject({ role: "assistant", status: "done" })
   })
 
   it("opens again after its store failed under it, and finishes the run", async () => {

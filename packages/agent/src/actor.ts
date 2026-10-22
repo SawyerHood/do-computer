@@ -1371,6 +1371,14 @@ export class AgentActor implements Actor {
           registry,
           now: () => this.#host.now(),
           onReport: (error) => this.#options.onReport?.(error),
+          // The alarm wakes the agent for a task's sleep (a retry's backoff, a deferred reply's
+          // poll), so pi-durable keeps no timer for it: a timer would hold the agent in memory
+          // until then, and one that was unloaded would never fire. Told whenever what
+          // `harness.wake()` says changes, the agent sets its alarm again (`#rearm`).
+          // Only the alarm: told from inside a commit, before whoever made it has done the rest
+          // (a message's line is kept after its submit), what the agent is doing is not told here.
+          onWake: () =>
+            void this.#rearm({ alarmOnly: true }).catch((error) => this.#options.onReport?.(error)),
           settings: {
             // Every extension but the bus's, which only a main chat or a thread in Slack adds to
             // its own. Read each time, since connectors install theirs while the
@@ -1505,7 +1513,7 @@ export class AgentActor implements Actor {
    * Set the one wake-up to the sooner of two needs: keeping live work going, and the next
    * schedule. Clear it when there is neither.
    */
-  async #rearm(): Promise<void> {
+  async #rearm({ alarmOnly = false }: { alarmOnly?: boolean } = {}): Promise<void> {
     if (this.#harness === undefined) return
     const harness = await this.#harness
     const seen = this.#host.now()
@@ -1518,12 +1526,9 @@ export class AgentActor implements Actor {
     // work: only another deployment gets it further, and it is found again when the agent is
     // next opened.
     const work = liveWork(inspection)
-    if (work.live) {
-      this.#found(harness)
-    } else {
-      // Where the watch gave up before the work was over, its end is found here.
-      this.#rested()
-    }
+    if (!alarmOnly && work.live) this.#found(harness)
+    // Where the watch gave up before the work was over, its end is found here.
+    else if (!alarmOnly) this.#rested()
     for (const task of work.blocked) {
       const id = String(task.record.id)
       if (this.#blockedTold.has(id) || task.state.kind !== "blocked") continue
@@ -1537,8 +1542,11 @@ export class AgentActor implements Actor {
     // A sub-agent that has finished and not yet reported has nothing live, and still needs a
     // look. So does a conversation with another agent whose answer is still to be handed back,
     // and a thread in Slack whose answer is still to be posted.
+    // Kept loaded for what can run now; a task asleep is woken for when its sleep is over.
+    const awake = harness.wake()
     const live =
-      work.live ||
+      awake.active ||
+      liveWork(inspection, { asleep: false }).live ||
       (await this.#subagents.working(context)) ||
       (await this.#jobs.working(context)) ||
       (await this.#scheduler.working(context)) ||
@@ -1559,7 +1567,7 @@ export class AgentActor implements Actor {
     const idle = await this.#idle.nextWake()
     // A sub-agent waiting too long for an answer has what it asked for taken back.
     const unanswered = await this.#subagents.nextWake(context)
-    const scheduled = [tasks, calls, idle, unanswered].reduce<number | null>(
+    const scheduled = [tasks, calls, idle, unanswered, awake.at ?? null].reduce<number | null>(
       (soonest, at) => (at === null ? soonest : soonest === null ? at : Math.min(soonest, at)),
       null,
     )
@@ -1617,7 +1625,10 @@ export class AgentActor implements Actor {
   }
 
   async alarm(): Promise<void> {
-    await this.#keepRunnable(await this.#open())
+    const harness = await this.#open()
+    // The tasks whose sleep is over are taken up again (`onWake`).
+    harness.resume()
+    await this.#keepRunnable(harness)
     await this.#scheduler.tick(context)
     await this.#calls.tick()
     await this.#subagents.tick()
