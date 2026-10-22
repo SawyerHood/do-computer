@@ -32,6 +32,11 @@ export interface Relay {
   alive(): boolean
   /** A socket of its own on the shared one, for something in this process. */
   open(): PreviewSocket
+  /**
+   * Hear of each page dev-browser acts on (goes to, brings to the front, types or clicks in, takes
+   * a picture of): the page the agent is using, whichever tab the owner has in front.
+   */
+  onUse(listener: (targetId: string) => void): void
   close(): Promise<void>
 }
 
@@ -46,12 +51,29 @@ type Client = {
   /** What it said before it had a session. */
   waiting: string[]
   gone: boolean
+  /** dev-browser, over the socket of this machine, rather than something in this process. */
+  agent: boolean
   deliver(message: string): void
   opened(): void
   ended(): void
 }
 
-type Call = { client: Client; id: unknown; method: unknown } | { settle(message: Json): void }
+type Call =
+  | { client: Client; id: unknown; method: unknown; targetId?: string }
+  | { settle(message: Json): void }
+
+/** What is only done to a page that is being used, and never to one merely looked over. */
+const ACTS = new Set([
+  "Page.bringToFront",
+  "Page.navigate",
+  "Page.reload",
+  "Page.navigateToHistoryEntry",
+  "Page.captureScreenshot",
+  "Input.dispatchMouseEvent",
+  "Input.dispatchKeyEvent",
+  "Input.dispatchTouchEvent",
+  "Input.insertText",
+])
 
 const SOCKET_CONNECTING = 0
 const SOCKET_OPEN = 1
@@ -64,10 +86,17 @@ export async function createRelay(url: string, options: RelayOptions = {}): Prom
   const clients = new Set<Client>()
   /** Whose each session is: a client's own, and those attached under it. */
   const owners = new Map<string, Client>()
+  /** The page each session is on, for those that are on one. */
+  const pages = new Map<string, string>()
+  const users = new Set<(targetId: string) => void>()
   const calls = new Map<number, Call>()
   const waiters = new Set<() => void>()
   let state: "asking" | "open" | "closed" = "asking"
   let nextId = 0
+
+  function used(targetId: string) {
+    for (const listener of [...users]) listener(targetId)
+  }
 
   // mkdtemp makes a folder that only this user can open: whoever can open the socket is let
   // into the browser without being asked.
@@ -123,7 +152,11 @@ export async function createRelay(url: string, options: RelayOptions = {}): Prom
     if (client.gone) return
     client.gone = true
     clients.delete(client)
-    for (const [session, owner] of owners) if (owner === client) owners.delete(session)
+    for (const [session, owner] of owners) {
+      if (owner !== client) continue
+      owners.delete(session)
+      pages.delete(session)
+    }
     for (const [id, call] of calls) if ("client" in call && call.client === client) calls.delete(id)
     // Detaching its session on the browser detaches everything it attached under it.
     if (client.session !== null && state === "open") {
@@ -156,8 +189,21 @@ export async function createRelay(url: string, options: RelayOptions = {}): Prom
       )
       return
     }
+    const params = obj(message.params)
+    if (client.agent) {
+      const page = session === undefined ? undefined : pages.get(session)
+      if (page !== undefined && typeof message.method === "string" && ACTS.has(message.method))
+        used(page)
+      else if (message.method === "Target.activateTarget" && typeof params.targetId === "string")
+        used(params.targetId)
+    }
     const id = ++nextId
-    calls.set(id, { client, id: message.id, method: message.method })
+    calls.set(id, {
+      client,
+      id: message.id,
+      method: message.method,
+      ...(typeof params.targetId === "string" ? { targetId: params.targetId } : {}),
+    })
     upstream.send(JSON.stringify({ ...message, id, sessionId: session ?? client.session }))
   }
 
@@ -170,12 +216,23 @@ export async function createRelay(url: string, options: RelayOptions = {}): Prom
       if ("settle" in call) return call.settle(message)
       const client = call.client
       // A session the client attached itself is its own from here on.
-      const made = obj(message.result).sessionId
+      const result = obj(message.result)
+      const made = result.sessionId
       if (
         typeof made === "string" &&
         (call.method === "Target.attachToTarget" || call.method === "Target.attachToBrowserTarget")
       ) {
         owners.set(made, client)
+        if (call.method === "Target.attachToTarget" && call.targetId !== undefined)
+          pages.set(made, call.targetId)
+      }
+      // A page dev-browser opened is one it is about to use.
+      if (
+        client.agent &&
+        call.method === "Target.createTarget" &&
+        typeof result.targetId === "string"
+      ) {
+        used(result.targetId)
       }
       const { sessionId, ...rest } = message
       client.deliver(
@@ -193,8 +250,14 @@ export async function createRelay(url: string, options: RelayOptions = {}): Prom
     if (client === undefined) return
     const params = obj(message.params)
     if (typeof params.sessionId === "string") {
-      if (message.method === "Target.attachedToTarget") owners.set(params.sessionId, client)
-      else if (message.method === "Target.detachedFromTarget") owners.delete(params.sessionId)
+      if (message.method === "Target.attachedToTarget") {
+        owners.set(params.sessionId, client)
+        const targetId = obj(params.targetInfo).targetId
+        if (typeof targetId === "string") pages.set(params.sessionId, targetId)
+      } else if (message.method === "Target.detachedFromTarget") {
+        owners.delete(params.sessionId)
+        pages.delete(params.sessionId)
+      }
     }
     const { sessionId, ...rest } = message
     if (sessionId === client.session) {
@@ -248,6 +311,7 @@ export async function createRelay(url: string, options: RelayOptions = {}): Prom
       session: null,
       waiting: [],
       gone: false,
+      agent: true,
       deliver(message) {
         if (!socket.destroyed) socket.write(`${message}\n`)
       },
@@ -306,6 +370,7 @@ export async function createRelay(url: string, options: RelayOptions = {}): Prom
         session: null,
         waiting: [],
         gone: false,
+        agent: false,
         deliver: (message) => tell("message", message),
         opened() {
           readyState = SOCKET_OPEN
@@ -334,6 +399,9 @@ export async function createRelay(url: string, options: RelayOptions = {}): Prom
           ;(heard[type] ??= []).push(listener)
         },
       }
+    },
+    onUse(listener) {
+      users.add(listener)
     },
     async close() {
       if (state !== "closed") {

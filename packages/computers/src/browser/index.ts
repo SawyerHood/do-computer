@@ -315,16 +315,19 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
           typeof globalThis.WebSocket === "function" && process.platform !== "win32"
             ? await createRelay(own.ws, { log })
             : undefined
+        const preview = createPreview(own.ws, {
+          seq,
+          onClick,
+          ...(relay ? { openSocket: () => relay.open() } : {}),
+        })
+        // The owner may have any tab in front: the live view shows the one the agent is using.
+        relay?.onUse((targetId) => preview.follow(targetId))
         session = {
           connect: relay?.address ?? own.ws,
           port: own.port,
           own: true,
           ...(relay ? { relay } : {}),
-          preview: createPreview(own.ws, {
-            seq,
-            onClick,
-            ...(relay ? { openSocket: () => relay.open() } : {}),
-          }),
+          preview,
         }
       }
     }

@@ -317,6 +317,37 @@ describe("the live view of a browser", () => {
     preview.close()
   })
 
+  it("follows the page the agent used, whichever page was gone to since", async () => {
+    const chrome = fakeChrome()
+    const preview = createPreview("ws://x", { seq: { n: 0 }, openSocket: () => chrome.socket })
+    const attachedTo = () =>
+      chrome.sent.filter((call) => call.method === "Target.attachToTarget").at(-1)?.params.targetId
+    const page = (targetId: string, url: string) => ({
+      method: "Target.targetInfoChanged",
+      params: { targetInfo: { targetId, type: "page", url, title: url } },
+    })
+    preview.wake()
+    await settle()
+    expect(attachedTo()).toBe("t1")
+    // Without word of the agent, the page most lately gone to.
+    chrome.say(page("t2", "https://x.com/"))
+    await settle()
+    expect(attachedTo()).toBe("t2")
+    preview.follow("t1")
+    await settle()
+    expect(attachedTo()).toBe("t1")
+    // The owner going somewhere in a tab of theirs does not take the view from the agent's page.
+    chrome.say(page("t2", "https://x.com/home"))
+    await settle()
+    expect(attachedTo()).toBe("t1")
+    expect(preview.target()).toBe("t1")
+    // Once the agent's page is gone, the view goes back to the page most lately gone to.
+    chrome.say({ method: "Target.targetDestroyed", params: { targetId: "t1" } })
+    await settle()
+    expect(attachedTo()).toBe("t2")
+    preview.close()
+  })
+
   it("reads what the page says of the mouse, and nothing else", () => {
     expect(readPointer("m,10,20")).toEqual({ kind: "m", x: 10, y: 20 })
     expect(readPointer("d,0,0")).toEqual({ kind: "d", x: 0, y: 0 })
@@ -512,6 +543,52 @@ describe.skipIf(process.platform === "win32")("the one socket to the owner's own
     await relay.close()
     await closed
     expect(existsSync(relay.address.slice(5))).toBe(false)
+  })
+
+  it("says which page dev-browser acts on, and not what else looks at pages", async () => {
+    const chrome = fakeOwnChrome()
+    const relay = await createRelay("ws://x", { openSocket: chrome.openSocket })
+    const used: string[] = []
+    relay.onUse((targetId) => used.push(targetId))
+    // Something in this process first, so that dev-browser's session on the browser is b2.
+    const live = relay.open()
+    chrome.allow()
+    const socket = connect(relay.address.slice(5))
+    await new Promise((resolve) => socket.once("connect", resolve))
+    await settle()
+    const write = (message: unknown) => socket.write(`${JSON.stringify(message)}\n`)
+    // Pages dev-browser was attached to: the owner's tab and the agent's.
+    for (const [sessionId, targetId] of [
+      ["p1", "owner-tab"],
+      ["p2", "agent-tab"],
+    ]) {
+      chrome.say({
+        method: "Target.attachedToTarget",
+        params: { sessionId, targetInfo: { targetId, type: "page" } },
+        sessionId: "b2",
+      })
+    }
+    // Setting up every page it is attached to is not using it.
+    write({ id: 1, method: "Runtime.enable", sessionId: "p1" })
+    write({ id: 2, method: "Page.bringToFront", sessionId: "p2" })
+    write({ id: 3, method: "Input.dispatchMouseEvent", params: {}, sessionId: "p2" })
+    await settle()
+    expect(used).toEqual(["agent-tab", "agent-tab"])
+    // A page it opens is one it is about to use.
+    write({ id: 4, method: "Target.createTarget", params: { url: "about:blank" } })
+    await settle()
+    chrome.say({
+      id: chrome.last("Target.createTarget")?.id,
+      result: { targetId: "new-tab" },
+      sessionId: "b2",
+    })
+    await settle()
+    expect(used.at(-1)).toBe("new-tab")
+    // What the live view or a sign-in does is not the agent's script.
+    live.send(JSON.stringify({ id: 1, method: "Target.activateTarget", params: { targetId: "x" } }))
+    expect(used).not.toContain("x")
+    socket.destroy()
+    await relay.close()
   })
 
   it("is of no more use once the owner has said no, or the browser has gone", async () => {
