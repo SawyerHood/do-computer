@@ -117,6 +117,33 @@ describe("jobs on a machine with a shell", () => {
     expect(await sandbox.fs.stat(jobs.log("l"))).toBe(undefined)
   })
 
+  it("makes an acknowledged stop terminal even if start arrives afterwards", async () => {
+    const { sandbox, jobs } = open()
+    await jobs.stop("late")
+    await jobs.start({ id: "late", command: "touch must-not-run", lifeMs: 1000 }, { waitMs: 0 })
+    expect(await sandbox.fs.stat(`${sandbox.home}/must-not-run`)).toBeUndefined()
+  })
+
+  it("does not replay an id after completion and output removal", async () => {
+    const { sandbox, jobs } = open()
+    const job = { id: "once", command: "echo once >> marker", lifeMs: 1000 }
+    await jobs.start(job, { waitMs: 3000, removeUnder: { bytes: 100, lines: 10 } })
+    await jobs.start(job, { waitMs: 0 })
+    expect((await sandbox.exec("cat marker")).output).toBe("once\n")
+  })
+
+  it("claims an id once when the same start races itself, and never runs a different command under it", async () => {
+    const { sandbox, jobs } = open()
+    const job = { id: "raced", command: "echo once >> marker", lifeMs: 1000 }
+    const starts = await Promise.allSettled(
+      Array.from({ length: 4 }, () => jobs.start(job, { waitMs: 3000 })),
+    )
+    expect(starts.map((start) => start.status)).toEqual(Array(4).fill("fulfilled"))
+    expect((await sandbox.exec("cat marker")).output).toBe("once\n")
+    await jobs.start({ ...job, command: "echo different >> marker" }, { waitMs: 1000 })
+    expect((await sandbox.exec("cat marker")).output).toBe("once\n")
+  })
+
   it("keeps the trailer out of what it passes on, however the output is cut up", async () => {
     const { jobs } = open()
     const done = await jobs.start(

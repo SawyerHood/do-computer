@@ -7,6 +7,8 @@ import {
 } from "../index.ts"
 import { shellFs } from "../shell-fs.ts"
 import { DEFAULT_HOME, type ExecLine, type ExecRequest } from "./machine.ts"
+import { execDeadline } from "../remote.ts"
+import { START_TIMEOUT_MS, SETUP_TIMEOUT_MS, EXEC_GRACE_MS } from "./deadline.ts"
 
 export {
   type ContainerLike,
@@ -31,8 +33,15 @@ export type ContainerSandboxClientOptions = {
 /** The machine could not be reached or started; not a failure of one command or file. */
 export class ContainerUnavailable extends Error {}
 
-async function* lines(body: ReadableStream<Uint8Array>): AsyncGenerator<ExecLine> {
+async function* lines(
+  body: ReadableStream<Uint8Array>,
+  setCancel: (cancel: () => void) => void,
+): AsyncGenerator<ExecLine> {
   const reader = body.getReader()
+  setCancel(() => {
+    void reader.cancel().catch(() => {})
+    reader.releaseLock()
+  })
   const decoder = new TextDecoder()
   let buffer = ""
   try {
@@ -47,7 +56,8 @@ async function* lines(body: ReadableStream<Uint8Array>): AsyncGenerator<ExecLine
       }
     }
   } finally {
-    await reader.cancel().catch(() => {})
+    void reader.cancel().catch(() => {})
+    reader.releaseLock()
   }
 }
 
@@ -78,10 +88,27 @@ export function containerSandbox(options: ContainerSandboxClientOptions): Sandbo
   const exec = async (command: string, execOptions: ExecOptions = {}): Promise<ExecOutcome> => {
     execOptions.signal?.throwIfAborted()
     const id = crypto.randomUUID()
-    // The object stops the command; this side only has to ask.
-    const abort = () => void post("/abort", { id }).catch(() => {})
+    let settled = false
+    let cancelRead: (() => void) | undefined
+    let reject: (error: unknown) => void = () => {}
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const stopped = new Promise<never>((_, fail) => {
+      reject = fail
+    })
+    const stop = (reason: unknown) => {
+      void post("/abort", { id }).catch(() => {})
+      try {
+        cancelRead?.()
+      } catch {}
+      reject(reason)
+    }
+    const abort = () => stop(execOptions.signal?.reason ?? new Error("Command aborted"))
     execOptions.signal?.addEventListener("abort", abort, { once: true })
-    try {
+    timer = setTimeout(
+      () => stop(new ContainerUnavailable("Timed out waiting for the computer")),
+      START_TIMEOUT_MS + SETUP_TIMEOUT_MS + execDeadline(execOptions.timeoutMs) + EXEC_GRACE_MS,
+    )
+    const run = (async () => {
       const response = await post("/exec", {
         id,
         command,
@@ -89,11 +116,17 @@ export function containerSandbox(options: ContainerSandboxClientOptions): Sandbo
         env: execOptions.env === undefined ? undefined : { ...execOptions.env },
         timeoutMs: execOptions.timeoutMs,
       } satisfies ExecRequest)
+      if (settled) {
+        void response.body?.cancel().catch(() => {})
+        throw new ContainerUnavailable("Command is no longer being awaited")
+      }
       let output = ""
-      for await (const line of lines(response.body!)) {
+      for await (const line of lines(response.body!, (cancel) => {
+        cancelRead = cancel
+      })) {
         if ("output" in line) {
           output += line.output
-          execOptions.onOutput?.(line.output)
+          if (!settled && !execOptions.signal?.aborted) execOptions.onOutput?.(line.output)
         } else {
           execOptions.signal?.throwIfAborted()
           return { exitCode: line.exitCode, output, timedOut: line.timedOut }
@@ -101,7 +134,12 @@ export function containerSandbox(options: ContainerSandboxClientOptions): Sandbo
       }
       execOptions.signal?.throwIfAborted()
       throw new ContainerUnavailable("The computer stopped before the command finished.")
+    })()
+    try {
+      return await Promise.race([run, stopped])
     } finally {
+      settled = true
+      clearTimeout(timer)
       execOptions.signal?.removeEventListener("abort", abort)
     }
   }

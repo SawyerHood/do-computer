@@ -18,6 +18,7 @@ import {
   type ImageLimits,
   type JobFrame,
   MAX_EXEC_TIMEOUT_MS,
+  USE_HELD_WAIT_MS,
   parseFrame,
   type PayField,
   type PayWith,
@@ -218,6 +219,8 @@ export type DaemonCoreOptions = {
   /** Called when the host says there may be a newer daemon to become. */
   readonly onUpdate?: () => void
   readonly now?: () => number
+  /** Bound tracked IO even when a platform never settles it. Default two minutes. */
+  readonly operationTimeoutMs?: number
 }
 
 /**
@@ -233,6 +236,8 @@ export class DaemonCore {
   readonly #writes = new Map<string, PendingWrite>()
   readonly #execs = new Map<string, AbortController>()
   #working = 0
+  readonly #expired = new Map<string, number>()
+  readonly #operationTimeoutMs: number
   readonly #io: DaemonIO
   readonly #send: (frame: string) => boolean
   readonly #readOnly: boolean
@@ -246,6 +251,7 @@ export class DaemonCore {
     this.#readOnly = options.readOnly ?? false
     this.#onUpdate = options.onUpdate
     this.#now = options.now ?? Date.now
+    this.#operationTimeoutMs = options.operationTimeoutMs ?? 120_000
   }
 
   get outboxSize(): number {
@@ -254,13 +260,45 @@ export class DaemonCore {
 
   /** Whether something the host asked for is still being done, or a file is half arrived. */
   get busy(): boolean {
+    this.#collectStaleWrites()
     return this.#working > 0 || this.#writes.size > 0
   }
 
   /** Count a piece of work as under way until it ends. */
-  #track(work: Promise<void>): void {
+  #track(id: string, work: Promise<void>, timeoutMs = this.#operationTimeoutMs): void {
     this.#working++
-    void work.finally(() => this.#working--).catch(() => {})
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      this.#working--
+    }
+    const timer = setTimeout(
+      () => {
+        finish()
+        // Platform IO may still complete; never send its late result as success.
+        this.#expired.set(id, this.#now() + 30 * 60_000)
+        while (this.#expired.size > 1024) this.#expired.delete(this.#expired.keys().next().value!)
+        try {
+          this.#sendOrBuffer(
+            id,
+            JSON.stringify({
+              t: "err",
+              id,
+              code: "io",
+              message: "The computer operation timed out; it may still be finishing.",
+            }),
+            true,
+          )
+        } catch {
+          /* A closing transport must not strand busy accounting. */
+        }
+      },
+      Math.max(1, timeoutMs),
+    )
+    ;(timer as { unref?: () => void }).unref?.()
+    void work.finally(finish).catch(() => {})
   }
 
   /** The socket connected or reconnected: flush buffered results in order. */
@@ -271,7 +309,9 @@ export class DaemonCore {
     }
   }
 
-  #sendOrBuffer(frame: string): void {
+  /** `id` is the request the frame answers: one already answered as timed out is not answered again. */
+  #sendOrBuffer(id: string, frame: string, allowExpired = false): void {
+    if (!allowExpired && this.#expired.has(id)) return
     if (this.#outbox.length > 0 || !this.#send(frame)) {
       this.#outbox.push(frame)
       // Bounded: drop the oldest. Whoever waited for a result that old has given up.
@@ -280,7 +320,7 @@ export class DaemonCore {
   }
 
   #error(id: string, code: DaemonErrorCode, message: string): void {
-    this.#sendOrBuffer(JSON.stringify({ t: "err", id, code, message }))
+    this.#sendOrBuffer(id, JSON.stringify({ t: "err", id, code, message }))
   }
 
   #refuse(id: string, what: string): void {
@@ -293,6 +333,7 @@ export class DaemonCore {
     const frame = parseFrame<HostFrame>(raw)
     if (frame === null) return
     this.#collectStaleWrites()
+    for (const [id, until] of this.#expired) if (until < this.#now()) this.#expired.delete(id)
 
     switch (frame.t) {
       case "cancel":
@@ -301,14 +342,17 @@ export class DaemonCore {
       case "exec":
         if (this.#readOnly) return this.#refuse(frame.id, "run commands")
         this.#track(
+          frame.id,
           this.#exec(frame.id, frame.command, frame.cwd, frame.env ?? {}, frame.timeoutMs),
+          Math.max(1, Math.min(frame.timeoutMs ?? DEFAULT_EXEC_TIMEOUT_MS, MAX_EXEC_TIMEOUT_MS)) +
+            10_000,
         )
         return
       case "read":
-        this.#track(this.#read(frame.id, frame.path, frame.maxBytes ?? REMOTE_FILE_CAP))
+        this.#track(frame.id, this.#read(frame.id, frame.path, frame.maxBytes ?? REMOTE_FILE_CAP))
         return
       case "image":
-        this.#track(this.#image(frame))
+        this.#track(frame.id, this.#image(frame))
         return
       case "write_begin":
         if (this.#readOnly) return this.#refuse(frame.id, "write files")
@@ -333,30 +377,35 @@ export class DaemonCore {
       case "write_end":
         // A refused write_begin already answered; its trailing frames find no pending write.
         if (this.#readOnly) return
-        this.#track(this.#finishWrite(frame.id))
+        this.#track(frame.id, this.#finishWrite(frame.id))
         return
       case "fs":
         if (this.#readOnly && MUTATING_FS_OPS.has(frame.op)) {
           return this.#refuse(frame.id, "change files")
         }
-        this.#track(this.#fs(frame))
+        this.#track(frame.id, this.#fs(frame))
         return
       case "job":
         // Looking at a job and stopping one change nothing a read-only computer protects.
         if (this.#readOnly && frame.op === "start") return this.#refuse(frame.id, "run commands")
-        this.#track(this.#job(frame))
+        this.#track(
+          frame.id,
+          this.#job(frame),
+          this.#operationTimeoutMs + Math.min(Math.max(0, frame.waitMs ?? 0), MAX_EXEC_TIMEOUT_MS),
+        )
         return
       case "screen":
         // Looking on, and pausing whoever is using it, change nothing here.
         if (this.#readOnly && frame.op === "act") return this.#refuse(frame.id, "use the screen")
         // Someone looking on is not work the daemon must finish before it restarts.
-        if (frame.op === "act") this.#track(this.#screen(frame))
+        if (frame.op === "act")
+          this.#track(frame.id, this.#screen(frame), USE_HELD_WAIT_MS + 60_000)
         else void this.#screen(frame)
         return
       case "browser":
         if (frame.op === "run" || frame.op === "sign_in" || frame.op === "pay") {
           if (this.#readOnly) return this.#refuse(frame.id, "use a browser")
-          this.#track(this.#browser(frame))
+          this.#track(frame.id, this.#browser(frame), USE_HELD_WAIT_MS + MAX_BROWSER_TIMEOUT_MS)
         } else void this.#browser(frame)
         return
       case "update":
@@ -404,6 +453,7 @@ export class DaemonCore {
       ms: this.#now() - startedAt,
     })
     this.#sendOrBuffer(
+      id,
       JSON.stringify({
         t: "exec_result",
         id,
@@ -463,7 +513,7 @@ export class DaemonCore {
           await jobs.remove(frame.jobs ?? [])
           break
       }
-      this.#sendOrBuffer(JSON.stringify({ t: "job_result", id: frame.id, value }))
+      this.#sendOrBuffer(frame.id, JSON.stringify({ t: "job_result", id: frame.id, value }))
     } catch (error) {
       this.#error(frame.id, errorCode(error), (error as Error)?.message ?? String(error))
     }
@@ -473,7 +523,7 @@ export class DaemonCore {
   async #use(id: string, work: () => Promise<unknown>): Promise<void> {
     try {
       const value = (await work()) ?? true
-      this.#sendOrBuffer(JSON.stringify({ t: "use_result", id, value }))
+      this.#sendOrBuffer(id, JSON.stringify({ t: "use_result", id, value }))
     } catch (error) {
       const message = (error as Error)?.message ?? String(error)
       this.#error(id, error instanceof UseRefused ? "refused" : "io", message)
@@ -653,6 +703,7 @@ export class DaemonCore {
     const chunks = chunkBytes(bytes)
     chunks.forEach((data, seq) => {
       this.#sendOrBuffer(
+        id,
         JSON.stringify({ t: "file_chunk", id, seq, data, last: seq === chunks.length - 1 }),
       )
     })
@@ -664,7 +715,7 @@ export class DaemonCore {
    */
   async #image(frame: ImageFrame): Promise<void> {
     const answer = (value: unknown) =>
-      this.#sendOrBuffer(JSON.stringify({ t: "image_result", id: frame.id, value }))
+      this.#sendOrBuffer(frame.id, JSON.stringify({ t: "image_result", id: frame.id, value }))
     const prepare = this.#io.prepareImage
     if (prepare === undefined) return answer(null)
     const size = await this.#io.statSize(frame.path).catch(() => null)
@@ -727,7 +778,7 @@ export class DaemonCore {
       if (MUTATING_FS_OPS.has(frame.op)) {
         this.#io.audit({ ts: this.#now(), kind: frame.op, path: frame.path, to: frame.to })
       }
-      this.#sendOrBuffer(JSON.stringify({ t: "fs_result", id: frame.id, value }))
+      this.#sendOrBuffer(frame.id, JSON.stringify({ t: "fs_result", id: frame.id, value }))
     } catch (error) {
       this.#error(frame.id, errorCode(error), (error as Error)?.message ?? String(error))
     }
@@ -759,7 +810,7 @@ export class DaemonCore {
       return this.#error(id, "io", `Could not write ${pending.path}: ${(error as Error)?.message}`)
     }
     this.#io.audit({ ts: this.#now(), kind: "write", path: pending.path, bytes: total })
-    this.#sendOrBuffer(JSON.stringify({ t: "ok", id }))
+    this.#sendOrBuffer(id, JSON.stringify({ t: "ok", id }))
   }
 
   #collectStaleWrites(): void {

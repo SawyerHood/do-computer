@@ -1,5 +1,6 @@
 import { boundedArgv, execDeadline, hitDeadline } from "../remote.ts"
 import { failure } from "../shell-fs.ts"
+import { within, START_TIMEOUT_MS, SETUP_TIMEOUT_MS, EXEC_GRACE_MS } from "./deadline.ts"
 
 /** The managed image every account can start without building anything. */
 export const DEFAULT_IMAGE = "cloudflare/debian-trixie"
@@ -25,6 +26,7 @@ const REFRESH_AFTER_MS = 20 * 24 * 60 * 60_000
 /** The largest file moved in or out in one piece; it passes through the object's memory. */
 const MAX_FILE_BYTES = 64 * 1024 * 1024
 const SIGTERM = 15
+const SIGKILL = 9
 
 /** The parts of `ExecProcess` the machine uses. */
 export interface ContainerProcessLike {
@@ -96,6 +98,8 @@ type Stored = {
   /** When the files were last saved, or restored from a save. */
   savedAt?: number
   lastActivity?: number
+  /** A resumed DO must finish preparation interrupted by an earlier instance. */
+  needsSetup?: boolean
 }
 
 const json = (value: unknown, status = 200) =>
@@ -123,6 +127,8 @@ export class ContainerMachine {
   /** Commands and transfers in progress. Held in memory: a request keeps the object loaded. */
   #busy = 0
   readonly #running = new Map<string, () => void>()
+  readonly #cancelled = new Map<string, number>()
+  #needsSetup = false
   #starting: Promise<ContainerLike> | undefined
   #whoami: Promise<{ HOME: string; USER: string }> | undefined
 
@@ -155,22 +161,31 @@ export class ContainerMachine {
    */
   async resumed(): Promise<void> {
     const container = this.#container()
-    if (container?.running) await container.setInactivityTimeout(INACTIVITY_TIMEOUT_MS)
+    if (container?.running)
+      await within(container.setInactivityTimeout(INACTIVITY_TIMEOUT_MS), SETUP_TIMEOUT_MS)
   }
 
   /** The running machine, started from the last snapshot if it had stopped. */
   #ensureRunning(): Promise<ContainerLike> {
     // One start at a time: `start()` throws on a machine that is already starting.
-    this.#starting ??= this.#start().finally(() => {
-      this.#starting = undefined
-    })
+    if (this.#starting === undefined) {
+      const controller = new AbortController()
+      this.#starting = within(this.#start(controller.signal), START_TIMEOUT_MS, () =>
+        controller.abort(),
+      ).finally(() => {
+        this.#starting = undefined
+      })
+    }
     return this.#starting
   }
 
-  async #start(): Promise<ContainerLike> {
+  async #start(signal: AbortSignal): Promise<ContainerLike> {
     const container = this.#require()
     if (!container.running) {
       const snapshotId = await this.#store.get<string>("snapshotId")
+      signal.throwIfAborted()
+      await this.#store.put({ needsSetup: true })
+      signal.throwIfAborted()
       // A snapshot that cannot be restored fails here, and keeps failing. That is deliberate:
       // falling back to the image would hand the agent an empty disk as if it were its own.
       container.start({
@@ -182,29 +197,84 @@ export class ContainerMachine {
         enableInternet: this.#config.internet,
         instance: this.#config.instance,
       })
+      this.#needsSetup = true
       await this.#store.put({ savedAt: this.#now() })
-      // `exec` waits for a machine that is still starting, and rejects if it failed to start.
-      const made = await container.exec(["mkdir", "-p", "--", this.#config.home], {
-        stderr: "combined",
-      })
-      const { exitCode, stdout } = await made.output()
-      if (exitCode !== 0) throw new Error(`The machine could not be prepared: ${decode(stdout)}`)
     }
+    signal.throwIfAborted()
+    this.#needsSetup ||= (await this.#store.get<boolean>("needsSetup")) === true
+    signal.throwIfAborted()
+    if (this.#needsSetup) {
+      // `exec` waits for a machine that is still starting, and rejects if it failed to start.
+      const { exitCode, stdout } = await this.#run(
+        container,
+        ["mkdir", "-p", "--", this.#config.home],
+        { stderr: "combined" },
+        SETUP_TIMEOUT_MS,
+      )
+      signal.throwIfAborted()
+      if (exitCode !== 0) throw new Error(`The machine could not be prepared: ${decode(stdout)}`)
+      await this.#store.put({ needsSetup: false })
+      signal.throwIfAborted()
+      this.#needsSetup = false
+    }
+    signal.throwIfAborted()
     await container.setInactivityTimeout(INACTIVITY_TIMEOUT_MS)
+    signal.throwIfAborted()
     if ((await this.#store.getAlarm()) === null) {
+      signal.throwIfAborted()
       await this.#store.setAlarm(this.#now() + CHECK_INTERVAL_MS)
     }
     return container
   }
 
+  /** Bound both provider allocation and output, and clean up an allocation that arrives late. */
+  #run(
+    container: ContainerLike,
+    argv: string[],
+    options: Parameters<ContainerLike["exec"]>[1],
+    timeoutMs: number,
+  ) {
+    let process: ContainerProcessLike | undefined
+    let expired = false
+    let exited = false
+    const kill = () => {
+      if (process && !exited) {
+        try {
+          process.kill(SIGKILL)
+        } catch {}
+      }
+    }
+    const work = (async () => {
+      process = await container.exec(argv, options)
+      void process.exitCode.then(
+        () => {
+          exited = true
+        },
+        () => {
+          exited = true
+        },
+      )
+      if (expired) {
+        kill()
+        throw new Error("Process arrived after its deadline")
+      }
+      return process.output()
+    })()
+    return within(work, timeoutMs, () => {
+      expired = true
+      kill()
+    })
+  }
+
   /** Who commands run as and where that user lives, asked of the image once per object. */
   #login(container: ContainerLike): Promise<{ HOME: string; USER: string }> {
     this.#whoami ??= (async () => {
-      const process = await container.exec(
+      const { stdout } = await this.#run(
+        container,
         ["sh", "-c", 'id -un; getent passwd "$(id -u)" | cut -d: -f6'],
         { stderr: "ignore" },
+        SETUP_TIMEOUT_MS,
       )
-      const { stdout } = await process.output()
       const [user = "", directory = ""] = decode(stdout).split("\n")
       return { USER: user || "root", HOME: directory || "/root" }
     })().catch(() => ({ USER: "root", HOME: "/root" }))
@@ -213,14 +283,14 @@ export class ContainerMachine {
 
   /** Run `work` on the running machine, counted as activity so the alarm leaves it alone. */
   async #active<T>(work: (container: ContainerLike) => Promise<T>): Promise<T> {
-    const container = await this.#ensureRunning()
     this.#busy++
-    await this.#store.put({ lastActivity: this.#now() })
     try {
-      return await work(container)
+      const container = await this.#ensureRunning()
+      await within(this.#store.put({ lastActivity: this.#now() }), SETUP_TIMEOUT_MS)
+      return await within(work(container), 120_000)
     } finally {
       this.#busy--
-      await this.#store.put({ lastActivity: this.#now() })
+      await within(this.#store.put({ lastActivity: this.#now() }), SETUP_TIMEOUT_MS).catch(() => {})
     }
   }
 
@@ -233,6 +303,13 @@ export class ContainerMachine {
           return await this.#exec((await request.json()) as ExecRequest)
         case "POST /abort": {
           const { id } = (await request.json()) as { id: string }
+          this.#pruneCancelled()
+          this.#cancelled.set(
+            id,
+            this.#now() + START_TIMEOUT_MS + SETUP_TIMEOUT_MS + 600_000 + EXEC_GRACE_MS,
+          )
+          while (this.#cancelled.size > 1024)
+            this.#cancelled.delete(this.#cancelled.keys().next().value!)
           this.#running.get(id)?.()
           return json({ ok: true })
         }
@@ -255,63 +332,133 @@ export class ContainerMachine {
     }
   }
 
+  #pruneCancelled(): void {
+    for (const [id, until] of this.#cancelled) if (until < this.#now()) this.#cancelled.delete(id)
+  }
+
   /** Runs a command and streams what it prints, one JSON line at a time, ending with its exit. */
   async #exec(input: ExecRequest): Promise<Response> {
     const timeoutMs = execDeadline(input.timeoutMs)
-    // Started before the response, so a machine that cannot start is an error and not a stream.
-    const container = await this.#ensureRunning()
-    this.#busy++
-    await this.#store.put({ lastActivity: this.#now() })
-    const startedAt = this.#now()
-
-    let process: ContainerProcessLike
-    try {
-      process = await container.exec(boundedArgv(input.command, timeoutMs), {
-        cwd: input.cwd ?? this.#config.home,
-        // A command gets only this environment and the machine's PATH, so the basics a shell
-        // would have had from a login are put back.
-        env: { ...(await this.#login(container)), LANG: "C.UTF-8", TERM: "dumb", ...input.env },
-        stderr: "combined",
+    this.#pruneCancelled()
+    if (this.#cancelled.has(input.id)) throw new Error("Command aborted")
+    if (this.#running.has(input.id)) throw new Error("Command id is already running")
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let refusal = new Error("Command aborted")
+    let process: ContainerProcessLike | undefined
+    let exited = false
+    let cancelled = false
+    let busy = false
+    const cancellation = new AbortController()
+    const wait = <T>(work: Promise<T>): Promise<T> =>
+      new Promise((resolve, reject) => {
+        const abort = () => reject(refusal)
+        if (cancelled) abort()
+        else cancellation.signal.addEventListener("abort", abort, { once: true })
+        // Remove the listener after each read, rather than retaining one per output chunk.
+        work.then(
+          (value) => {
+            cancellation.signal.removeEventListener("abort", abort)
+            resolve(value)
+          },
+          (error) => {
+            cancellation.signal.removeEventListener("abort", abort)
+            reject(error)
+          },
+        )
       })
+    const kill = (signal = SIGTERM) => {
+      if (process !== undefined && !exited) {
+        try {
+          process.kill(signal)
+        } catch {
+          // It may have exited between checking and signalling it.
+        }
+      }
+    }
+    // Register before the first await. Cancelling one caller leaves the bounded boot running
+    // for other callers, but stops waiting immediately and never launches this command.
+    this.#running.set(input.id, () => {
+      if (cancelled) return
+      cancelled = true
+      kill()
+      const escalation = setTimeout(() => kill(SIGKILL), 5_000)
+      ;(escalation as { unref?: () => void }).unref?.()
+      cancellation.abort()
+    })
+    const arm = (ms: number) => {
+      clearTimeout(timer)
+      timer = setTimeout(() => {
+        refusal = new Error("Command timed out waiting for the computer")
+        this.#running.get(input.id)?.()
+      }, ms)
+    }
+    arm(START_TIMEOUT_MS + SETUP_TIMEOUT_MS + EXEC_GRACE_MS)
+    let startedAt: number
+    this.#busy++
+    busy = true
+    try {
+      const container = await wait(this.#ensureRunning())
+      await wait(this.#store.put({ lastActivity: this.#now() }))
+      const login = await wait(this.#login(container))
+      if (cancelled) throw new Error("Command aborted")
+      startedAt = this.#now()
+      arm(timeoutMs + EXEC_GRACE_MS)
+      await wait(
+        container
+          .exec(boundedArgv(input.command, timeoutMs), {
+            cwd: input.cwd ?? this.#config.home,
+            env: { ...login, LANG: "C.UTF-8", TERM: "dumb", ...input.env },
+            stderr: "combined",
+          })
+          .then((created) => {
+            process = created
+            void created.exitCode.then(
+              () => (exited = true),
+              () => (exited = true),
+            )
+            // An exec RPC may return after its caller has already aborted.
+            if (cancelled) kill(SIGKILL)
+          }),
+      )
     } catch (error) {
-      this.#busy--
+      clearTimeout(timer)
+      this.#running.delete(input.id)
+      if (busy) this.#busy--
       throw error
     }
-
-    // Signalling a process that has exited is an error in the runtime, so remember when it has.
-    let exited = false
-    void process.exitCode.then(
-      () => (exited = true),
-      () => (exited = true),
-    )
-    this.#running.set(input.id, () => {
-      if (!exited) process.kill(SIGTERM)
-    })
+    const running = process!
 
     const encoder = new TextEncoder()
     const line = (value: ExecLine) => encoder.encode(`${JSON.stringify(value)}\n`)
     const finish = async () => {
+      clearTimeout(timer)
       this.#running.delete(input.id)
       this.#busy--
-      await this.#store.put({ lastActivity: this.#now() })
+      await within(this.#store.put({ lastActivity: this.#now() }), SETUP_TIMEOUT_MS).catch(() => {})
     }
     const now = this.#now
     const body = new ReadableStream<Uint8Array>({
       async start(controller) {
         try {
           const decoder = new TextDecoder()
-          if (process.stdout) {
-            const reader = process.stdout.getReader()
-            for (;;) {
-              const { done, value } = await reader.read()
-              if (done) break
-              const output = decoder.decode(value, { stream: true })
-              if (output !== "") controller.enqueue(line({ output }))
+          if (running.stdout) {
+            const reader = running.stdout.getReader()
+            try {
+              for (;;) {
+                const { done, value } = await wait(reader.read())
+                if (done) break
+                const output = decoder.decode(value, { stream: true })
+                if (output !== "") controller.enqueue(line({ output }))
+              }
+            } finally {
+              // Do not await a broken provider's cancellation while unwinding an abort.
+              if (cancelled) void reader.cancel().catch(() => {})
+              reader.releaseLock()
             }
           }
           const rest = decoder.decode()
           if (rest !== "") controller.enqueue(line({ output: rest }))
-          const exitCode = await process.exitCode
+          const exitCode = await wait(running.exitCode)
           controller.enqueue(
             line({ exitCode, timedOut: hitDeadline(exitCode, now() - startedAt, timeoutMs) }),
           )
@@ -336,17 +483,21 @@ export class ContainerMachine {
 
   async #read(path: string): Promise<Response> {
     return this.#active(async (container) => {
-      const process = await container.exec([
-        "sh",
-        "-c",
-        `if [ -d "$1" ]; then echo 'Is a directory' >&2; exit 1; fi
+      const { exitCode, stdout, stderr } = await this.#run(
+        container,
+        [
+          "sh",
+          "-c",
+          `if [ -d "$1" ]; then echo 'Is a directory' >&2; exit 1; fi
 s=$(stat -c %s -- "$1") || exit 1
 if [ "$s" -gt ${MAX_FILE_BYTES} ]; then echo 'File too large to read in one piece' >&2; exit 1; fi
 exec cat -- "$1"`,
-        "sh",
-        path,
-      ])
-      const { exitCode, stdout, stderr } = await process.output()
+          "sh",
+          path,
+        ],
+        undefined,
+        120_000,
+      )
       if (exitCode !== 0) return this.#fileError(exitCode, decode(stderr), path)
       return new Response(stdout, { headers: { "content-type": "application/octet-stream" } })
     })
@@ -355,12 +506,16 @@ exec cat -- "$1"`,
   async #write(path: string, data: ReadableStream<Uint8Array> | null): Promise<Response> {
     return this.#active(async (container) => {
       // bash, whose message for a missing directory is the one `failure` knows.
-      const process = await container.exec(["bash", "-c", 'cat > "$1"', "bash", path], {
-        // An empty file is a closed stdin, which is what leaving it out gives.
-        ...(data === null ? {} : { stdin: data }),
-        stderr: "combined",
-      })
-      const { exitCode, stdout } = await process.output()
+      const { exitCode, stdout } = await this.#run(
+        container,
+        ["bash", "-c", 'cat > "$1"', "bash", path],
+        {
+          // An empty file is a closed stdin, which is what leaving it out gives.
+          ...(data === null ? {} : { stdin: data }),
+          stderr: "combined",
+        },
+        120_000,
+      )
       if (exitCode !== 0) return this.#fileError(exitCode, decode(stdout), path)
       return json({ ok: true })
     })
@@ -386,7 +541,7 @@ exec cat -- "$1"`,
   async reset(): Promise<void> {
     const container = this.#container()
     if (container?.running) await container.destroy("reset")
-    await this.#store.delete(["snapshotId", "savedAt", "lastActivity"])
+    await this.#store.delete(["snapshotId", "savedAt", "lastActivity", "needsSetup"])
   }
 
   /**
@@ -418,15 +573,21 @@ exec cat -- "$1"`,
     }
 
     const lastActivity = (await this.#store.get<number>("lastActivity")) ?? 0
-    const idle = this.#busy === 0 && now - lastActivity > IDLE_LIMIT_MS
+    const idle =
+      this.#busy === 0 && this.#starting === undefined && now - lastActivity > IDLE_LIMIT_MS
     const checkpoint =
-      this.#busy === 0 && lastActivity > savedAt && now - savedAt > CHECKPOINT_INTERVAL_MS
+      this.#busy === 0 &&
+      this.#starting === undefined &&
+      lastActivity > savedAt &&
+      now - savedAt > CHECKPOINT_INTERVAL_MS
     if (idle || checkpoint) await this.save()
 
     // A save takes a few seconds and commands keep running during it. One that arrived meanwhile
     // has written files this snapshot may not hold, so the machine stays up for the next check.
     const usedDuringSave =
-      this.#busy > 0 || ((await this.#store.get<number>("lastActivity")) ?? 0) !== lastActivity
+      this.#busy > 0 ||
+      this.#starting !== undefined ||
+      ((await this.#store.get<number>("lastActivity")) ?? 0) !== lastActivity
     if (idle && !usedDuringSave) {
       await container.destroy("idle")
       await this.#store.setAlarm(this.#now() + REFRESH_AFTER_MS)
