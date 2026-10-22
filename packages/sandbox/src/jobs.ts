@@ -84,16 +84,33 @@ const ANSWER_GRACE_MS = 20_000
  * whole group at the limit, or when it is itself asked to stop; the shell around it is outside
  * that group, and lives to write how it ended, and how long it took by bash's own clock: a
  * \`date\` that is not GNU's cannot be trusted with milliseconds. `dd` passes on what is printed as it comes and
- * stops at the cap, which ends a job that prints without end.
+ * stops at the cap, which ends a job that prints without end. The job's id is claimed by linking
+ * its identity into place whole, so a start that races another never reads half of it.
  */
 const START = `d=$1
+claim="\${d%/*}/.claims/\${d##*/}"
+mkdir -p "$claim" || exit 1
+chmod 700 "$claim"
+[ -e "$claim/stopped" ] && exit 0
+t="$claim/identity.$$"
+printf '%s' "$5" > "$t" || exit 1
+if ! ln "$t" "$claim/identity" 2>/dev/null; then
+  rm -f "$t"
+  [ "$(cat "$claim/identity" 2>/dev/null)" = "$5" ] || exit 1
+  exit 0
+fi
+rm -f "$t"
+[ -e "$claim/stopped" ] && exit 0
+[ -e "$d/command" ] && exit 0
 mkdir -p "$d" || exit 1
 printf '%s\\n' "$2" > "$d/command"
 : > "$d/output.log"
 setsid bash -c '
 now() { if [ -n "\${EPOCHREALTIME:-}" ]; then t=\${EPOCHREALTIME/[.,]/}; echo $(( t / 1000 )); else echo $(( $(date +%s) * 1000 )); fi; }
 t0=$(now)
-{ timeout --kill-after=5 "$3" bash -c "$1" 2>&1 & echo $! > "$2/tpid"; wait $!; echo $? > "$2/code"; } | dd bs=65536 iflag=count_bytes count="$4" status=none >> "$2/output.log"
+claim="\${2%/*}/.claims/\${2##*/}"
+if [ -e "$claim/stopped" ]; then echo "143 0 0" > "$2/exit"; exit 0; fi
+{ timeout --kill-after=5 "$3" bash -c "$1" 2>&1 & p=$!; echo "$p" > "$2/tpid"; [ ! -e "$claim/stopped" ] || kill -TERM "$p" 2>/dev/null; wait "$p"; echo $? > "$2/code"; } | dd bs=65536 iflag=count_bytes count="$4" status=none >> "$2/output.log"
 code=$(cat "$2/code" 2>/dev/null || echo 1)
 ran=$(( $(now) - t0 ))
 late=0
@@ -106,7 +123,11 @@ echo $! > "$d/pid"
 /** Prints `running`, `exited <code> <late> <milliseconds it ran>` or `lost` for the job in "$1". */
 const STATE = `state() {
   if [ -e "$1/exit" ]; then echo "exited $(cat "$1/exit")"
-  elif kill -0 "$(cat "$1/pid" 2>/dev/null)" 2>/dev/null; then echo running
+  elif pid=$(cat "$1/pid" 2>/dev/null); [ "$pid" -gt 0 ] 2>/dev/null && kill -0 "$pid" 2>/dev/null; then
+    case "$(cat "/proc/$pid/stat" 2>/dev/null)" in
+      *") Z "*|*") X "*) echo lost;;
+      *) echo running;;
+    esac
   elif [ -e "$1/exit" ]; then echo "exited $(cat "$1/exit")"
   else echo lost; fi
 }`
@@ -144,6 +165,11 @@ printf '\\n%s %s %s %s\\n' "$4" "$pos" "$kept" "$st"
 `
 
 const STOP = `d=$1
+claim="\${d%/*}/.claims/\${d##*/}"
+mkdir -p "$claim" || exit 1
+chmod 700 "$claim"
+: > "$claim/stopped"
+[ -d "$d" ] || exit 0
 [ -e "$d/exit" ] && exit 0
 i=0
 while [ ! -s "$d/tpid" ] && [ $i -lt 20 ]; do sleep 0.05; i=$((i + 1)); done
@@ -266,7 +292,8 @@ for d in "$@"; do
 done`,
         ids.map(dir),
       )}
-find ${quote(base)} -mindepth 1 -maxdepth 1 -type d -mtime +${KEEP_DAYS} -exec rm -rf {} + 2>/dev/null`,
+find ${quote(base)} -mindepth 1 -maxdepth 1 -type d ! -name .claims -mtime +${KEEP_DAYS} -exec rm -rf {} + 2>/dev/null
+find ${quote(`${base}/.claims`)} -mindepth 1 -maxdepth 1 -type d -mtime +${KEEP_DAYS} -exec rm -rf {} + 2>/dev/null`,
       { timeoutMs: 60_000 },
     )
     const found: Record<string, JobState & { size: number }> = {}
@@ -279,12 +306,25 @@ find ${quote(base)} -mindepth 1 -maxdepth 1 -type d -mtime +${KEEP_DAYS} -exec r
   }
 
   return {
-    start: (job, options) =>
-      follow(
+    start: async (job, options) => {
+      if (!Number.isFinite(job.lifeMs) || job.lifeMs <= 0 || job.lifeMs > 24 * 60 * 60_000)
+        throw new Error("Invalid job lifetime")
+      const identity = JSON.stringify({
+        command: job.command,
+        cwd: job.cwd,
+        env: job.env === undefined ? undefined : Object.fromEntries(Object.entries(job.env).sort()),
+        lifeMs: job.lifeMs,
+      })
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(identity))
+      const fingerprint = Array.from(new Uint8Array(digest), (b) =>
+        b.toString(16).padStart(2, "0"),
+      ).join("")
+      return follow(
         job.id,
-        `${script(START, [dir(job.id), job.command, Math.max(1, Math.ceil(job.lifeMs / 1000)), JOB_LOG_CAP_BYTES])} || exit 1\n`,
+        `${script(START, [dir(job.id), job.command, Math.max(1, Math.ceil(job.lifeMs / 1000)), JOB_LOG_CAP_BYTES, fingerprint])} || exit 1\n`,
         { ...options, from: 0, cwd: job.cwd, env: job.env },
-      ),
+      )
+    },
     follow: (id, options) => follow(id, "", options),
     stop: async (id) => {
       await sandbox.exec(script(STOP, [dir(id)]), { timeoutMs: 30_000 })

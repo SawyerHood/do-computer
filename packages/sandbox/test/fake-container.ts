@@ -97,18 +97,25 @@ export function fakeContainer() {
       const combined = options.stderr === "combined"
       const chunks = { stdout: [] as Buffer[], stderr: [] as Buffer[] }
       let consumed = false
+      let cancelled = false
       const stdout = new ReadableStream<Uint8Array>({
         start(controller) {
           let open = combined ? 2 : 1
           const end = () => {
-            if (--open === 0) controller.close()
+            if (--open === 0 && !cancelled) controller.close()
           }
-          child.stdout!.on("data", (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)))
+          const data = (chunk: Buffer) => {
+            if (!cancelled) controller.enqueue(new Uint8Array(chunk))
+          }
+          child.stdout!.on("data", data)
           child.stdout!.on("end", end)
           if (combined) {
-            child.stderr!.on("data", (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)))
+            child.stderr!.on("data", data)
             child.stderr!.on("end", end)
           }
+        },
+        cancel() {
+          cancelled = true
         },
       })
       if (!combined) child.stderr!.on("data", (chunk: Buffer) => chunks.stderr.push(chunk))
