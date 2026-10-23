@@ -74,6 +74,8 @@ export function sites(options: SitesOptions): Extension {
   }
   const tool = defineTool({
     name: SHARE_TOOL,
+    // Described to the model only once it loads it (`deferred.ts`).
+    deferred: true,
     description:
       "Share something from the library with a link of its own, which the person can send to others. " +
       `action "publish" needs \`path\`: a file or a folder, as it is in the library. A file is shared alone: an HTML page is shown as the page, a Markdown document as the document, a picture as the picture, and anything else as a download. A folder is shared whole: one with an index.html is a website that opens on it, so a page that uses files beside it belongs in a folder with them, and one without is shown as a list of its files. It takes a \`title\`. ` +

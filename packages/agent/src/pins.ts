@@ -9,13 +9,7 @@ import {
   pinTitle,
 } from "@do-computer/protocol"
 import { Type } from "@earendil-works/pi-ai"
-import {
-  defineDoc,
-  defineExtension,
-  defineTool,
-  type Extension,
-  section,
-} from "@earendil-works/pi-durable"
+import { defineDoc, defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { LIBRARY_FOLDER, type LibraryBackend } from "./library-store.ts"
 
 /** Something about a pin that whoever asked is told in words: there are too many, or no such file. */
@@ -145,10 +139,13 @@ export class Pins {
     const say = (text: string) => ({ output: [{ type: "text" as const, text }] })
     const tool = defineTool({
       name: PIN_TOOL,
+      // Described to the model only once it loads it (`deferred.ts`).
+      deferred: true,
       description:
         "Pin something from the library beside your chat, under your face, where the person keeps it in view: the first thing pinned is shown small as what it is, and stays current as the file changes, and any of them opens beside the chat at a press. " +
-        'It is for what is worth coming back to: a board or a tracker you keep up to date, a plan the two of you work from. action "pin" needs `path`, a file as it is in the library, and takes a short `title`. ' +
-        `Pinning copies nothing: change the file and what is pinned changes. "unpin" takes it off again, and "list" says what is pinned. At most ${MAX_PINS} things are pinned at once.`,
+        "Pin what they ask to have pinned, and what you make for them to keep an eye on over time: a board or a tracker you keep up to date, a plan the two of you work from. A page (an HTML file) shows best. Do not pin what is read once. " +
+        'action "pin" needs `path`, a file as it is in the library, and takes a short `title`. ' +
+        `Pinning copies nothing: change the file and what is pinned changes. "unpin" takes it off again, and "list" says what is pinned: they pin and unpin things too, so look before you rely on it. At most ${MAX_PINS} things are pinned at once.`,
       parameters: Type.Object({
         action: Type.Union([Type.Literal("pin"), Type.Literal("unpin"), Type.Literal("list")]),
         path: Type.Optional(
@@ -212,18 +209,7 @@ export class Pins {
         }
       },
     })
-    return defineExtension({
-      name: "dc.pins",
-      tools: [tool],
-      sections: [
-        section("pins", () =>
-          [
-            `Something in the library can be pinned with the \`${PIN_TOOL}\` tool: it then stays beside the chat, under your face, shown small as what it is and current as the file changes, and the person opens it beside the chat at a press.`,
-            "Pin what they ask to have pinned, and what you make for them to keep an eye on over time, such as a board or a tracker that you keep up to date. A page (an HTML file) shows best. Do not pin what is read once.",
-            "They can pin and unpin things too, so use the list action to see what is pinned before you rely on it.",
-          ].join(" "),
-        ),
-      ],
-    })
+    // No section: the tool is loaded on demand, the prompt names it, and it says when to pin.
+    return defineExtension({ name: "dc.pins", tools: [tool] })
   }
 }

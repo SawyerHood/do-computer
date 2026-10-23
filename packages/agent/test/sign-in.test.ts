@@ -28,6 +28,7 @@ import {
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterAll, describe, expect, it } from "vitest"
+import { LOAD_TOOLS } from "../src/deferred.ts"
 import {
   cardVault,
   computerActorName,
@@ -234,8 +235,11 @@ async function after(agent: string, chatId: string, act: () => Promise<unknown>)
   return settled(agent, chatId, before)
 }
 
+// Loading a tool that is loaded on demand first (`quiet.ts`) is not what these tests are about.
 const tools = (state: ChatState) =>
-  state.messages.flatMap((m) => m.parts).filter((part): part is ToolPart => part.type === "tool")
+  state.messages
+    .flatMap((m) => m.parts)
+    .filter((part): part is ToolPart => part.type === "tool" && part.name !== LOAD_TOOLS)
 const signInOf = (part: ToolPart) => (part.details as unknown as SignInDetails | undefined)?.signIn
 
 /** The model asks to sign in, then says a word once it has heard how that went. */

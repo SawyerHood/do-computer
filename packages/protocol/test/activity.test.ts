@@ -33,6 +33,8 @@ describe("toolActivity", () => {
     [tool("edit", { path: "plan.md", computer: "studio" }), "Editing plan.md on studio"],
     [tool("web_search", { query: "latest Node LTS" }), "Searching the web: latest Node LTS"],
     [tool("tool_search", { query: "calendar events" }), "Looking for a tool: calendar events"],
+    [tool("load_tools", { names: ["visual", "pin"] }), "Loading tools: visual, pin"],
+    [tool("load_tools", {}), "Loading tools"],
     [tool("sign_in", {}), "Signing in"],
     [
       tool("pay", { purpose: "A domain, $12.98", computer: "MacBook" }),

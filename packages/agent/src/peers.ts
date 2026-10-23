@@ -576,6 +576,8 @@ export class Peers {
   #tool() {
     return defineTool({
       name: "agents",
+      // Described to the model only once it loads it (`deferred.ts`).
+      deferred: true,
       description:
         "Work with the other agents in this workspace: each is an agent like you, with a name, memory, skills and computer of its own, working for the same people. " +
         'action "list" shows who they are; "message" needs `to` (a name or id from the list) and `message`. ' +

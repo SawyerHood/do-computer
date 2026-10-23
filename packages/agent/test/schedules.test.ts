@@ -18,6 +18,7 @@ import {
   fauxText,
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux"
+import { LOAD_TOOLS } from "../src/deferred.ts"
 import { afterEach, describe, expect, it } from "vitest"
 import { type AgentNotification, createAgentActor } from "../src/index.ts"
 import { SchedulesDoc } from "../src/docs.ts"
@@ -179,7 +180,9 @@ describe("schedules", () => {
     )
     const rested = world.activity.length
     expect(
-      asked.messages.flatMap((m) => m.parts).find((part) => part.type === "tool"),
+      asked.messages
+        .flatMap((m) => m.parts)
+        .find((part) => part.type === "tool" && part.name !== LOAD_TOOLS),
     ).toMatchObject({
       name: "schedule",
       status: "done",
@@ -305,7 +308,9 @@ describe("schedules", () => {
       ([schedule]) => schedule?.lastRun != null,
     )
     const run = await chatState(world, done!.lastRun!.chatId!)
-    const tool = run.messages.flatMap((m) => m.parts).find((part) => part.type === "tool")
+    const tool = run.messages
+      .flatMap((m) => m.parts)
+      .find((part) => part.type === "tool" && part.name !== LOAD_TOOLS)
     expect(tool).toMatchObject({
       status: "error",
       output: "A scheduled run cannot change schedules.",
@@ -415,7 +420,9 @@ describe("schedules", () => {
       fauxAssistantMessage("That did not parse."),
     ])
     const state = await say(world, chat.id, "do it whenever")
-    const tool = state.messages.flatMap((m) => m.parts).find((part) => part.type === "tool")
+    const tool = state.messages
+      .flatMap((m) => m.parts)
+      .find((part) => part.type === "tool" && part.name !== LOAD_TOOLS)
     expect(tool).toMatchObject({ status: "error" })
     expect(tool?.type === "tool" && tool.output).toContain('Could not parse schedule "whenever"')
 
@@ -445,7 +452,7 @@ const useTool = (name: string, args: Parameters<typeof fauxToolCall>[1], then = 
 const toolOutput = (state: ChatState) =>
   state.messages
     .flatMap((message) => message.parts)
-    .flatMap((part) => (part.type === "tool" ? [part] : []))
+    .flatMap((part) => (part.type === "tool" && part.name !== LOAD_TOOLS ? [part] : []))
     .at(-1)
 
 /** Run a schedule now and wait for that run to be over. */

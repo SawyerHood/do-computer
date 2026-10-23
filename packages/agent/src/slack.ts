@@ -323,6 +323,8 @@ export class SlackChats {
   #tool() {
     return defineTool({
       name: "slack",
+      // Described to the model only once it loads it (`deferred.ts`).
+      deferred: true,
       description:
         "Go to Slack as yourself, the bot. " +
         'action "channels" lists the channels you have been added to, which are the ones you can read and write in. ' +

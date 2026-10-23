@@ -25,6 +25,7 @@ import {
 } from "@earendil-works/pi-durable/tools"
 import { ASKED_THROUGH_MAIN, askingThrough, canAsk, eventText } from "./bus.ts"
 import { ChatsDoc, IdentityDoc, type SubagentRecord } from "./docs.ts"
+import { capText, cutFromRead, OUTPUT_CAP_CHARS } from "./output-cap.ts"
 import { isInherited, own } from "./own.ts"
 import { readPreparedImage } from "./read-images.ts"
 
@@ -219,9 +220,29 @@ export const ComputersDoc = defineDoc<ComputersState>({
 const PARAMETER = Type.Optional(
   Type.String({
     description:
-      "Name of the computer to do this on. It can be left out when there is only one machine of your workspace that you can use.",
+      "Name of the computer to do this on. Leave it out where there is only one you can use.",
   }),
 )
+
+/** `read` as pi-durable describes it, with what is sent of a long file as it is here. */
+const READ_DESCRIPTION = `Read the contents of a file. Supports text files and images (jpg, png, gif, webp). Images are sent as attachments. Text is read up to 2000 lines or 50KB, and of that you are sent at most ${OUTPUT_CAP_CHARS / 1000}k characters: the start and the end, with the lines left out named between them. Use offset/limit to read a part of a large file, and search it (grep) to find the part you need.`
+
+/**
+ * A file read is sent whole up to the cap (`output-cap.ts`), and past it its start and end, with
+ * the lines left out between them to read next. The file is where all of it is.
+ */
+function capRead<R extends ToolExecutionResult>(result: R, args: Record<string, unknown>): R {
+  const output = result.output
+  if (output === undefined || !output.some((item) => item.type === "text")) return result
+  const path = typeof args.path === "string" ? args.path : "the file"
+  const first = typeof args.offset === "number" && args.offset > 1 ? Math.trunc(args.offset) : 1
+  return {
+    ...result,
+    output: output.map((item) =>
+      item.type === "text" ? { ...item, text: capText(item.text, cutFromRead(path, first)) } : item,
+    ),
+  }
+}
 
 /** The actor name of a computer's link. */
 export const computerActorName = (computerId: string) => `computer:${computerId}`
@@ -315,6 +336,7 @@ export class Computers {
     const target = <Tool extends ToolRegistration>(tool: Tool, optional: boolean) =>
       wrapTool(tool as ToolRegistration, (inner) => ({
         ...inner,
+        ...(inner.name === "read" ? { description: READ_DESCRIPTION } : {}),
         parameters: Type.Object({
           ...(inner.parameters as unknown as { properties: Record<string, never> }).properties,
           computer: PARAMETER,
@@ -339,7 +361,11 @@ export class Computers {
             inner.name === "read"
               ? await readPreparedImage(rest, env, found.sandbox, api, context)
               : undefined
-          const result = image ?? (await inner.execute(rest as never, { ...api, env }, context))
+          const result =
+            image ??
+            (inner.name === "read"
+              ? capRead(await inner.execute(rest as never, { ...api, env }, context), rest)
+              : await inner.execute(rest as never, { ...api, env }, context))
           for (const message of (await around?.after?.(inner.name, found, context)) ?? []) {
             api.diagnostic({ severity: "warn", message })
           }

@@ -61,6 +61,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { Usage } from "@earendil-works/pi-ai"
 import type { Models } from "@earendil-works/pi-ai/models"
 import {
+  AgentDoc,
   AssistantEntry,
   type CompactionPolicy,
   type Conversation,
@@ -72,6 +73,7 @@ import {
   Harness,
   type JsonObject,
   type SessionDocToken,
+  type ToolRegistration,
   UsageDoc,
 } from "@earendil-works/pi-durable"
 import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
@@ -87,6 +89,7 @@ import {
   SchedulesDoc,
 } from "./docs.ts"
 import { createToolSearchExtension } from "@earendil-works/pi-durable/tool-search"
+import { calledIn, DeferredSeenDoc, deferredTools, withLoaded } from "./deferred.ts"
 import { createEditTool, createReadTool, createWriteTool } from "@earendil-works/pi-durable/tools"
 import { ApprovalError, Approvals, ApprovalsDoc, SIGN_IN_ABILITY } from "./approvals.ts"
 import { appGuide } from "./app-guide.ts"
@@ -1351,6 +1354,8 @@ export class AgentActor implements Actor {
       )
       // Finds the tools that are not offered until asked for, which a connector's are.
       registry.install(createToolSearchExtension())
+      // Loads the agent's own tools that are described only once needed, which it names.
+      registry.install(deferredTools())
       for (const extension of this.#options.extensions ?? []) registry.install(extension)
       // After the others, so that what they add to a request is counted with the rest. Its hook is
       // the one place a request is changed (`shapeRequest`), which the idle compaction's summary
@@ -1442,6 +1447,8 @@ export class AgentActor implements Actor {
       // Every main chat and thread in Slack is a bus. One from before that is set up for it here,
       // so that what reaches it first, a person or an event, finds it so.
       await this.#syncBus(harness).catch((error) => this.#options.onReport?.(error))
+      // A main chat from before some tools were described only on demand keeps those it used.
+      await this.#keepUsed(harness).catch((error) => this.#options.onReport?.(error))
       // Connector tools come and go while the agent runs, so they are installed after opening.
       this.#connectors = new Connectors({
         sql: this.#host.sql,
@@ -2907,6 +2914,51 @@ export class AgentActor implements Actor {
     // Not being able to set it up now costs nobody their chat: it is tried again with the next message.
     await this.#syncBus(harness).catch((error) => this.#options.onReport?.(error))
     return json(main)
+  }
+
+  /**
+   * The deferred tools the main chat called are loaded for it, so that a chat from before a tool
+   * was deferred goes on being offered what it used, as one that loaded it with `load_tools` is.
+   * Each tool is looked for once: the transcript is read only when a tool is deferred that it was
+   * not yet looked at for, and a new chat has called nothing. The other chats are mostly over,
+   * and one that calls such a tool is told to load it.
+   */
+  async #keepUsed(harness: Harness): Promise<void> {
+    const { chats, main } = (await harness.snapshot(ChatsDoc, context)) ?? { chats: {} }
+    if (main === undefined || own(chats, main) === undefined) return
+    const conversation = await harness.conversation(Number(main) as ConversationId, context)
+    if (conversation === undefined) return
+    const looked = await harness.snapshot(DeferredSeenDoc, context)
+    const seen = new Set(looked?.chatId === main ? looked.seen : [])
+    const unseen = new Set(
+      (await conversation.agent(context)).deferred
+        .map((tool) => tool.name)
+        // A connector's tools were deferred from the start, and loaded where they were used.
+        .filter((name) => !seen.has(name) && !name.includes("__")),
+    )
+    if (unseen.size === 0) return
+    const used = calledIn((await conversation.context(context)).messages, unseen)
+    if (used.length > 0) {
+      const stored = (await harness.snapshot(AgentDoc, conversation.id, context))?.modelTools
+      const wanted = withLoaded(stored, used)
+      // Only the name is kept, so a tool need not be loaded to be named.
+      const named = (names: readonly string[]) =>
+        names.map((name) => ({ name }) as unknown as ToolRegistration)
+      await conversation.configure(
+        {
+          modelTools: {
+            add: named(wanted.add),
+            ...(wanted.remove === undefined ? {} : { remove: named(wanted.remove) }),
+          },
+        },
+        context,
+      )
+    }
+    await harness.commit(async (tx) => {
+      const doc = await tx.doc(DeferredSeenDoc)
+      doc.seen = [...new Set([...(doc.chatId === main ? doc.seen : []), ...unseen])].sort()
+      doc.chatId = main
+    }, context)
   }
 
   /**

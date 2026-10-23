@@ -13,7 +13,7 @@ import {
   type SiteSummary,
 } from "@do-computer/protocol"
 import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
-import type { AssistantMessage } from "@earendil-works/pi-ai"
+import type { AssistantMessage, Context as ModelContext } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {
   fauxAssistantMessage,
@@ -28,6 +28,7 @@ import { busExtension, eventText, FROM_SLACK, UNSENT, unsent } from "../src/bus.
 import { type AgentNotification, createAgentActor } from "../src/index.ts"
 import { projectChat } from "../src/project.ts"
 import { newest } from "./newest.ts"
+import { loadsFirst } from "./quiet.ts"
 
 // --- What is drawn, from entries made up here.
 
@@ -850,11 +851,17 @@ type Turn = {
   system: string
 }
 
-/** Answer each request from what the model was shown. */
+/**
+ * Answer each request from what the model was shown, loading a tool that is loaded on demand
+ * before calling it, as a model does.
+ */
 function script(world: World, reply: (turn: Turn) => AssistantMessage | Promise<AssistantMessage>) {
   const turns: Turn[] = []
+  const loading = loadsFirst()
   world.faux.setResponses(
-    Array.from({ length: 40 }, () => (context: { messages: { role: string }[] }) => {
+    Array.from({ length: 40 }, () => async (context: ModelContext) => {
+      const held = loading.held(context)
+      if (held !== undefined) return held
       const seen = JSON.stringify(context.messages)
       const turn = {
         seen,
@@ -863,7 +870,7 @@ function script(world: World, reply: (turn: Turn) => AssistantMessage | Promise<
         system: JSON.stringify(context.messages.filter((message) => message.role === "system")),
       }
       turns.push(turn)
-      return reply(turn)
+      return loading.first(context, await reply(turn))
     }),
   )
   return turns
@@ -1526,7 +1533,7 @@ describe("the main chat as a coordinator", () => {
     expect(FROM_SLACK).toContain("check with the people here with `send` first")
   })
 
-  it("keeps the browser and the screen, with a word on handing that work over", () => {
+  it("keeps the browser and the screen as they are, and says to hand that work over", () => {
     const extension = busExtension({
       harness: () => {
         throw new Error("not used")
@@ -1535,14 +1542,11 @@ describe("the main chat as a coordinator", () => {
       onSent: () => {},
       onError: () => {},
     })
-    for (const name of ["browser", "screen"]) {
-      const wrap = extension.wraps!.find((one) => "tool" in one && one.tool === name)
-      const wrapped = (wrap as { wrap: (tool: never) => { description: string } }).wrap({
-        name,
-        description: "Use it.",
-      } as never)
-      expect(wrapped.description).toMatch(/^Use it\. In your main conversation, hand browsing/)
-    }
+    // Said once, in the prompt, and not again in each tool's description.
+    expect(extension.wraps!.some((one) => "tool" in one && one.tool === "browser")).toBe(false)
+    expect(extension.wraps!.some((one) => "tool" in one && one.tool === "screen")).toBe(false)
+    const section = extension.sections![0]!.render({} as never, {} as never) as string
+    expect(section).toContain("any browsing or use of a screen beyond a single quick look")
   })
 
   it("is told to hand work over, and points a sub-agent at files and links", async () => {

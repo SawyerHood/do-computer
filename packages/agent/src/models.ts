@@ -9,6 +9,7 @@ import type { CredentialStore } from "@earendil-works/pi-ai"
 import { createModels, type Models } from "@earendil-works/pi-ai/models"
 import type { ModelRef } from "@earendil-works/pi-durable"
 import { TOOL_SEARCH_TOOL_NAME } from "@earendil-works/pi-durable/tool-search"
+import { LOAD_TOOLS } from "./deferred.ts"
 import { isExtraModel } from "./extra-models.ts"
 import type { ReviewOptions } from "./journal.ts"
 import type { JudgeOptions } from "./keep-going.ts"
@@ -184,7 +185,8 @@ function sentSince(context: EchoContext, person: number): boolean {
  * that tool and then report the result (several such lines make it call them all in one round),
  * and `/fail <error>` makes the reply fail with that error, the way a model provider's would. An
  * automation's result's lines of that form are called in the same way.
- * A tool it is not offered yet, as a connector's is not, it looks for first, as a model would.
+ * A tool it is not offered yet it loads first, as a model would: one of the agent's own with
+ * `load_tools`, and a connector's by looking for it.
  *
  * Where it is offered `send`, in a main chat or a thread in Slack, it answers a person as a model
  * there would: what it would have said goes in a `send` marked `done`, once, which ends its turn
@@ -232,12 +234,12 @@ function echoWords(context: EchoContext): string | ReturnType<typeof fauxAssista
         .join("\n")
     : ""
   const calls = asked(carried === "" ? text : carried)
-  // It looked for what it was asked to use, and uses it now, found or not.
+  // It looked for or loaded what it was asked to use, and uses it now, found or not.
   const looked =
     last?.role === "toolResult" &&
-    last.toolName === TOOL_SEARCH_TOOL_NAME &&
+    (last.toolName === TOOL_SEARCH_TOOL_NAME || last.toolName === LOAD_TOOLS) &&
     calls !== undefined &&
-    calls.every((call) => call.name !== TOOL_SEARCH_TOOL_NAME)
+    calls.every((call) => call.name !== TOOL_SEARCH_TOOL_NAME && call.name !== LOAD_TOOLS)
   if (last?.role === "toolResult" && !looked) {
     return `The tool returned:\n\n${blockText(last.content)}`
   }
@@ -251,9 +253,19 @@ function echoWords(context: EchoContext): string | ReturnType<typeof fauxAssista
       const use = calls.map((call) => fauxToolCall(call.name, JSON.parse(call.args)))
       const has = offered(context)
       const missing = calls.filter((call) => !has.has(call.name))
-      if (!looked && missing.length > 0 && has.has(TOOL_SEARCH_TOOL_NAME)) {
+      // The agent's own it loads by name, as the prompt names them; a connector's it searches for.
+      const own = has.has(LOAD_TOOLS)
+        ? missing.filter((call) => !call.name.includes("__")).map((call) => call.name)
+        : []
+      const sought = has.has(TOOL_SEARCH_TOOL_NAME)
+        ? missing.filter((call) => !own.includes(call.name))
+        : []
+      if (!looked && (own.length > 0 || sought.length > 0)) {
         return fauxAssistantMessage(
-          missing.map((call) => fauxToolCall(TOOL_SEARCH_TOOL_NAME, { query: call.name })),
+          [
+            ...(own.length === 0 ? [] : [fauxToolCall(LOAD_TOOLS, { names: own })]),
+            ...sought.map((call) => fauxToolCall(TOOL_SEARCH_TOOL_NAME, { query: call.name })),
+          ],
           { stopReason: "toolUse" },
         )
       }

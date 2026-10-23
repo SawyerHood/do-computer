@@ -16,6 +16,7 @@ import {
   fauxProvider,
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux"
+import { LOAD_TOOLS } from "../src/deferred.ts"
 import { afterEach, describe, expect, it } from "vitest"
 import {
   type AgentDirectory,
@@ -186,9 +187,12 @@ const said = (state: ChatState) =>
           : [],
       ),
     )
+// Loading a tool that is loaded on demand first (`quiet.ts`) is not what these tests are about.
 const tools = (state: ChatState) =>
   state.messages.flatMap((message) =>
-    message.parts.filter((part): part is ToolPart => part.type === "tool"),
+    message.parts.filter(
+      (part): part is ToolPart => part.type === "tool" && part.name !== LOAD_TOOLS,
+    ),
   )
 
 type Turn = {
