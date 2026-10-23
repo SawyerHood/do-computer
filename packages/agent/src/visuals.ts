@@ -12,8 +12,10 @@ import {
   LIBRARY_PAGE_PARAM,
   MAX_VISUAL_TITLE,
   PAGE_STYLE_GUIDE,
+  PIN_TOOL,
   prepareVisual,
   REPLY_GUIDE,
+  SHARE_TOOL,
   THEME_TOKENS,
   VISUAL_GUIDE,
   VISUAL_TOOL,
@@ -370,6 +372,8 @@ export function visuals(options: VisualsOptions): Extension {
       ? undefined
       : defineTool({
           name: LOOK_TOOL,
+          // Described to the model only once it loads it (`deferred.ts`).
+          deferred: true,
           // Nothing is kept and nothing is changed, so a look that a restart cut off is taken again.
           replay: "safe",
           description: [
@@ -424,6 +428,8 @@ export function visuals(options: VisualsOptions): Extension {
         })
   const tool = defineTool({
     name: VISUAL_TOOL,
+    // Described to the model only once it loads it (`deferred.ts`).
+    deferred: true,
     description: `Show the person a page you wrote, drawn in the chat itself above your reply: a chart, a dashboard, a mock-up, something to press and try, anything that says more laid out than in prose. A plain table or a simple diagram goes in your reply as Markdown instead. Give one complete, self-contained HTML document with its styles and scripts inline. Call it before you write your reply. The person already sees the page, so your reply should not announce it, say where it is or repeat it: add only what the page does not say. ${VISUAL_GUIDE} The page is also kept in their library, in ${VISUALS_FOLDER}/, where it can be opened full size and shared.`,
     parameters: Type.Object({
       title: Type.String({
@@ -495,22 +501,29 @@ export function visuals(options: VisualsOptions): Extension {
                 `Look at a page with \`${LOOK_TOOL}\`, as its \`html\`, before you draw it, and fix what the picture and its console show: the person should not be the first to see it.`,
               ]),
           `When a chart, a timeline, a mock-up or something to press and try would say more than prose, draw it with the \`${VISUAL_TOOL}\` tool: you write a small HTML page and the person sees it in the chat itself, above your reply. Use it for answers that have a shape, and not for a few sentences or a short list.`,
-          "The person sees the page as part of your answer, so do not announce it or restate what is in it.",
           REPLY_GUIDE,
+          `Before you write an HTML page for the library, load \`${VISUAL_TOOL}\`: how every page should look comes with it.`,
         ].join(" "),
       ),
-      // How a page should look is said once, for a visual and for a page kept in the library.
-      section("pages", () =>
-        [
-          `How a page you write should look, whether it is drawn with \`${VISUAL_TOOL}\` or is an HTML file in the library: a document, a dashboard, a chart. ${PAGE_STYLE_GUIDE}`,
-          DOCUMENT_GUIDE,
-          ...(look === undefined
-            ? []
-            : [
-                `You can see what is in the library with \`${LOOK_TOOL}\` too, as its \`file\`: it gives you a picture of the file as the person sees it. Look at a page or a document you wrote or changed there before you send it, and fix what the picture and its console show; look at it as a phone shows it too where it may be read on one. It is also how you see a picture the person gave you.`,
-              ]),
-        ].join("\n"),
+      // How a page should look is said once, for a visual and for a page kept in the library,
+      // and only once a tool that makes or shows one is loaded: until then it is a long section
+      // that most requests do not need.
+      section("pages", ({ agent }) =>
+        !agent.tools.some((tool) => PAGE_TOOLS.has(tool.name))
+          ? undefined
+          : [
+              `How a page you write should look, whether it is drawn with \`${VISUAL_TOOL}\` or is an HTML file in the library: a document, a dashboard, a chart. ${PAGE_STYLE_GUIDE}`,
+              DOCUMENT_GUIDE,
+              ...(look === undefined
+                ? []
+                : [
+                    `You can see what is in the library with \`${LOOK_TOOL}\` too, as its \`file\`: it gives you a picture of the file as the person sees it. Look at a page or a document you wrote or changed there before you send it, and fix what the picture and its console show; look at it as a phone shows it too where it may be read on one. It is also how you see a picture the person gave you.`,
+                  ]),
+            ].join("\n"),
       ),
     ],
   })
 }
+
+/** The tools that make or show a page. */
+const PAGE_TOOLS = new Set([VISUAL_TOOL, LOOK_TOOL, PIN_TOOL, SHARE_TOOL])

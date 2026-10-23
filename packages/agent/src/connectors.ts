@@ -780,6 +780,8 @@ export class Connectors {
   #manage() {
     return defineTool({
       name: TOOL,
+      // Described to the model only once it loads it (`deferred.ts`).
+      deferred: true,
       description:
         "See and change your connectors: other services, reached as MCP servers, whose tools become yours. " +
         'action "list" shows each one, how it is doing and the tools it gives you. "add" needs `name` (what to call it) and `url` (the address of its MCP server, which the person or its documentation gives you). ' +

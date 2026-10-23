@@ -242,6 +242,8 @@ export class SignIns {
   #tool() {
     return defineTool({
       name: SIGN_IN_TOOL,
+      // Described to the model only once it loads it (`deferred.ts`).
+      deferred: true,
       description:
         "Sign in on the page in front in a computer's browser, with a login your workspace has saved. You are never shown the password: it is typed for you, and only on the sites that login is for. " +
         "Open the site's sign-in page with `browser` first, then call this. Leave `login` out to use the one saved for that site; where there are several the answer names them, and you say which. " +

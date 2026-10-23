@@ -20,6 +20,7 @@ import {
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterAll, describe, expect, it } from "vitest"
+import { LOAD_TOOLS } from "../src/deferred.ts"
 import { computerActorName, createAgentActor } from "../src/index.ts"
 import { dropOldPictures, screenAction } from "../src/uses.ts"
 import { quietOnReminder } from "./quiet.ts"
@@ -176,8 +177,11 @@ async function say(chatId: string, text: string): Promise<ChatState> {
   }
 }
 
+// Loading a tool that is loaded on demand first (`quiet.ts`) is not what these tests are about.
 const tools = (state: ChatState) =>
-  state.messages.flatMap((m) => m.parts).filter((part): part is ToolPart => part.type === "tool")
+  state.messages
+    .flatMap((m) => m.parts)
+    .filter((part): part is ToolPart => part.type === "tool" && part.name !== LOAD_TOOLS)
 const useOf = (part: ToolPart) => (part.details as unknown as UseDetails).use
 
 describe("the screen of somebody's own computer", () => {

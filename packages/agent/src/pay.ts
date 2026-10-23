@@ -242,6 +242,8 @@ export class Pays {
   #tool() {
     return defineTool({
       name: PAY_TOOL,
+      // Described to the model only once it loads it (`deferred.ts`).
+      deferred: true,
       description:
         "Pay on the page in front in a computer's browser, with a card your workspace has saved. You are never shown the card's number: it is typed for you and the button that pays is pressed, in one step. " +
         "Get the page ready with `browser` first: everything chosen, the total showing, the card's boxes on the page. Then call this with `button`, the words on the button that pays, exactly as the page has them. " +

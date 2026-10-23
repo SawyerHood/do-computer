@@ -59,6 +59,15 @@ export function toolActivity(part: Pick<ToolPart, "name" | "args">): string {
       return withDetail("Searching the web", text(args.query))
     case "tool_search":
       return withDetail("Looking for a tool", text(args.query))
+    case "load_tools":
+      return withDetail(
+        "Loading tools",
+        text(
+          Array.isArray(args.names)
+            ? args.names.filter((n) => typeof n === "string").join(", ")
+            : "",
+        ),
+      )
     case "sign_in":
       return withDetail(`Signing in${on}`, text(args.login))
     case "pay":
@@ -297,6 +306,7 @@ export function toolKind(name: string): WorkKind {
       return "file"
     case "web_search":
     case "tool_search":
+    case "load_tools":
     case "history":
       return "search"
     case "memory":

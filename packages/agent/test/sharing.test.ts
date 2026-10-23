@@ -990,6 +990,17 @@ describe("what an agent is told about pages", () => {
   it("is how a page should look, with the variables it is given, for a visual and a document", async () => {
     const world = open()
     const chat = await setup(world)
+    // Not until a tool that makes a page is loaded: it is told to load one first.
+    const before = await told(world, chat.id)
+    expect(before).not.toContain("design tokens")
+    expect(before).toContain("Before you write an HTML page for the library, load `visual`")
+    world.faux.setResponses([
+      fauxAssistantMessage([fauxToolCall("load_tools", { names: ["visual"] })], {
+        stopReason: "toolUse",
+      }),
+      fauxAssistantMessage("Loaded."),
+    ])
+    await converse(world, chat.id, "load it")
     const sent = await told(world, chat.id)
     // Once, for every kind of page.
     expect(count(sent, "The app gives every page it shows its own design tokens")).toBe(1)

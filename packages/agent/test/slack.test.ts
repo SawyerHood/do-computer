@@ -19,6 +19,7 @@ import {
   fauxProvider,
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux"
+import { LOAD_TOOLS } from "../src/deferred.ts"
 import { afterEach, describe, expect, it } from "vitest"
 import {
   type AgentNotification,
@@ -252,9 +253,12 @@ async function until<T>(
 const threads = async (world: World) =>
   (await call<{ chats: ChatSummary[] }>(world, "/")).chats.filter((chat) => chat.kind === "slack")
 const chatState = (world: World, chatId: string) => call<ChatState>(world, `/chats/${chatId}`)
+// Loading a tool that is loaded on demand first (`quiet.ts`) is not what these tests are about.
 const tools = (state: ChatState) =>
   state.messages.flatMap((message) =>
-    message.parts.filter((part): part is ToolPart => part.type === "tool"),
+    message.parts.filter(
+      (part): part is ToolPart => part.type === "tool" && part.name !== LOAD_TOOLS,
+    ),
   )
 const posted = (world: World, count: number) =>
   until(

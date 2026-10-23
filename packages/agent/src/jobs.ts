@@ -18,11 +18,21 @@ import {
   type Extension,
   type Harness,
   section,
+  type ToolExecutionApi,
+  type ToolExecutionResult,
   type ToolRegistration,
 } from "@earendil-works/pi-durable"
 import { createBashTool } from "@earendil-works/pi-durable/tools"
 import { busOn, eventText } from "./bus.ts"
 import { ComputerEnv, type ComputerTarget } from "./computers.ts"
+import {
+  capText,
+  cutToFile,
+  cutUnkept,
+  OUTPUT_CAP_CHARS,
+  OutputCap,
+  TAIL_CHARS,
+} from "./output-cap.ts"
 import { own } from "./own.ts"
 
 /** How long a command is waited for before it is left to run in the background. */
@@ -38,11 +48,109 @@ const MAX_WAIT_MS = 600_000
 export const MAX_RUNNING_JOBS = 8
 /** The most the agent may ask `output` to wait for a command to end. */
 const MAX_OUTPUT_WAIT_SECONDS = 60
-/** What pi-durable's `bash` keeps of a command's output, past which it points at a file. */
-const KEEP_BYTES = 50 * 1024
-const KEEP_LINES = 2000
-/** How much of the end of its output the agent is sent when a command ends. */
+/**
+ * A command waited for that printed no more than this leaves no log behind: the agent was sent
+ * all of it. Past the cap it is sent the start and the end, and the log is where the rest is.
+ */
+const REMOVE_UNDER = { bytes: OUTPUT_CAP_CHARS, lines: Number.MAX_SAFE_INTEGER }
+/**
+ * What the harness keeps of a call's streamed output: only ever more than is sent, so that the
+ * cap (`output-cap.ts`) is the one place output is cut, and by characters alone.
+ */
+const STREAM_LIMITS = { retain: "tail", maxLines: 1_000_000 } as const
+/** How much of the end of its output is kept when a command ends, for the person to see. */
 const REPORT_BYTES = 16 * 1024
+
+/** The end of what a command printed, as much as the agent is sent of an output's end. */
+const lastOf = (text: string): string => {
+  if (text.length <= TAIL_CHARS) return text
+  const end = text.slice(-TAIL_CHARS)
+  const line = end.indexOf("\n")
+  return line !== -1 && line < TAIL_CHARS / 4 ? end.slice(line + 1) : end
+}
+
+/** How a `bash` result names the file all of a command's output is in: pi-durable's own way. */
+const FULL_OUTPUT = "full_output"
+const fullOutput = (file: string) => ({
+  severity: "info" as const,
+  code: FULL_OUTPUT,
+  message: `Full output: ${file}`,
+})
+
+/**
+ * Write what a command printed to a file on the computer it ran on, for one that left none of
+ * its own: one run without a log (a lightweight shell), that printed more than the cap and less
+ * than pi-durable's own `bash` spills. Undefined where it cannot be written, or the output is no
+ * longer all there.
+ */
+async function spill(api: ToolExecutionApi, context: Context): Promise<string | undefined> {
+  const env = api.env
+  const retained = api.retainedOutput()
+  if (env === undefined || retained.truncated) return undefined
+  try {
+    const made = await env.createTempFile({ prefix: "output-", suffix: ".log" }, context)
+    if (!made.ok) return undefined
+    const written = await env.writeFile(made.value, retained.text, context)
+    return written.ok ? made.value : undefined
+  } catch {
+    return undefined
+  }
+}
+
+type Execute<Args> = (
+  args: Args,
+  api: ToolExecutionApi,
+  context: Context,
+) => Promise<ToolExecutionResult>
+
+/**
+ * `bash` as the agent is sent it: what a command printed whole up to the cap, and past it its
+ * start and end, with the file all of it is in (`output-cap.ts`): the one a `full_output`
+ * diagnostic names (the command's log, or pi-durable's spill), or else one written for it here.
+ * That diagnostic is not passed on: the marker says it.
+ */
+function capped<Args>(execute: Execute<Args>): Execute<Args> {
+  return async (args, outer, context) => {
+    const cap = new OutputCap()
+    const decoder = new TextDecoder()
+    let file: string | undefined
+    const api: ToolExecutionApi = {
+      ...outer,
+      output: (chunk, skipped) => {
+        if (skipped !== undefined) cap.skip(skipped.bytes, skipped.newlines)
+        cap.push(typeof chunk === "string" ? chunk : decoder.decode(chunk, { stream: true }))
+        outer.output(chunk, skipped)
+      },
+      diagnostic: (diagnostic) => {
+        if (diagnostic.code !== FULL_OUTPUT) return outer.diagnostic(diagnostic)
+        file ??= diagnostic.message.replace(/^Full output: /, "")
+      },
+    }
+    const cut = async (result: ToolExecutionResult): Promise<ToolExecutionResult> => {
+      if (!cap.over || result.output !== undefined) return result
+      file ??= await spill(outer, context)
+      const computer = outer.env instanceof ComputerEnv ? outer.env.target.computer.name : undefined
+      const marker = file === undefined ? cutUnkept : cutToFile(file, computer)
+      return { ...result, output: [{ type: "text" as const, text: cap.capped(marker)! }] }
+    }
+    try {
+      return await cut(await execute(args, api, context))
+    } catch (error) {
+      // A command that failed after printing a lot is sent the same start and end.
+      if (!cap.over || context.abortSignal?.aborted) throw error
+      return cut({
+        isError: true,
+        diagnostics: [
+          {
+            severity: "error" as const,
+            code: "tool_error",
+            message: error instanceof Error ? error.message : String(error),
+          },
+        ],
+      })
+    }
+  }
+}
 /** A command is looked at on every wake-up at first, and this often once it has run a while. */
 const SETTLED_AFTER_MS = 10 * 60_000
 const SETTLED_EVERY_MS = 60_000
@@ -237,7 +345,9 @@ export class Jobs {
         section(
           "background",
           () =>
-            `A command that takes long does not have to hold you up. Pass \`run_in_background\` to \`bash\` for a server, a watcher, or a build, install or test run likely to take more than a minute: the call returns at once, and when the command ends you get a message and a turn. A command you did not start that way and that is still running after ${Math.round((options.foregroundMs ?? FOREGROUND_MS) / 1000)} seconds is moved to the background by itself. Either way, do not sleep, poll or run it again while you wait: carry on with other work, or say what you started and end your turn. The \`background\` tool lists these commands, shows what one has printed and stops one; stop what is no longer needed. A lightweight shell has no background to run things in, and \`bash\` says so there.`,
+            // How a command comes to run there is `bash`'s to say, and how to look in on one is
+            // `background`'s: this is only what to do meanwhile.
+            "A command that takes long does not have to hold you up: run a server, a watcher, or a build, install or test run in the background (see `bash`). While one runs there, do not sleep, poll or run it again: carry on with other work, or say what you started and end your turn. Stop what is no longer needed.",
         ),
       ],
     })
@@ -671,7 +781,8 @@ export class Jobs {
                 ? "It printed nothing."
                 : `The last of what it printed is below. All of it: ${job.log}`
           }`
-    const tail = job.status !== "stopped" && job.status !== "lost" && said !== "" ? said : ""
+    const tail =
+      job.status !== "stopped" && job.status !== "lost" && said !== "" ? lastOf(said) : ""
     const told = `[${head}]${tail === "" ? "" : `\n\n${tail}`}`
     // Keyed by when it started as well: ids start over if the agent's record of jobs is lost.
     const key = `${id}:${job.startedAt}`
@@ -770,7 +881,7 @@ export class Jobs {
     return defineTool({
       name: "bash",
       description:
-        `Execute a bash command in the current working directory. Returns combined stdout and stderr. Output is truncated to last ${KEEP_LINES} lines or ${KEEP_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a file. ` +
+        `Execute a bash command in the current working directory. Returns combined stdout and stderr. Output over ${OUTPUT_CAP_CHARS / 1000}k characters is cut to its start and end, and you are told the file that holds all of it. ` +
         `A command still running after ${Math.round(foregroundMs / 1000)} seconds is moved to the background, where it carries on: the call returns what it has printed so far, and you get a message when it ends. ` +
         "Pass `run_in_background` to start it there straight away, for a server or anything likely to take more than a minute. " +
         `Pass \`timeout\` in seconds to wait for it instead, ${MAX_WAIT_MS / 1000} at most, and have it stopped at the end of that; with \`run_in_background\`, \`timeout\` is how long it may run, ${spanOf(DEFAULT_JOB_LIFE_MS)} unless you say and ${spanOf(MAX_JOB_LIFE_MS)} at most.`,
@@ -789,8 +900,8 @@ export class Jobs {
           }),
         ),
       }),
-      outputLimits: { retain: "tail" },
-      execute: async (args, api, context) => {
+      outputLimits: STREAM_LIMITS,
+      execute: capped(async (args, api, context) => {
         const { command, timeout, run_in_background: background } = args
         if (timeout !== undefined && (!Number.isFinite(timeout) || timeout <= 0)) {
           throw new Error("Invalid timeout: must be a finite number of seconds")
@@ -868,7 +979,7 @@ export class Jobs {
             const options = {
               signal,
               onOutput: (text: string) => api.output(text),
-              removeUnder: { bytes: KEEP_BYTES, lines: KEEP_LINES },
+              removeUnder: REMOVE_UNDER,
             }
             followed = await runner.start(
               { id: folder, command, cwd: target.cwd, lifeMs },
@@ -936,7 +1047,7 @@ export class Jobs {
                       `Started in the background as ${id} ${where}. ${rest}`,
                       followed.output.trim() === ""
                         ? ""
-                        : `So far it has printed:\n${followed.output}`,
+                        : `So far it has printed:\n${capText(followed.output, cutToFile(log, target.computer.name))}`,
                     ]
                       .filter(Boolean)
                       .join("\n\n"),
@@ -948,16 +1059,13 @@ export class Jobs {
             api.output(
               `\n[Still running after ${spanOf(waitMs)}, so it was moved to the background as ${id} ${where}. What it has printed so far is above. ${rest}]\n`,
             )
+            // Where all of it is, for what it printed past the cap.
+            api.diagnostic(fullOutput(log))
             return { details: { job: id } }
           }
           if (followed.state === "exited") await this.#forgetIntent(folder)
-          if (followed.kept && followed.state === "exited") {
-            api.diagnostic({
-              severity: "info",
-              code: "full_output",
-              message: `Full output: ${runner.log(folder)}`,
-            })
-          }
+          if (followed.kept && followed.state === "exited")
+            api.diagnostic(fullOutput(runner.log(folder)))
           if (followed.state === "lost") {
             throw new Error(
               "The command could not be followed to its end: it did not start, or the machine stopped while it ran",
@@ -988,7 +1096,7 @@ export class Jobs {
           this.#foreground.delete(folder)
           this.#soon(0)
         }
-      },
+      }),
     })
   }
 
@@ -1008,7 +1116,7 @@ export class Jobs {
           Type.Number({ description: "For output: how long to wait for the command to end" }),
         ),
       }),
-      outputLimits: { retain: "tail" },
+      outputLimits: STREAM_LIMITS,
       execute: async (args, api, context) => {
         const reply = (text: string) => ({ output: [{ type: "text" as const, text }] })
         const now = this.#options.now()
@@ -1032,15 +1140,21 @@ export class Jobs {
             case "output": {
               if (!args.id) return fail('"output" needs id.')
               const wait = Math.max(0, Math.min(args.wait_seconds ?? 0, MAX_OUTPUT_WAIT_SECONDS))
+              // Sent whole up to the cap, and past it its start and end, with where its log is.
+              const cap = new OutputCap()
               const { job, output } = await this.output(
                 args.id,
                 Number.isFinite(wait) ? wait * 1000 : 0,
                 context,
-                (text) => api.output(text),
+                (text) => {
+                  cap.push(text)
+                  api.output(text)
+                },
               )
-              api.output(
-                `${output === "" ? "[Nothing new was printed.]" : ""}\n[${args.id.trim()} ${ending(job, this.#options.now())}.]\n`,
-              )
+              const status = `${output === "" ? "[Nothing new was printed.]" : ""}\n[${args.id.trim()} ${ending(job, this.#options.now())}.]\n`
+              const capped = cap.capped(cutToFile(job.log, job.computer))
+              if (capped !== undefined) return reply(`${capped}${status}`)
+              api.output(status)
               return {}
             }
             case "stop": {

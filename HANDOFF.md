@@ -7595,6 +7595,48 @@ put` never has to ask whether to make a Worker. The first person to follow it on
        Dood page and teams browser tests, with a new one for a second Dood dressed from the
        first's find.
 
+103. **Leaner requests: tools loaded on demand, said once, and long output cut to its ends**
+     (2026-10-23; `packages/agent/src/deferred.ts`, `output-cap.ts`). Every request carries the
+     prompt and the tools, and every tool result stays in the chat, so both are paid many times
+     over. The first request of a fresh Dood's main chat on Claude, with shared sites and web
+     search and no computer, went from 53,525 characters of JSON (system 18,817, tools 33,987)
+     to 32,195 (system 14,601, tools 16,877).
+     - **Loaded on demand.** `visual`, `look`, `pin`, `share`, `schedule`, `skill`,
+       `request_secret`, `settings`, `screen`, `connectors`, `agents`, `sign_in`, `pay` and
+       `slack` carry pi-durable's `deferred` flag. A `deferred-tools` section names each of
+       the agent's own in one line (its description to the first sentence); `load_tools`
+       loads one by name into the conversation's `modelTools`, where it stays, through a
+       compaction too, and Anthropic is sent it as an addition after the cached tool list.
+       A connector's tools are deferred as before and not named (`tool_search` finds them);
+       `load_tools` takes one by its exact name too. A main chat that called a tool before it
+       was deferred has it loaded as the Dood opens, each tool looked for once
+       (`dc.deferred-seen`); other chats that call one are told it is not available and
+       load it. The echo model loads one with `load_tools` before a `/tool` call to it.
+     - **Said once.** The page rules (`pages`) are in the prompt only once a tool that makes
+       or shows a page is loaded, and the visuals section says to load `visual` before writing
+       an HTML page for the library. The `pins` section is gone: what it said is in `pin`'s
+       description. The background section no longer repeats what `bash` says, the
+       screen-and-browser section no longer repeats what the tools say, and the main chat's
+       browser and screen no longer repeat the bus prompt's word on handing that work over.
+       The `computer` parameter is described in fewer words.
+     - **Long output.** `bash`, `background`'s output and `read` are sent whole up to 12,000
+       characters, else the first 4,000 and the last 7,000 with one marker saying how much was
+       cut and where all of it is: the command's log, pi-durable's spill, a file written for
+       it on a lightweight shell, or for `read` the lines to read next with `offset`. That
+       marker replaces the harness's truncation note and the "Full output" diagnostic. A
+       command that ended in the background tells the agent its last 7,000 characters.
+     - **Checked:** `pnpm check`; `packages/agent` tests, with `request-size.test.ts` (the
+       budget, which tools are left out, and a tool loaded mid-chat arriving as a
+       `tool_addition` with the cached list unchanged), `deferred.test.ts` (loading, keeping,
+       the page rules arriving with `visual`, the echo model, and a main chat from before keeping
+       a tool it used, which fails without that) and `output-cap.test.ts` (the cut, bash on a
+       machine and on a lightweight shell, a failed command, a background command, a read).
+       Scripted test models load a deferred tool before calling it (`quiet.ts`). The browser
+       tests that call a deferred tool through the echo model: agent tools, automations, the
+       bus, connectors, pins, preview, themed pages, two clients, uses, visuals and widgets.
+     - **Not checked:** the phone app's browser tests (`mobile.spec.ts`, which pins and draws
+       a visual), and a real model choosing to load a tool from its one line.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

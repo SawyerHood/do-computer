@@ -290,8 +290,9 @@ export class Uses {
       sections: [
         section(
           "screen-and-browser",
+          // How each is worked is in its own description, which `screen`'s is once loaded.
           () =>
-            `On somebody's own computer you may be able to use more than files and commands. \`${BROWSER_TOOL}\` runs a short script in a browser there: use it for anything on a website. It is their own Chrome when that is open and lets itself be used, with everything they are signed in to, and otherwise a browser kept for agents. \`${SCREEN_TOOL}\` works the programs on the computer's screen: use it for programs that can be worked no other way, and prefer a command, a file or the browser when one of those would do, because the screen is slow. Work in one window at a time, which is done behind whatever the person has in front and leaves them their mouse and keyboard, so that they can carry on with their own work; only the whole screen, and a window you ask to have brought forward, take those from them. The person can watch either while you work, pause you, and stop you. Say what you are doing in each call's \`note\`, in a few words, for them to read. Whether a computer allows either is its owner's to say, on that computer: where it does not, the tool says so, and you cannot switch it on.`,
+            `On somebody's own computer you may be able to use more than files and commands: \`${BROWSER_TOOL}\` for anything on a website, and \`${SCREEN_TOOL}\` for the programs on its screen that can be worked no other way. Prefer a command, a file or the browser when one of those would do, because the screen is slow. The person can watch either while you work, pause you, and stop you. Whether a computer allows either is its owner's to say, on that computer: where it does not, the tool says so, and you cannot switch it on.`,
         ),
       ],
     })
@@ -368,6 +369,8 @@ export class Uses {
   #screen() {
     return defineTool({
       name: SCREEN_TOOL,
+      // Described to the model only once it loads it (`deferred.ts`).
+      deferred: true,
       description:
         "Work the programs on the screen of somebody's own computer. Every call does one thing and answers with a picture of how it looks afterwards. " +
         "Work in a window wherever you can. `windows` lists the windows there are, each with an id; `open` starts an app by its name (`app`) without bringing it forward, and answers with its windows. With `window` set to an id, every other action is done in that window alone, behind whatever the person has in front and without their mouse or keyboard, so they can carry on with their own work; the picture is of that window, whether or not it can be seen on the screen, and places are x and y in the pixels of the last picture you were given of it, from its top left. " +

@@ -808,6 +808,8 @@ export class Scheduler {
   #tool() {
     return defineTool({
       name: "schedule",
+      // Described to the model only once it loads it (`deferred.ts`).
+      deferred: true,
       description:
         'Manage tasks you run on your own later or repeatedly. action "create" needs `schedule` and `prompt`; "update", "pause", "resume", "remove", "run" and "check" need `id`; "list" shows them all. "run" runs one now, without changing when it next runs on its own: use it to try out a task you have just made. ' +
         '`schedule` is one of: "30m" (once, that long from now), "every 2h" (repeating), a 5-field cron expression such as "0 9 * * 1-5" (in the user\'s timezone), or an ISO 8601 timestamp. ' +

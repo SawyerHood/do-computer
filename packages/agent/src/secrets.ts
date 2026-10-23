@@ -504,6 +504,8 @@ export class Secrets {
   #tool() {
     return defineTool({
       name: TOOL,
+      // Described to the model only once it loads it (`deferred.ts`).
+      deferred: true,
       description:
         "Ask the person to type secrets (API keys, passwords, tokens) into a form in the app, to be saved to a dotenv file on a computer. You are never shown the values: they do not pass through this conversation, and you are told only which names were saved. " +
         "`secrets` lists each one: `name` is the variable it is saved as, and `description` says what it is and where the person finds it. Ask for everything you know you need in one call. `purpose` is a sentence on what they are for. `path` is the file, `.env` in your folder unless you say otherwise; one that is there keeps its other lines. " +

@@ -55,6 +55,8 @@ export function settingsExtension(options: SettingsOptions): Extension {
   const fail = (text: string) => ({ isError: true, ...reply(text) })
   const tool = defineTool({
     name: TOOL,
+    // Described to the model only once it loads it (`deferred.ts`).
+    deferred: true,
     description:
       "See and change your own settings. " +
       'action "get" shows the model you run on, how hard you think before answering, your timezone, what you have cost so far, and the models you could be set to; pass `find` to search the models by name. ' +

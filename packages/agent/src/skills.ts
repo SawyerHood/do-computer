@@ -275,6 +275,8 @@ export class Skills {
   #tool() {
     return defineTool({
       name: "skill",
+      // Described to the model only once it loads it (`deferred.ts`).
+      deferred: true,
       description:
         'Load and manage your skills. "view" loads a skill (or one of its files, with `path`) so you can follow it. "create" saves a new skill from `name`, `description` and `content` (the instructions, in Markdown). "write_file" adds or replaces a file in a skill; "patch" replaces `old_text` with `new_text` in one; "remove_file" and "delete" remove things. "list" shows every skill. "install" fetches a skill from a `url` the user gave you.',
       parameters: Type.Object({
