@@ -135,8 +135,8 @@ function Care({
   const name = agent.name ?? "New Dood"
   const boxes = creature.boxes
   const coming = hasEverything(creature.owned)
-    ? `${name} has found everything there is`
-    : `${name}'s next box turns up in about ${boxProgress(creature, now).left}`
+    ? "The wardrobe has everything there is"
+    : `The next box turns up in about ${boxProgress(creature, now).left}`
   const beside = ({ pressed }: { pressed: boolean }) =>
     ({
       width: SIDE,

@@ -7550,6 +7550,51 @@ put` never has to ask whether to make a Worker. The first person to follow it on
        and not be read from the cache, as ordinary turns there can too. The faux provider counts
        what it newly caches twice in a request's input, which the tests work around.
 
+102. **A workspace has one wardrobe, which all its Doods wear from** (2026-10-23;
+     `apps/web/src/server/wardrobe.ts`, `dc_wardrobes`/`dc_wardrobe_items`). The owner asked for
+     "the wardrobe to be shared between all of you doods", and after a mock-up chose: one
+     wardrobe per workspace (a person's own, and each team's); one box every six hours for the
+     workspace, not one per Dood; and two Doods may wear the same thing at once. This changes
+     item 25's loop from a creature's to a workspace's.
+     - **Where it is kept.** The gateway's database, not an agent: `dc_wardrobes` (boxes,
+       `shared`, `next_box_at`, a `version` every change bumps) and `dc_wardrobe_items` (each
+       thing once, `found_by` the Dood whose box it came from). `#boxDue` and `#openBox` moved
+       there unchanged in what they do. Two boxes opened at once: each reads the version, rolls,
+       and writes its thing and the bumped version in one batch only if the version is still the
+       one it read; it then checks its own `box` id is on the row, and rolls again if not.
+     - **What an agent keeps** (`CreatureDoc`) is only what is its own: `fed`, `joy`, `outfit`.
+       The gateway answers every `/api/agents/:id/creature…` route itself (`creatureRoute`),
+       asking the agent for those and checking an outfit against the wardrobe before handing
+       it on; the actor checks only that an outfit names real things in their places. The
+       answer keeps the shape of `CreatureState` (`owned`, `boxes`, `nextBoxAt` are the
+       workspace's), with `foundBy` added, so phone apps built before this work as they were.
+     - **From before.** A workspace's wardrobe is made the first time it is looked at, taking
+       in everything its Doods had found (`before` on the actor's `/creature`, the first to have
+       found a thing as its finder) and the boxes treats had made them, with one box waiting as
+       a welcome.
+     - **Treats on a Dood's own page** still count toward a box on that Dood (`joy`), and the box
+       goes to its workspace (`filled` from `/gifts`); once the wardrobe has everything they fill
+       nothing (`full`). What a claimed Dood came with goes into the wardrobe and on it.
+     - **A Dood moved** to another workspace leaves the wardrobe behind, as the library is left,
+       and keeps on what it was wearing, which goes into the new wardrobe as found by it.
+     - **In the apps.** The wardrobe window says "N of 200 found by your Doods" where the
+       workspace has more than one, has a row of its Doods to pick which is being dressed, and
+       on each thing who found it and, in its corner, which Doods have it on. A box opened from
+       one Dood asks for every other Dood's creature again. Copy that said a box was one Dood's
+       now says "The next box…".
+     - **Telling the others.** Whatever changes the wardrobe (a box opened, a thing or a box
+       added) posts `/creature/wardrobe` to every agent of the workspace, which stamps
+       `wardrobeAt` in its `CreatureDoc`; that is a `creature` change on each agent's events,
+       so every page watching any of them, a team-mate's included, asks again. Nothing new
+       goes over the feed, so phone apps already out there follow it too.
+     - **Checked:** `pnpm check`, `pnpm test` (`apps/web/src/server/wardrobe.test.ts`: the
+       welcome box shared by two Doods, another workspace refused, the six-hour wait across
+       Doods, treat boxes opened after the workspace's own, three boxes opened at once finding
+       three things, taking in what was found before, things added once, no box once full;
+       `packages/agent/test/creature.test.ts` for the actor's part), and the creature, box, phone,
+       Dood page and teams browser tests, with a new one for a second Dood dressed from the
+       first's find.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

@@ -1,10 +1,17 @@
-import { BOX_EVERY_MS, type CreatureState, type Outfit } from "@do-computer/protocol"
+import {
+  type AgentSummary,
+  BOX_EVERY_MS,
+  type CreatureState,
+  type Outfit,
+} from "@do-computer/protocol"
+import { eq, useLiveQuery } from "@tanstack/react-db"
 import { useQuery } from "@tanstack/react-query"
 import { atom } from "jotai"
 import { useEffect } from "react"
 import { client } from "./client.ts"
-import { agentKey, agentsKey, creatureKey, creatureQuery } from "./collections.ts"
+import { agentKey, agentsCollection, agentsKey, creatureKey, creatureQuery } from "./collections.ts"
 import { queryClient } from "./query.ts"
+import { useListedAgent } from "./workspaces.ts"
 
 /**
  * The creature's windows over the agent's pages: its wardrobe, and a box of its being opened,
@@ -75,10 +82,33 @@ export async function feedCreature(agentId: string): Promise<void> {
   }
 }
 
-/** Open one of its boxes. Answers with the id of what was inside. */
+/**
+ * Every Dood of the workspace an agent is in that has hatched, the agent among them, as the list
+ * of agents has them: who shares its wardrobe.
+ */
+export function useWardrobeDoods(agentId: string): AgentSummary[] {
+  const workspaceId = useListedAgent(agentId)?.workspaceId
+  const { data } = useLiveQuery(
+    (q) =>
+      q
+        .from({ agent: agentsCollection })
+        .where(({ agent }) => eq(agent.workspaceId, workspaceId ?? "")),
+    [workspaceId],
+  )
+  return (data ?? []).filter((agent) => agent.hatched)
+}
+
+/**
+ * Open one of its workspace's boxes. Answers with the id of what was inside. The wardrobe is its
+ * workspace's, so every other Dood's is asked for again: it has the thing in it too.
+ */
 export async function openBox(agentId: string): Promise<string> {
   const { item, creature } = await client.agent(agentId).openBox()
   queryClient.setQueryData(creatureKey(agentId), creature)
+  void queryClient.invalidateQueries({
+    predicate: ({ queryKey }) =>
+      queryKey[0] === "agents" && queryKey[2] === "creature" && queryKey[1] !== agentId,
+  })
   return item
 }
 

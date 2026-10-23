@@ -2,8 +2,7 @@ import {
   type AgentLatest,
   type Avatar,
   type ChatKind,
-  type CreatureState,
-  NEW_CREATURE,
+  type CreatureOwn,
   type ScheduleCheck,
   type SubagentStatus,
   type ThinkingLevel,
@@ -92,16 +91,29 @@ export const IdentityDoc = defineDoc<IdentityState>({
 })
 
 /**
- * What the agent's creature has been given and has on: its boxes, when the next is due, and the things to
- * wear that came out of them. Apart from who the agent is, since none of it is the agent's to
- * know or to change.
+ * What the agent's creature has been given and has on. Apart from who the agent is, since none
+ * of it is the agent's to know or to change. Its boxes and the things that came out of them are
+ * its workspace's wardrobe, which the gateway keeps; `owned` and `shared` are what it had found
+ * and been given before there was one, which the wardrobe takes in when it is first made.
  */
-export const CreatureDoc = defineDoc<CreatureState>({
+export type KeptCreature = CreatureOwn & {
+  /**
+   * When its workspace's wardrobe last changed, as the gateway said: changing it is what tells
+   * whoever is watching the agent to ask for its creature again.
+   */
+  wardrobeAt?: number
+  owned?: string[]
+  boxes?: number
+  shared?: number
+  nextBoxAt?: number
+}
+
+export const CreatureDoc = defineDoc<KeptCreature>({
   kind: "dc.creature",
   version: 1,
   scope: "session",
   checkpointWhen: () => false,
-  initial: () => ({ ...NEW_CREATURE, owned: [], outfit: {} }),
+  initial: () => ({ fed: 0, joy: 0, outfit: {} }),
 })
 
 /** What is kept about a sub-agent, on its chat. */

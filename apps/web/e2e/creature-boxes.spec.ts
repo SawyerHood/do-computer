@@ -24,9 +24,7 @@ test("the next box turns up by itself once the last is opened, and no other whil
 
   // Opened, there is none, and the page says another is on its way.
   expect((await page.request.post(`/api/agents/${agentId}/creature/open`)).status()).toBe(200)
-  await expect(
-    panel.getByRole("button", { name: /^Juniper's next box turns up in about/ }),
-  ).toBeVisible()
+  await expect(panel.getByRole("button", { name: /^The next box turns up in about/ })).toBeVisible()
 
   // It turns up with nothing pressed, nothing said to the agent, and the page not loaded again.
   await expect(box).toBeVisible({ timeout: 15_000 })

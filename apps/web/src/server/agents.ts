@@ -21,6 +21,7 @@ import { announce } from "./presence.ts"
 import { defaultModelFor } from "./settings.ts"
 import { shownAs } from "./site-pages.tsx"
 import { type AgentAccess, agentAccess, roleIn, workspaceIdsOf } from "./teams.ts"
+import { creatureRoute } from "./wardrobe.ts"
 
 /** How many agents one workspace can hold: a person's own, or a team's. */
 export const MAX_AGENTS_PER_WORKSPACE = 20
@@ -318,6 +319,8 @@ export async function proxyToAgent(
       return fail(400, "The request was cut off before it was complete.")
     }
   }
+  // Its creature is its own and its workspace's wardrobe's, which is kept here.
+  if (route[0] === "creature") return creatureRoute(access, route, request.method, body)
   // Built from nothing, so that who is asking is only ever what this gateway says.
   const headers: Record<string, string> = {
     "content-type": request.headers.get("content-type") ?? "application/json",

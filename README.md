@@ -56,7 +56,8 @@ One codebase runs on plain Node and on Cloudflare Workers. Models are called thr
 - **Think with the model you choose.** Any OpenRouter model that can call tools, or a
   subscription or key of your own.
 - **Be a creature.** Every Dood hatches from an egg and looks like no other. Six hours
-  after its box is opened another turns up, with something to wear inside.
+  after a box is opened another turns up, with something inside for the wardrobe all your
+  Doods share.
 
 [What a Dood can do](docs/reference/agents.md) has the long version.
 

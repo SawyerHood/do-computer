@@ -1,4 +1,4 @@
-import { RARITIES } from "@do-computer/protocol"
+import { RARITIES, wearItem } from "@do-computer/protocol"
 import { expect, test } from "./fixtures.ts"
 import { asOwner, signIn, panelSwitch } from "./helpers.ts"
 import type { Page } from "@playwright/test"
@@ -109,7 +109,7 @@ test("a box opens on something to wear, which is put on and kept in the wardrobe
   await box.getByRole("button", { name: "Open the box" }).click()
 
   // What was inside is named, with how rare it is, once the box has opened on it.
-  await expect(box.getByText("1 of 200 found")).toBeVisible({ timeout: 15_000 })
+  await expect(box.getByText("1 of 200 in the wardrobe")).toBeVisible({ timeout: 15_000 })
   const found = (await box.getByRole("heading").textContent())!
   expect(found).not.toBe("Juniper found a box")
   await expect(
@@ -122,7 +122,7 @@ test("a box opens on something to wear, which is put on and kept in the wardrobe
   await expect(picture).toHaveAccessibleName("Hide Juniper's panel")
   await expect(waitingBox(page)).toHaveCount(0)
   await expect(
-    panel(page).getByRole("button", { name: "Juniper's next box turns up in about 6 hours" }),
+    panel(page).getByRole("button", { name: "The next box turns up in about 6 hours" }),
   ).toBeVisible()
 
   // The wardrobe has it, and says the creature has it on. Everything else is still to find.
@@ -154,4 +154,44 @@ test("a box opens on something to wear, which is put on and kept in the wardrobe
   await expect(
     page.getByRole("dialog").getByRole("list", { name: "What Juniper has on" }),
   ).toContainText(found)
+})
+
+test("the wardrobe is the workspace's: every Dood in it wears from it, two at once", async ({
+  page,
+}) => {
+  await open(page)
+  const made = (await (await page.request.post("/api/agents", { data: {} })).json()) as {
+    agent: { id: string }
+  }
+  await page.request.patch(`/api/agents/${made.agent.id}`, {
+    data: { name: "Bramble", hatched: true },
+  })
+  await page.reload()
+  const show = page.getByRole("button", { name: "Show Juniper's panel" })
+  await expect(show.or(panel(page))).toBeVisible()
+  if (await show.isVisible()) await show.click()
+  await panel(page).getByRole("button", { name: "Juniper's wardrobe" }).click()
+  const wardrobe = page.getByRole("dialog")
+  // What Juniper found is the workspace's, and says who found it.
+  await expect(wardrobe.getByText("1 of 200 found by your Doods")).toBeVisible()
+  const juniper = page.url().match(/\/a\/([^/]+)/)![1]!
+  const { owned } = (await (await page.request.get(`/api/agents/${juniper}/creature`)).json()) as {
+    owned: string[]
+  }
+  const found = wearItem(owned[0]!)!.name
+  await wardrobe.getByRole("tab", { name: /1\/\d+$/ }).click()
+  const tile = wardrobe.getByRole("button", { name: found, exact: true })
+  await expect(tile).toContainText("found by Juniper")
+
+  // Bramble is dressed in it too, from the same wardrobe.
+  await wardrobe.getByRole("radio", { name: "Bramble" }).click()
+  await expect(wardrobe.getByRole("list", { name: "What Bramble has on" })).toBeVisible()
+  await expect(tile).toHaveAttribute("aria-pressed", "false")
+  await tile.click()
+  await expect(tile).toHaveAttribute("aria-pressed", "true")
+  await expect(wardrobe.getByRole("list", { name: "What Bramble has on" })).toContainText(found)
+  await expect(tile.locator("[title^='Worn by']")).toHaveAttribute(
+    "title",
+    /^Worn by (Juniper, Bramble|Bramble, Juniper)$/,
+  )
 })

@@ -210,8 +210,8 @@ export function BoxWindow({
                 </span>
                 <DialogTitle className="text-lg">{found.name}</DialogTitle>
                 <DialogDescription className="mt-1">
-                  {SLOT_NAMES[found.slot].one} · {creature.owned.length} of {WEAR_ITEMS.length}{" "}
-                  found
+                  {SLOT_NAMES[found.slot].one} · {creature.owned.length} of {WEAR_ITEMS.length} in
+                  the wardrobe
                 </DialogDescription>
               </div>
             </div>

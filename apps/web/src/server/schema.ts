@@ -298,6 +298,29 @@ const MIGRATIONS: readonly (readonly string[])[] = [
       PRIMARY KEY (user_id, workspace_id)
     )`,
   ],
+  [
+    // A workspace's wardrobe, which every one of its Doods wears from: its boxes, the ones of them
+    // that treats on Doods' own pages made (`shared`), and when its next turns up. `version` goes
+    // up with every change, which is how two boxes opened at once are kept from finding one thing.
+    `CREATE TABLE dc_wardrobes (
+      workspace_id TEXT PRIMARY KEY,
+      boxes INTEGER NOT NULL,
+      shared INTEGER NOT NULL,
+      next_box_at INTEGER,
+      version INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    )`,
+    // What is in it: each thing once, with the Dood that found it, and the box it was found in
+    // where it came out of one, which is how whoever opened that box knows it was theirs.
+    `CREATE TABLE dc_wardrobe_items (
+      workspace_id TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      found_by TEXT,
+      found_at INTEGER NOT NULL,
+      box TEXT,
+      PRIMARY KEY (workspace_id, item_id)
+    )`,
+  ],
 ]
 
 const VERSION_KEY = "schema_version"
