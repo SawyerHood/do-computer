@@ -155,11 +155,29 @@ function capped<Args>(execute: Execute<Args>): Execute<Args> {
 const SETTLED_AFTER_MS = 10 * 60_000
 const SETTLED_EVERY_MS = 60_000
 /**
- * How soon a running command is looked at again without waiting for a wake-up, by how long it
- * has run: a short one should not seem to take longer than it did.
+ * And this often once it has run an hour: a server left running, say. The agent is woken for
+ * each look and may be put away between two, which on Cloudflare takes a while with nothing
+ * asked of it; looked at every minute it never was.
  */
-const lookAgainMs = (age: number) =>
-  age < 2 * 60_000 ? 5_000 : age < SETTLED_AFTER_MS ? 15_000 : SETTLED_EVERY_MS
+const LONG_AFTER_MS = 60 * 60_000
+const LONG_EVERY_MS = 5 * 60_000
+/** How often a command that has run this long is looked at, at the most. */
+const everyMs = (age: number) =>
+  age > LONG_AFTER_MS ? LONG_EVERY_MS : age > SETTLED_AFTER_MS ? SETTLED_EVERY_MS : 0
+/**
+ * How soon a running command is looked at again, by how long it has run: a short one should
+ * not seem to take longer than it did. It is when the agent asks to be woken for it.
+ */
+export const lookAgainMs = (age: number) =>
+  age < 2 * 60_000
+    ? 5_000
+    : age < SETTLED_AFTER_MS
+      ? 15_000
+      : age < LONG_AFTER_MS
+        ? SETTLED_EVERY_MS
+        : LONG_EVERY_MS
+/** The least time between the start of one look and a wake-up for the next. */
+const MIN_LOOK_GAP_MS = 1_000
 /** A command that is over is forgotten after this long. Its folder goes at the same age. */
 const FORGET_AFTER_MS = 7 * 24 * 60 * 60_000
 /** One follow of a job may wait this long; a longer wait is made of several. */
@@ -232,6 +250,11 @@ export type JobsOptions = {
   readonly computer: (id: string, context: Context) => Promise<ComputerTarget | string>
   /** How long a command is waited for before it is left to run in the background. */
   readonly foregroundMs?: number
+  /**
+   * Look at running commands this often, whatever their age, with a timer of its own as well as
+   * the wake-ups. Only a test sets it: in use the wake-ups alone look (`nextWake`).
+   */
+  readonly lookMs?: number
   /** Called when a command started running in the background, which wants looking in on. */
   readonly onStarted?: () => void
   /** Called when word of a command's end has been sent to its chat. */
@@ -307,6 +330,8 @@ export class Jobs {
   #ticking: Promise<void> = Promise.resolve()
   /** When each running job was last looked at. */
   readonly #looked = new Map<string, number>()
+  /** When the last look began. */
+  #tickedAt = 0
   /** The next look that is not a wake-up's, while there is one to come. */
   #again: ReturnType<typeof setTimeout> | undefined
 
@@ -340,15 +365,50 @@ export class Jobs {
   }
 
   /**
-   * Look again soon, without waiting for a wake-up. The wake-ups are what a restart leaves; a
-   * timer is gone with the process, and this only makes word of an ending come sooner.
+   * When the agent should next be woken to look at its running commands, or null where none is
+   * running. The agent may be put away until then: the commands run on their computers whether
+   * it is loaded or not.
    */
-  #soon(age: number): void {
-    if (this.#again !== undefined || this.#harness === undefined) return
+  async nextWake(context: Context): Promise<number | null> {
+    const running = Object.entries(await this.#jobs(context)).filter(
+      ([, job]) => job.status === "running",
+    )
+    if (running.length === 0) return null
+    const now = this.#options.now()
+    const lookMs = this.#options.lookMs
+    // From the last look, not from now: every request asks, and a time that moved on with each
+    // one would never come while requests kept coming. One gone by is looked at on the next
+    // wake-up, which is then at once.
+    const due = Math.min(
+      ...running.map(
+        ([id, job]) =>
+          (this.#looked.get(id) ?? job.startedAt) + (lookMs ?? lookAgainMs(now - job.startedAt)),
+      ),
+    )
+    // Not again at once after a look that failed before it got to a command.
+    return Math.max(due, this.#tickedAt + MIN_LOOK_GAP_MS)
+  }
+
+  /** Whether a command is being started, which keeps the agent awake until it is running. */
+  async starting(context: Context): Promise<boolean> {
+    const state = await this.#require().snapshot(JobsDoc, context)
+    return Object.keys(state?.intents ?? {}).length > 0
+  }
+
+  /**
+   * Look again soon, without waiting for a wake-up, where a test asks to look more often than
+   * the wake-ups do. Otherwise the wake-up (`nextWake`) looks at the same pace, and a timer
+   * would only cost: a Durable Object with a timer pending can neither hibernate nor be put
+   * away, even one that is unreferenced, so an agent with a server left running in the
+   * background was billed for every second of it, doing nothing.
+   */
+  #soon(_age: number): void {
+    const lookMs = this.#options.lookMs
+    if (lookMs === undefined || this.#again !== undefined || this.#harness === undefined) return
     const timer = setTimeout(() => {
       this.#again = undefined
       if (this.#harness !== undefined) void this.tick()
-    }, lookAgainMs(age))
+    }, lookMs)
     // Nothing should be kept alive only to look at a command.
     ;(timer as { unref?: () => void }).unref?.()
     this.#again = timer
@@ -541,6 +601,7 @@ export class Jobs {
     const context = this.#options.context
     const run = async () => {
       if (this.#harness === undefined) return
+      this.#tickedAt = this.#options.now()
       try {
         // Intents after the running commands, so a computer that is slow to answer about one it
         // was starting does not hold up word of the others.
@@ -574,7 +635,7 @@ export class Jobs {
     const due = new Map<string, [string, JobRecord][]>()
     for (const [id, job] of Object.entries(jobs)) {
       if (job.status !== "running") continue
-      const every = now - job.startedAt > SETTLED_AFTER_MS ? SETTLED_EVERY_MS : 0
+      const every = this.#options.lookMs === undefined ? everyMs(now - job.startedAt) : 0
       if (now - (this.#looked.get(id) ?? 0) < every) continue
       due.set(job.computerId, [...(due.get(job.computerId) ?? []), [id, job]])
     }

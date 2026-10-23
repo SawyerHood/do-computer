@@ -264,6 +264,13 @@ export type AgentActorOptions = {
   readonly typing?: (agentId: string, chatId: string) => Promise<boolean>
   /** How long a command is waited for before it is left to run in the background. */
   readonly foregroundMs?: number
+  /** How often running commands are looked at, whatever their age. Only a test sets it. */
+  readonly jobLookMs?: number
+  /**
+   * How often a reply being written, and the output of a call that is running, are saved, and so
+   * how often a page sees them grow. pi-durable's default is ten times a second.
+   */
+  readonly progressIntervalMs?: number
   /**
    * How long a chat that has gone quiet keeps what it last read in memory, so that its next
    * run reads only what is newer. Default: ten minutes. It is kept by a timer, and where a
@@ -736,6 +743,7 @@ export class AgentActor implements Actor {
       context,
       computer: (id, c) => this.#computers.resolve(id, c),
       ...(options.foregroundMs === undefined ? {} : { foregroundMs: options.foregroundMs }),
+      ...(options.jobLookMs === undefined ? {} : { lookMs: options.jobLookMs }),
       // A command left running wants looking in on, which the wake-up does.
       onStarted: () => void this.#rearm().catch((error) => options.onReport?.(error)),
       // What the agent says about a command that ended is told like any other answer nobody
@@ -1400,6 +1408,14 @@ export class AgentActor implements Actor {
             // It costs more to write and the same to read. A chat picked up again within the
             // hour then reads its prompt from the cache.
             stream: { cacheRetention: CACHE_RETENTION },
+            ...(this.#options.progressIntervalMs === undefined
+              ? {}
+              : {
+                  progress: {
+                    partialIntervalMs: this.#options.progressIntervalMs,
+                    outputIntervalMs: this.#options.progressIntervalMs,
+                  },
+                }),
             ...(this.#options.compaction === undefined
               ? {}
               : { compaction: this.#options.compaction }),
@@ -1553,7 +1569,9 @@ export class AgentActor implements Actor {
       awake.active ||
       liveWork(inspection, { asleep: false }).live ||
       (await this.#subagents.working(context)) ||
-      (await this.#jobs.working(context)) ||
+      // A command running in the background is not: the agent is woken when the commands next
+      // want a look (`jobs.nextWake`), and may be put away between looks.
+      (await this.#jobs.starting(context)) ||
       (await this.#scheduler.working(context)) ||
       ((await this.#peers?.working(context)) ?? false) ||
       ((await this.#slack?.working(context)) ?? false)
@@ -1572,7 +1590,10 @@ export class AgentActor implements Actor {
     const idle = await this.#idle.nextWake()
     // A sub-agent waiting too long for an answer has what it asked for taken back.
     const unanswered = await this.#subagents.nextWake(context)
-    const scheduled = [tasks, calls, idle, unanswered, awake.at ?? null].reduce<number | null>(
+    const commands = await this.#jobs.nextWake(context)
+    const scheduled = [tasks, calls, idle, unanswered, commands, awake.at ?? null].reduce<
+      number | null
+    >(
       (soonest, at) => (at === null ? soonest : soonest === null ? at : Math.min(soonest, at)),
       null,
     )

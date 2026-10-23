@@ -84,6 +84,10 @@ export const AgentObject = createDurableActorClass<Env>({
       // from being put away.
       contextRetentionMs: 0,
       documentRetentionMs: 0,
+      // A reply being written, and a running command's output, are saved once a second, not
+      // ten times. Every save is rows written in the agent's SQLite, which is what an agent
+      // costs most for after the time it is awake; most of what it wrote was these saves.
+      progressIntervalMs: 1_000,
       computerLinks: durableObjectNamespace(env.COMPUTER),
       computerDirectory: computerDirectory(
         d1Database(env.DB),

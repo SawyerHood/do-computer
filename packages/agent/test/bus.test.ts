@@ -773,6 +773,7 @@ function open(
           { id: "test/model", name: "Test", reasoning: false, inputCost: 0, outputCost: 0 },
         ],
         keepAliveMs: machine ? 150 : 60_000,
+        ...(machine ? { jobLookMs: 150 } : {}),
         ...(sandbox === undefined ? {} : { sandbox: () => sandbox, foregroundMs: 400 }),
         onNotify: (notification) => notified.push(notification),
         onReport: (error) => errors.push(error),

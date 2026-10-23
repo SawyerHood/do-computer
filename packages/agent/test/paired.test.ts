@@ -53,6 +53,7 @@ const agents = new NodeActorNamespace({
         { id: "test/model", name: "Test", reasoning: false, inputCost: 0, outputCost: 0 },
       ],
       keepAliveMs: 100,
+      jobLookMs: 100,
       // One agent gives up on an unanswered ask quickly, to see what a late answer does.
       ...(host.name === "agent-expiry" ? { subagentAskTtlMs: 400 } : {}),
       sandbox: (host) => justBashSandbox({ id: host.name, database: host.sql }),
