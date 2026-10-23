@@ -1,4 +1,5 @@
 import { mkdtempSync } from "node:fs"
+import { DatabaseSync } from "node:sqlite"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type {
@@ -37,7 +38,10 @@ type World = {
 type Told = { agentId: string } & AgentActivity
 const worlds: World[] = []
 
-function open(directory: string, options: { shell?: "light"; foregroundMs?: number } = {}): World {
+function open(
+  directory: string,
+  options: { shell?: "light"; foregroundMs?: number; lookMs?: number | null } = {},
+): World {
   const faux = quietOnReminder(
     fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 }),
   )
@@ -63,6 +67,7 @@ function open(directory: string, options: { shell?: "light"; foregroundMs?: numb
             : machine,
         // Short, so that a command left running is looked at soon after it ends.
         keepAliveMs: 150,
+        ...(options.lookMs === null ? {} : { jobLookMs: options.lookMs ?? 150 }),
         foregroundMs: options.foregroundMs ?? 400,
         onNotify: (notification) => reports.push(notification),
         onReport: (error) => errors.push(error),
@@ -164,6 +169,41 @@ const NUDGED = '<event kind=\\"command-ended\\"'
 const NUDGED_SUB = "A command you left running in the background has ended"
 
 describe("background commands", () => {
+  it("wakes the agent when a running command wants a look, not every few moments", async () => {
+    const directory = temporary()
+    // No look of the test's own: only the wake-ups look, as in use.
+    const world = open(directory, { lookMs: null })
+    const chat = await setup(world)
+    script(world, (turn) =>
+      turn.last.includes("command-ended")
+        ? sent("It ended.")
+        : afterTool(turn)
+          ? sent("Started.")
+          : use("bash", { command: "sleep 3", run_in_background: true }),
+    )
+    await send(world, chat.id, "start it")
+    await until(
+      () => chatState(world, chat.id),
+      (state) => !state.busy && said(state).includes("Started."),
+    )
+    const startedAt = (await jobs(world))[0]!.startedAt
+    // The agent is at rest: it is woken for the command's first look, five seconds after it
+    // started, and not at the 150 ms a run would keep it awake at.
+    const alarms = new DatabaseSync(join(directory, "actors", "_alarms.sqlite"), { readOnly: true })
+    const alarm = () =>
+      (alarms.prepare("SELECT at FROM alarms WHERE name = ?").get("agent-1") as { at: number })?.at
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    expect(alarm()).toBeGreaterThanOrEqual(startedAt + 4_000)
+    alarms.close()
+    // And the look then finds it over and tells the agent.
+    await until(
+      () => chatState(world, chat.id),
+      (state) => !state.busy && said(state).includes("It ended."),
+      15_000,
+    )
+    expect(world.errors).toEqual([])
+  }, 25_000)
+
   it("moves a slow command to the background, and gives the agent a turn when it ends", async () => {
     const world = open(temporary())
     const chat = await setup(world)
