@@ -78,6 +78,12 @@ export function createDurableActorClass<Env>(options: DurableActorOptions<Env>) 
   return class DurableActor extends DurableObject<Env> {
     #actor: Actor | undefined
     #database: DurableObjectSqliteDatabase | undefined
+    /**
+     * The alarm as this instance last set or read it: null for none, undefined where it is not
+     * known (a new instance, or one whose alarm just fired). Every `setAlarm` is a row written,
+     * and the actors set theirs at the end of every request, mostly to the time it already has.
+     */
+    #alarmAt: number | null | undefined
 
     constructor(ctx: DurableObjectState, env: Env) {
       super(ctx, env)
@@ -96,10 +102,18 @@ export function createDurableActorClass<Env>(options: DurableActorOptions<Env>) 
         blobs: options.blobs(this.env, name),
         now: () => Date.now(),
         setAlarm: async (at) => {
+          if (at === this.#alarmAt) return
+          // Unknown until the write is done: a write that fails leaves it unknown.
+          this.#alarmAt = undefined
           if (at === null) await storage.deleteAlarm()
           else await storage.setAlarm(at)
+          this.#alarmAt = at
         },
-        getAlarm: () => storage.getAlarm(),
+        getAlarm: async () => {
+          const at = await storage.getAlarm()
+          this.#alarmAt = at
+          return at
+        },
         sockets: () =>
           this.ctx
             .getWebSockets()
@@ -117,6 +131,7 @@ export function createDurableActorClass<Env>(options: DurableActorOptions<Env>) 
           for (const object of await blobs.list("")) await blobs.delete(object.key)
           await storage.deleteAlarm()
           await storage.deleteAll()
+          this.#alarmAt = null
           // The next request for this name builds a new actor on empty storage.
           this.#actor = undefined
           this.#database = undefined
@@ -167,6 +182,8 @@ export function createDurableActorClass<Env>(options: DurableActorOptions<Env>) 
     }
 
     override async alarm(): Promise<void> {
+      // Spent by firing; one it sets again from here is written.
+      this.#alarmAt = undefined
       await (await this.#load()).alarm()
     }
   }
