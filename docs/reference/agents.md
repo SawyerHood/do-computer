@@ -32,11 +32,12 @@
   at a command or a file or a search, speaking as its answer arrives, and dozing when nothing
   has happened for a while. `pnpm --filter @do-computer/mascot demo` builds a page for
   trying every state and look.
-- **Be looked after, a little.** A box turns up beside the creature and waits until it is
+- **Be looked after, a little.** A box turns up beside the creatures and waits until it is
   opened; the next turns up six hours after that, so there is one waiting at most. Inside is
-  one of two hundred things to wear, from common to legendary, which it then wears wherever it
-  is shown. It can be given a treat as often as you like, only because it likes them. None of
-  it changes what the Dood can do.
+  one of two hundred things to wear, from common to legendary, which goes into the wardrobe.
+  Every Dood in a workspace shares that wardrobe and the box, so any of them can open it and
+  all of them can wear what was in it, two at once if you like. It can be given a treat as
+  often as you like, only because it likes them. None of it changes what the Dood can do.
 - **Think with the model you choose.** Each Dood can be set to any OpenRouter model that can
   call tools (about 400), from a searchable list on its page, and Settings holds the default your
   new Doods start on.

@@ -1,6 +1,6 @@
 import { getPlatform } from "#platform"
 import {
-  type CreatureState,
+  type CreatureOwn,
   type Dood,
   DOOD_PATS_MAX,
   isDoodColor,
@@ -16,6 +16,7 @@ import { callAgent, fail, json, makeAgent } from "./agents.ts"
 import type { SessionUser } from "./auth.ts"
 import { isDeploymentAdmin } from "./model-access.ts"
 import { sha256 } from "./teams.ts"
+import { addSharedBoxes, addToWardrobe, wardrobeIsFull } from "./wardrobe.ts"
 
 /**
  * Doods: creatures hatched by people with no account, on a page anyone can open, and what
@@ -199,16 +200,31 @@ export async function treatDood(id: string, request: Request): Promise<Response>
   return getDood(id)
 }
 
+/**
+ * Give an agent's creature what came from its page: treats, every few of which fill a box for
+ * its workspace's wardrobe, and a thing to wear, which goes in the wardrobe and on the creature.
+ */
 async function gift(
   agentId: string,
   given: { treats?: number; item?: string },
-): Promise<CreatureState | undefined> {
+): Promise<CreatureOwn | undefined> {
+  const { db } = getPlatform()
+  const row = await db.get<{ owner_id: string; workspace_id: string | null }>(
+    "SELECT owner_id, workspace_id FROM dc_agents WHERE id = ?",
+    agentId,
+  )
+  if (row === undefined) return undefined
+  const workspaceId = row.workspace_id ?? personalWorkspaceId(row.owner_id)
+  if (given.item !== undefined) await addToWardrobe(workspaceId, [given.item], agentId)
   const response = await callAgent(agentId, "/gifts", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(given),
+    body: JSON.stringify({ ...given, full: await wardrobeIsFull(workspaceId) }),
   }).catch(() => undefined)
-  return response?.ok ? ((await response.json()) as CreatureState) : undefined
+  if (!response?.ok) return undefined
+  const { filled, ...creature } = (await response.json()) as CreatureOwn & { filled?: number }
+  await addSharedBoxes(workspaceId, filled ?? 0)
+  return creature
 }
 
 /** Make it theirs: the key says it was they who hatched it. */

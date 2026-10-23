@@ -1,6 +1,5 @@
 import {
   avatarLook,
-  BOX_EVERY_MS,
   type AddConnectorRequest,
   type AgentEvent,
   type AgentActivity,
@@ -15,14 +14,13 @@ import {
   type ChatState,
   type ChatSummary,
   type ChatUsage,
+  type CreatureOwn,
   type ComputerKind,
-  type CreatureState,
   diffChat,
   DEFAULT_THINKING,
   encodeSse,
   type EndCallRequest,
   CONNECTOR_CALLBACK_PATH,
-  hasEverything,
   isThinkingLevel,
   MAX_MESSAGE_IMAGE_CHARS,
   MAX_MESSAGE_IMAGES,
@@ -30,11 +28,9 @@ import {
   type MessageImage,
   latestOfSent,
   type ModelOption,
-  NEW_CREATURE,
   parseAvatar,
   mcpAppContentSecurityPolicy,
   parseOutfit,
-  rollItem,
   type SendMessageRequest,
   type SendMessageResponse,
   type StartCallRequest,
@@ -44,6 +40,7 @@ import {
   SSE_HEARTBEAT_MS,
   THINKING_LEVELS,
   TREATS_PER_BOX,
+  WEAR_ITEMS,
   type UpdateChatRequest,
   type ScheduleCheck,
   type UpdateScheduleRequest,
@@ -83,6 +80,7 @@ import {
   type ChatRecord,
   DEFAULT_CHAT_TITLE,
   CreatureDoc,
+  type KeptCreature,
   IdentityDoc,
   type IdentityState,
   LatestDoc,
@@ -200,6 +198,10 @@ const MAX_MESSAGE_CHARS = 200_000
 const MAX_TITLE_CHARS = 80
 /** The most treats its creature is given from outside the app in one go. */
 const MAX_GIFTED_TREATS = 400
+/** Every thing there is to wear, which is what an outfit is checked against here. */
+const ALL_ITEMS = WEAR_ITEMS.map((item) => item.id)
+/** A creature that has been given nothing yet. */
+const NO_CREATURE: KeptCreature = { fed: 0, joy: 0, outfit: {} }
 /** How many answers are remembered as told of, so that one is not told twice. */
 const MAX_TOLD_ANSWERS = 500
 /** How often an agent in use is looked at for a model its deployment has stopped offering. */
@@ -233,10 +235,6 @@ export type AgentActorOptions = {
   readonly computers?: ComputerChoices
   /** Receives failures that did not fail a request. */
   readonly onReport?: (error: unknown) => void
-  /** Chance, as numbers from 0 up to 1: what decides the thing in a box. `Math.random` if left out. */
-  readonly random?: () => number
-  /** How long after its creature's box is opened the next one turns up. Six hours if left out. */
-  readonly boxEveryMs?: number
   /** How often the actor wakes itself while work is live. */
   readonly keepAliveMs?: number
   /**
@@ -1804,12 +1802,22 @@ export class AgentActor implements Actor {
     if (segments[0] === "events" && method === "GET") return this.#agentEvents(harness)
     // What its creature was given from outside the app, from the gateway, which counted it.
     if (segments[0] === "gifts" && method === "POST") {
-      return this.#gifted(harness, await body<{ treats?: unknown; item?: unknown }>(request))
+      return this.#gifted(
+        harness,
+        await body<{ treats?: unknown; item?: unknown; full?: unknown }>(request),
+      )
     }
+    // Its creature, for the gateway, which has its workspace's wardrobe to put with it.
     if (segments[0] === "creature") {
       if (segments[1] === undefined && method === "GET") return json(await this.#creature(harness))
       if (segments[1] === "feed" && method === "POST") return this.#feed(harness)
-      if (segments[1] === "open" && method === "POST") return this.#openBox(harness)
+      // Its workspace's wardrobe changed: whoever is watching it is told to ask again.
+      if (segments[1] === "wardrobe" && method === "POST") {
+        await harness.commit(async (tx) => {
+          ;(await tx.doc(CreatureDoc)).wardrobeAt = this.#host.now()
+        }, context)
+        return json({ ok: true })
+      }
       if (segments[1] === "outfit" && method === "PUT") {
         return this.#wear(harness, await body<{ outfit?: unknown }>(request))
       }
@@ -2614,50 +2622,23 @@ export class AgentActor implements Actor {
     return (await this.#approvals.asking(context)) || (await this.#secrets.asking(context))
   }
 
-  /** What its creature has been given and has on. One from before there was any of it has a box waiting. */
-  async #creature(harness: Harness): Promise<CreatureState> {
-    await this.#boxDue(harness)
-    const creature = (await harness.snapshot(CreatureDoc, context)) ?? NEW_CREATURE
-    const shared = Math.min(creature.shared ?? 0, creature.boxes)
-    // Named one by one: what is kept may hold more, from when its treats were earned and counted.
+  /**
+   * What its creature has been given and has on, and what it had found and been given before its
+   * workspace had a wardrobe, which the wardrobe takes in when it is made.
+   */
+  async #creature(
+    harness: Harness,
+  ): Promise<CreatureOwn & { before?: { owned: string[]; shared: number } }> {
+    const creature = (await harness.snapshot(CreatureDoc, context)) ?? NO_CREATURE
+    const owned = creature.owned ?? []
+    const shared = Math.min(creature.shared ?? 0, creature.boxes ?? 0)
+    // Named one by one: what is kept may hold more, from before.
     return {
       fed: creature.fed,
       joy: creature.joy,
-      boxes: creature.boxes,
-      shared,
-      // While a box of its own waits there is no next one to wait for.
-      ...(creature.boxes > shared || creature.nextBoxAt === undefined
-        ? {}
-        : { nextBoxAt: creature.nextBoxAt }),
-      owned: [...creature.owned],
       outfit: { ...creature.outfit },
+      ...(owned.length > 0 || shared > 0 ? { before: { owned: [...owned], shared } } : {}),
     }
-  }
-
-  /**
-   * A box turns up beside its creature six hours after its last was opened, whatever the
-   * agent was or was not doing, and it has one of its own waiting at most: the wait for the next
-   * starts when that one is opened. The boxes other people's treats made are besides. Nothing
-   * wakes for a box: one that has come due is counted when the creature is next looked at. One
-   * from before this with no box has its wait start at the first look, and a wait longer than
-   * the whole of one, left from when boxes were further apart, is cut to it.
-   */
-  async #boxDue(harness: Harness): Promise<void> {
-    const now = this.#host.now()
-    const every = Math.max(1, this.#options.boxEveryMs ?? BOX_EVERY_MS)
-    const waits = (creature: CreatureState) =>
-      // Once everything is found there is nothing for another box to hold.
-      creature.boxes > (creature.shared ?? 0) || hasEverything(creature.owned)
-    const kept = (await harness.snapshot(CreatureDoc, context)) ?? NEW_CREATURE
-    const long = (creature: CreatureState) =>
-      creature.nextBoxAt === undefined || creature.nextBoxAt > now + every
-    if (waits(kept) || (!long(kept) && now < kept.nextBoxAt!)) return
-    await harness.commit(async (tx) => {
-      const creature = await tx.doc(CreatureDoc)
-      if (waits(creature)) return
-      if (long(creature)) creature.nextBoxAt = now + every
-      else if (now >= creature.nextBoxAt!) creature.boxes++
-    }, context)
   }
 
   /** Give its creature a treat. There is always one to give, and it comes to nothing but the count. */
@@ -2670,74 +2651,46 @@ export class AgentActor implements Actor {
 
   /**
    * Its creature is given something by someone who is not its owner, on its own page: treats it
-   * eats there and then, every few of which are a box for it, and a thing to wear, which it puts on.
+   * eats there and then, every few of which fill a box for its workspace, and a thing to wear,
+   * which it puts on. Answers with how many boxes the treats filled, which the gateway puts in
+   * the wardrobe. Once the wardrobe is `full`, treats fill nothing.
    */
-  async #gifted(harness: Harness, input: { treats?: unknown; item?: unknown }): Promise<Response> {
+  async #gifted(
+    harness: Harness,
+    input: { treats?: unknown; item?: unknown; full?: unknown },
+  ): Promise<Response> {
     const treats =
       typeof input.treats === "number" && Number.isInteger(input.treats)
         ? Math.max(0, Math.min(MAX_GIFTED_TREATS, input.treats))
         : 0
     const item = typeof input.item === "string" ? wearItem(input.item) : undefined
-    await harness.commit(async (tx) => {
+    const full = input.full === true
+    const filled = await harness.commit(async (tx) => {
       const creature = await tx.doc(CreatureDoc)
+      let boxes = 0
       for (let given = 0; given < treats; given++) {
         creature.fed++
-        if (!hasEverything(creature.owned) && ++creature.joy >= TREATS_PER_BOX) {
+        if (!full && ++creature.joy >= TREATS_PER_BOX) {
           creature.joy = 0
-          creature.boxes++
-          creature.shared = (creature.shared ?? 0) + 1
+          boxes++
         }
       }
-      if (item !== undefined) {
-        if (!creature.owned.includes(item.id)) creature.owned.push(item.id)
-        creature.outfit = { ...creature.outfit, [item.slot]: item.id }
-      }
+      if (item !== undefined) creature.outfit = { ...creature.outfit, [item.slot]: item.id }
+      return boxes
     }, context)
-    return json(await this.#creature(harness))
+    return json({ ...(await this.#creature(harness)), filled })
   }
 
   /**
-   * Open one of its boxes: something to wear that it does not have yet, picked by chance. Its own
-   * box is opened before any that other people's treats made, and the wait for its next starts then.
+   * Dress its creature. What it may wear is its workspace's wardrobe, which the gateway checked:
+   * here an outfit is only held to being things there are, each where it is worn.
    */
-  async #openBox(harness: Harness): Promise<Response> {
-    await this.#boxDue(harness)
-    const now = this.#host.now()
-    const every = Math.max(1, this.#options.boxEveryMs ?? BOX_EVERY_MS)
-    // Drawn before the transaction, which may be run more than once and must come out the same.
-    const random = this.#options.random ?? Math.random
-    const dealt = [random(), random()]
-    const found = await harness.commit(async (tx) => {
-      const creature = await tx.doc(CreatureDoc)
-      if (creature.boxes <= 0) return undefined
-      let at = 0
-      const item = rollItem(creature.owned, () => dealt[at++ % dealt.length]!)
-      if (item === undefined) {
-        creature.boxes = 0
-        creature.shared = 0
-        return undefined
-      }
-      const shared = Math.min(creature.shared ?? 0, creature.boxes)
-      creature.boxes--
-      if (creature.boxes < shared) creature.shared = creature.boxes
-      else if (creature.boxes === shared) creature.nextBoxAt = now + every
-      creature.owned.push(item.id)
-      return item.id
-    }, context)
-    if (found === undefined) throw new HttpError(409, "It has no box to open", "no_box")
-    return json({ item: found, creature: await this.#creature(harness) })
-  }
-
-  /** Dress its creature, in things it has. */
   async #wear(harness: Harness, input: { outfit?: unknown }): Promise<Response> {
-    const problem = await harness.commit(async (tx) => {
-      const creature = await tx.doc(CreatureDoc)
-      const parsed = parseOutfit(input.outfit, creature.owned)
-      if ("error" in parsed) return parsed.error
-      creature.outfit = parsed.outfit
-      return undefined
+    const parsed = parseOutfit(input.outfit, ALL_ITEMS)
+    if ("error" in parsed) throw new HttpError(400, parsed.error)
+    await harness.commit(async (tx) => {
+      ;(await tx.doc(CreatureDoc)).outfit = parsed.outfit
     }, context)
-    if (problem !== undefined) throw new HttpError(400, problem)
     return json(await this.#creature(harness))
   }
 

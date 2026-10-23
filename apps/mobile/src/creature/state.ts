@@ -62,10 +62,17 @@ export function useCare(agentId: string) {
           refetch()
         }
       },
-      /** Open one of its boxes. Answers with the id of what was inside. */
+      /**
+       * Open one of its workspace's boxes. Answers with the id of what was inside. The wardrobe
+       * is the workspace's, so every other Dood's is asked for again: it has the thing in it too.
+       */
       open: async (): Promise<string> => {
         const { item, creature } = await client.agent(agentId).openBox()
         queryClient.setQueryData(key, creature)
+        void queryClient.invalidateQueries({
+          predicate: ({ queryKey }) =>
+            queryKey[0] === "agents" && queryKey[2] === "creature" && queryKey[1] !== agentId,
+        })
         return item
       },
       /** Dress it. It is shown dressed at once, wherever its agent is drawn. */

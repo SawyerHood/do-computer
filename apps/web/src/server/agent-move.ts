@@ -1,5 +1,5 @@
 import { getPlatform } from "#platform"
-import type { AgentSummary } from "@do-computer/protocol"
+import type { AgentSummary, Outfit } from "@do-computer/protocol"
 import {
   agentFor,
   callAgent,
@@ -14,6 +14,7 @@ import { moveMachinesOf, removeMisfitComputersOf } from "./computers.ts"
 import { defaultModelIn, offersModel } from "./models.ts"
 import { announce } from "./presence.ts"
 import { mayRemoveAgent, roleIn } from "./teams.ts"
+import { addToWardrobe } from "./wardrobe.ts"
 
 /**
  * An agent runs on a model of a provider its workspace is signed in to only while it is there.
@@ -30,6 +31,17 @@ async function keepRunnable(agentId: string, workspaceId: string): Promise<void>
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ model: await defaultModelIn(workspaceId) }),
   }).catch(() => undefined)
+}
+
+/**
+ * The wardrobe stays with the workspace an agent leaves, as the library does, and it keeps on
+ * what it has on: those things go into the wardrobe where it arrives, as found by it.
+ */
+async function bringWhatItWears(agentId: string, workspaceId: string): Promise<void> {
+  const response = await callAgent(agentId, "/creature").catch(() => undefined)
+  if (response === undefined || !response.ok) return
+  const { outfit } = (await response.json()) as { outfit?: Outfit }
+  await addToWardrobe(workspaceId, Object.values(outfit ?? {}), agentId).catch(() => undefined)
 }
 
 /**
@@ -68,6 +80,7 @@ export async function moveAgent(
   // A computer connected to it served the people it was shared with then. One that belongs to
   // a team it has left, or to someone who is not among the people it is shared with now, stops.
   await removeMisfitComputersOf(agentId)
+  await bringWhatItWears(agentId, workspaceId)
   await announce(access.workspaceId)
   await announce(workspaceId)
   return json({ ok: true })

@@ -94,8 +94,7 @@ function alarmOf(directory: string, name: string): number | null {
   const index = new DatabaseSync(join(directory, "actors", "_alarms.sqlite"), { readOnly: true })
   try {
     const row = index.prepare("SELECT at FROM alarms WHERE name = ?").get(name) as
-      | { at: number }
-      | undefined
+      { at: number } | undefined
     return row?.at ?? null
   } finally {
     index.close()
@@ -572,7 +571,7 @@ describe("agent actor", () => {
     // Each of these was empty until now, and is told of all the same.
     await call(world, "/approvals/rules", "PATCH", { "tool:bash": "ask" })
     expect(await next()).toEqual({ type: "changed", what: "approvals" })
-    await call(world, "/creature/open", "POST")
+    await call(world, "/creature/feed", "POST")
     expect(await next()).toEqual({ type: "changed", what: "creature" })
     await call(
       world,

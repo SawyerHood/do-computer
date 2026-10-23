@@ -1,8 +1,10 @@
 /**
- * What an agent's creature can be given and can wear. A box turns up beside it six hours
- * after its last was opened, one waiting at most, and holds one thing to wear that it does not
- * have yet. It can be given a treat whenever anyone likes, which it enjoys and which comes to
- * nothing more. None of it changes what the agent can do: it is there to be enjoyed.
+ * What an agent's creature can be given and can wear. A workspace has one wardrobe, which every
+ * one of its Doods wears from: a box turns up for them six hours after their last was opened,
+ * one waiting at most, and holds one thing to wear that the wardrobe does not have yet. Any of
+ * them can open it, and any of them can wear what it held, two at once if they like. Each can be
+ * given a treat whenever anyone likes, which it enjoys and which comes to nothing more. None of
+ * it changes what the agent can do: it is there to be enjoyed.
  */
 
 /** Where on the creature a thing is worn. It wears one thing in each place at most. */
@@ -242,13 +244,13 @@ export const rarityOf = (id: RarityId) => RARITIES.find((rarity) => rarity.id ==
 /** What a creature has on: the id of a thing for each place it wears one. */
 export type Outfit = Partial<Record<WearSlot, string>>
 
-/** How long after a creature's box is opened the next one turns up. */
+/** How long after a workspace's box is opened the next one turns up. */
 export const BOX_EVERY_MS = 6 * 60 * 60 * 1000
 
 /**
- * How many treats from other people, on the page a creature has to itself, fill a box for it:
- * those boxes are besides the one of its own. The treats its own people give it in the app fill
- * nothing.
+ * How many treats from other people, on the page a creature has to itself, fill a box for its
+ * workspace: those boxes are besides the one of the workspace's own. The treats its own people
+ * give it in the app fill nothing.
  */
 export const TREATS_PER_BOX = 4
 
@@ -256,32 +258,42 @@ export const TREATS_PER_BOX = 4
 export const TREAT_KINDS = ["cookie", "riceball", "apple", "donut"] as const
 export type TreatKind = (typeof TREAT_KINDS)[number]
 
+/**
+ * What a creature has been given and has on, with the wardrobe of its workspace, which it shares
+ * with the workspace's other Doods: the boxes, and the things that came out of them.
+ */
 export type CreatureState = {
   /** Treats it has been given, ever. There is always another to give it. */
   fed: number
   /** Treats other people gave it on its own page since the last box they filled, out of `TREATS_PER_BOX`. */
   joy: number
   /**
-   * Boxes waiting to be opened: one of its own at most, and with it any that other people's
-   * treats made. They wait for as long as they are left.
+   * The workspace's boxes waiting to be opened: one of its own at most, and with it any that
+   * other people's treats made. They wait for as long as they are left.
    */
   boxes: number
   /** How many of those other people's treats made. */
   shared: number
-  /** When its next box turns up. Left out while one of its own waits: the wait starts when that is opened. */
+  /** When the next box turns up. Left out while one of the workspace's own waits: the wait starts when that is opened. */
   nextBoxAt?: number
-  /** The ids of the things it has, in the order it found them. */
+  /** The ids of the things in the workspace's wardrobe, in the order they were found. */
   owned: string[]
+  /** Which Dood found each of them, by id, where that is known. */
+  foundBy: Record<string, string>
   outfit: Outfit
 }
 
-/** A creature that has been given nothing yet. Its first box is waiting: a welcome. */
+/** What a creature keeps of its own, apart from its workspace's wardrobe. */
+export type CreatureOwn = Pick<CreatureState, "fed" | "joy" | "outfit">
+
+/** A creature that has been given nothing yet. Its workspace's first box is waiting: a welcome. */
 export const NEW_CREATURE: CreatureState = {
   fed: 0,
   joy: 0,
   boxes: 1,
   shared: 0,
   owned: [],
+  foundBy: {},
   outfit: {},
 }
 
@@ -323,7 +335,7 @@ export function rollItem(owned: readonly string[], random: () => number): WearIt
   return pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))]
 }
 
-/** An outfit made only of things that are owned, each in its own place; or what is wrong with it. */
+/** An outfit made only of things in the wardrobe, each in its own place; or what is wrong with it. */
 export function parseOutfit(
   value: unknown,
   owned: readonly string[],

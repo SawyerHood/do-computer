@@ -231,8 +231,8 @@ export function CreatureCare({
   const next = boxProgress(creature ?? {})
   const coming =
     creature !== undefined && hasEverything(creature.owned)
-      ? `${name} has found everything there is`
-      : `${name}'s next box turns up in about ${next.left}`
+      ? "The wardrobe has everything there is"
+      : `The next box turns up in about ${next.left}`
   const { held } = treats
   return (
     <span ref={box} className={cn("relative inline-block", className)}>
