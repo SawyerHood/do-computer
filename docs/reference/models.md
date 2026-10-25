@@ -77,6 +77,14 @@ admin's own workspace, or a team of admins alone. The deployment's own key and s
 offer it, whatever `DC_MODELS` says. On Cloudflare it is set as a Worker secret
 (`wrangler secret put DC_EXTRA_MODELS`): the deploy does not carry it.
 
+**Web search.** Every Dood has `web_search`. A search is made from the server with the first
+of: a ChatGPT subscription (`gpt-6-luna` with OpenAI's web search), a Claude subscription
+(`claude-haiku-5-5` with Anthropic's web search), the deployment's `OPENROUTER_API_KEY` (read
+by `DC_SEARCH_MODEL`), and Exa's free search, which needs no key and is rate limited. The
+subscription is the workspace's own, or else the deployment's where it offers that model. When
+one fails the next is tried. A search with a subscription costs nothing beyond the plan; a key
+signed in with, rather than a subscription, is not searched with.
+
 ## Limits worth knowing
 
 Every call to one of the deployment's models is paid from the one deployment key and there are
