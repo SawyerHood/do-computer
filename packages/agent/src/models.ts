@@ -21,7 +21,13 @@ import {
   workspaceCredentials,
 } from "./model-access.ts"
 import { mergeModelOptions, modelOption, modelProviders } from "./model-providers.ts"
-import type { WebSearchOptions } from "./web-search.ts"
+import {
+  CLAUDE_SEARCH_MODEL,
+  CODEX_SEARCH_MODEL,
+  DEFAULT_SEARCH_MODEL,
+  type SignIn,
+  type WebSearchOptions,
+} from "./web-search.ts"
 
 /** OpenRouter models suggested first in the picker. Ones the catalog lacks are dropped. */
 const CURATED = [
@@ -36,12 +42,6 @@ const CURATED = [
 export const DEFAULT_OPENROUTER_MODEL = "anthropic/claude-haiku-5.5"
 /** The model a deployment without a key runs on. It repeats what it is told. */
 export const ECHO_MODEL = "echo/echo-1"
-/**
- * Reads web search results when no search model is configured. Reading a handful of pages and
- * reporting what they say does not need the agent's own model, and one search with it cost
- * about eight cents when measured.
- */
-const DEFAULT_SEARCH_MODEL = "anthropic/claude-haiku-4.5"
 
 /**
  * The model that is asked whether an agent meant to stop. It reads one message against what was
@@ -69,8 +69,11 @@ export type AgentModels = DeploymentModels & {
   readonly offered: () => Promise<DeploymentModels>
   /** Present only for the built-in echo model, so tests can script its answers. */
   readonly faux?: FauxProviderHandle
-  /** What web search needs. Absent without a model key: there is nothing to search with. */
-  readonly webSearch?: WebSearchOptions
+  /**
+   * What web search needs: the agent's sign-ins, and the deployment's key where it has one.
+   * Always there, since Exa's free search needs neither.
+   */
+  readonly webSearch: WebSearchOptions
   /** What judging whether an agent meant to stop needs. Absent without a model key. */
   readonly judge?: JudgeOptions
   /** What keeping a note of where each chat stands needs. Absent without a model key. */
@@ -472,8 +475,26 @@ export function createAgentModels(
     return { defaultModel: startsOn(all), options: all }
   }
 
+  // Web search with a subscription: the workspace's own sign-in, then the deployment's. The
+  // deployment's is used only where it offers the model a search is made with, so one that
+  // names the models it pays for is not used for others.
+  const searchModels: Record<string, string> = {
+    "openai-codex": CODEX_SEARCH_MODEL,
+    anthropic: CLAUDE_SEARCH_MODEL,
+  }
+  const signIn: SignIn = async (providerId, signal) => {
+    const options = signal === undefined ? undefined : { signal }
+    const mine = await sources.workspace?.read(providerId, options).catch(() => undefined)
+    if (mine !== undefined) return mine
+    const model = searchModels[providerId]
+    if (signedIn === undefined || model === undefined || !offers(`${providerId}/${model}`)) {
+      return undefined
+    }
+    return signedIn.read(providerId, options).catch(() => undefined)
+  }
+
   const base = { models, defaultModel, options, offered }
-  if (key === undefined) return { ...base, faux }
+  if (key === undefined) return { ...base, faux, webSearch: { signIn } }
   // Reading a stretch of text and saying what it comes to: the same work for a search and a
   // note. Asked for by its OpenRouter id, as the judge is, so neither need be a model an agent
   // could run on.
@@ -485,7 +506,7 @@ export function createAgentModels(
       : DEFAULT_OPENROUTER_MODEL
   return {
     ...base,
-    webSearch: { apiKey: key, model: config.searchModel ?? reader },
+    webSearch: { apiKey: key, model: config.searchModel ?? reader, signIn },
     judge: { apiKey: key, model: config.judgeModel ?? DEFAULT_JUDGE_MODEL },
     review: { apiKey: key, model: config.reviewModel ?? reader },
   }
