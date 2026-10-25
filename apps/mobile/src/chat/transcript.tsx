@@ -710,7 +710,7 @@ function TopFade() {
 const List = (Platform.OS === "web"
   ? ScrollView
   : KeyboardChatScrollView) as unknown as ComponentType<
-  ScrollViewProps & { ref?: Ref<ScrollView>; keyboardLiftBehavior?: "whenAtEnd" }
+  ScrollViewProps & { ref?: Ref<ScrollView>; keyboardLiftBehavior?: "whenAtEnd"; offset?: number }
 >
 const KEYBOARD = Platform.OS === "web" ? {} : ({ keyboardLiftBehavior: "whenAtEnd" } as const)
 
@@ -731,6 +731,7 @@ export function Transcript({
   undelivered,
 }: TranscriptProps): ReactNode {
   const theme = useTheme()
+  const insets = useSafeAreaInsets()
   const scope = useMemo(
     (): ChatScope => ({ agentId, chatId, workspaceId: agent?.workspaceId, accent }),
     [agentId, chatId, agent?.workspaceId, accent],
@@ -901,7 +902,12 @@ export function Transcript({
           <List
             ref={list}
             {...KEYBOARD}
-            style={{ flex: 1, backgroundColor: theme.page }}
+            // The list stops above the bottom safe area, which the box at the foot already
+            // makes room for. Running into it, iOS would add the safe area under the content a
+            // second time. The keyboard covers that strip too, so the list rises by the
+            // keyboard less the strip: as much as the box at the foot rises.
+            offset={Platform.OS === "web" ? undefined : insets.bottom}
+            style={{ flex: 1, marginBottom: insets.bottom, backgroundColor: theme.page }}
             contentInsetAdjustmentBehavior="automatic"
             keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
@@ -928,7 +934,7 @@ export function Transcript({
               justifyContent: greeting == null ? "flex-end" : "center",
               paddingHorizontal: 16,
               paddingTop: 12,
-              paddingBottom: bottomInset + 12,
+              paddingBottom: Math.max(0, bottomInset - insets.bottom) + 12,
               gap: 20,
             }}
           >
