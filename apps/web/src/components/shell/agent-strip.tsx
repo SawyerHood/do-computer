@@ -161,19 +161,19 @@ function AgentPill({
             onClick={() => (wide ? togglePanel() : openWardrobe(true))}
             className="relative shrink-0 rounded-full p-0.5 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40"
           >
-            <AgentFace agent={agent} className="size-7" still />
+            <AgentFace agent={agent} className="size-7 sm:size-5" still />
 
           </button>
         ) : (
           <span className="p-0.5">
-            <AgentFace agent={agent} className="size-7" still />
+            <AgentFace agent={agent} className="size-7 sm:size-5" still />
           </span>
         )}
         <DropdownMenuTrigger
           aria-label={`${name}: pages and settings`}
-          className="flex h-8 min-w-0 items-center gap-1.5 rounded-full pr-2.5 pl-1.5 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40 aria-expanded:bg-accent"
+          className="flex h-10 min-w-0 sm:h-7 items-center gap-1.5 rounded-full pr-2.5 pl-1.5 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40 aria-expanded:bg-accent"
         >
-          <span className="flex min-w-0 text-[0.875rem]">
+          <span className="flex min-w-0 text-sm sm:text-[0.8125rem]">
             <span className="truncate font-medium">{name}</span>
             {titled === undefined ? null : (
               <span className="max-w-24 truncate whitespace-pre text-muted-foreground sm:max-w-56">

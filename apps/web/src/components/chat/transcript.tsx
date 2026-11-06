@@ -584,7 +584,7 @@ function MessageView({
             part.type === "text" ? (
               <SentText key={index} text={part.text} pictures={hasPictures(message)}>
                 {(text) => (
-                  <Bubble align="end" variant={other === undefined ? "plain" : "secondary"}>
+                  <Bubble align="end" variant={other === undefined ? "tinted" : "secondary"}>
                     <BubbleContent className="rounded-[1.125rem] px-4 py-2 text-base leading-[1.55] whitespace-pre-wrap">
                       {text}
                     </BubbleContent>

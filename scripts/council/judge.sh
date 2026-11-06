@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# One round of the design council: each judge named scores the screenshots in <round>/images
-# (Do Computer's, do-computer-*, beside the reference apps', claude-* and codex-*), read-only, and
-# writes <round>/<judge>.json. Judges: codex (GPT), claude (Opus), muse (Muse Code).
-# COUNCIL_CODEX_HOST runs Codex over ssh where it is signed in; COUNCIL_CLAUDE_VIA=cursor asks
-# Opus through cursor-agent where `claude` is not.
-#   scripts/council/judge.sh .council/rounds/r3 codex claude
+# Read-only council for one round's fixed Do Computer, Grok Bot and Meta Muse screenshots.
+# Judges: codex (GPT on COUNCIL_CODEX_HOST), claude (Opus via Cursor), gemini (via Cursor).
+# Raw responses and validated all-app/all-category JSON stay in the round directory.
+# Example: COUNCIL_CODEX_HOST=omarchy COUNCIL_CLAUDE_VIA=cursor \
+#   scripts/council/judge.sh .council/rounds/r0 codex claude gemini
 set -uo pipefail
 round=$(cd "$1" && pwd)
 shift

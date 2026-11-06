@@ -72,12 +72,12 @@ export const THEME_TOKENS: readonly ThemeToken[] = [
   {
     name: "--primary",
     light: "oklch(0.5 0.08 195)",
-    dark: "oklch(0.58 0.09 195)",
+    dark: "oklch(0.7 0.09 195)",
   },
   {
     name: "--primary-foreground",
-    light: "oklch(from var(--agent-color) 0.985 0.01 h)",
-    dark: "oklch(from var(--agent-color) 0.97 0.012 h)",
+    light: "oklch(0.985 0.01 195)",
+    dark: "oklch(0.17 0.02 195)",
   },
   { name: "--secondary", light: mix(7), dark: mix(9) },
   { name: "--secondary-foreground", light: "var(--ink)" },

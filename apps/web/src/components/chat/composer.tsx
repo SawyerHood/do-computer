@@ -337,7 +337,7 @@ export function Composer({
                 onClick={() => picker.current?.click()}
                 aria-label="Attach a file"
               >
-                <PlusIcon className="size-[1.125rem]" />
+                <PlusIcon className="size-5" />
               </Button>
               {open ? extras : null}
             </div>
@@ -347,7 +347,7 @@ export function Composer({
                   type="button"
                   size="icon"
                   variant="ghost"
-                  className="rounded-full text-muted-foreground"
+                  className="size-11 rounded-full text-muted-foreground sm:size-9"
                   onClick={dictation.start}
                   aria-label="Dictate"
                 >
@@ -361,9 +361,9 @@ export function Composer({
                   variant="secondary"
                   onClick={onStop}
                   aria-label="Stop"
-                  className="rounded-full border border-primary/40 bg-primary/10 text-primary"
+                  className="size-11 rounded-full border border-primary/25 bg-primary/12 text-primary sm:size-9"
                 >
-                  <StopIcon weight="fill" />
+                  <StopIcon weight="fill" className="size-3" />
                 </Button>
               ) : !ready && uploading === 0 && call ? (
                 call
@@ -373,9 +373,9 @@ export function Composer({
                   size="icon"
                   disabled={!ready}
                   aria-label="Send"
-                  className="rounded-full disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+                  className="size-11 rounded-full disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 sm:size-9"
                 >
-                  <ArrowUpIcon weight="bold" className="size-[1.125rem]" />
+                  <ArrowUpIcon weight="bold" className="size-5" />
                 </Button>
               )}
             </div>
@@ -442,7 +442,7 @@ function Dictating({
           type="button"
           size="icon"
           variant="secondary"
-          className="disabled:opacity-100"
+          className="disabled:opacity-100 sm:size-9"
           disabled={transcribing}
           onClick={() => stop("draft")}
           aria-label="Stop dictating"
@@ -457,7 +457,7 @@ function Dictating({
         <Button
           type="button"
           size="icon"
-          className="disabled:opacity-100"
+          className="disabled:opacity-100 sm:size-9"
           disabled={transcribing}
           onClick={() => stop("send")}
           aria-label="Send what you said"

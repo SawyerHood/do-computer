@@ -13,7 +13,7 @@
   --teal-ink: oklch(0.985 0.01 195);
   --warn: oklch(0.55 0.13 60);
   --raised: color-mix(in oklch, var(--ink) 5%, var(--canvas));
-  --quiet: color-mix(in oklch, var(--ink) 62%, var(--canvas));
+  --quiet: color-mix(in oklch, var(--ink) 68%, var(--canvas));
   --line: color-mix(in oklch, var(--ink) 13%, var(--canvas));
   font:
     14px/1.5 "Geist",
@@ -27,7 +27,7 @@
   :root {
     --canvas: oklch(0.19 0.005 212);
     --ink: oklch(0.93 0.005 212);
-    --teal: oklch(0.64 0.09 195);
+    --teal: oklch(0.7 0.09 195);
     --teal-ink: oklch(0.17 0.02 195);
     --warn: oklch(0.76 0.12 70);
   }
