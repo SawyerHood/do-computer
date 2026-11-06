@@ -344,8 +344,13 @@ function Section({
             >
               <WorkspaceMark workspace={workspace} me={me} className="size-5" />
               {folded && wanted ? (
-                <SparkleIcon aria-hidden={false} role="img"
-                  aria-label="Something new" weight="fill" className="absolute -top-0.5 -right-0.5 z-10 size-3 shrink-0 text-primary" />
+                <SparkleIcon
+                  aria-hidden={false}
+                  role="img"
+                  aria-label="Something new"
+                  weight="fill"
+                  className="absolute -top-0.5 -right-0.5 z-10 size-3 shrink-0 text-primary"
+                />
               ) : null}
             </button>
           ) : (
@@ -403,8 +408,13 @@ function Section({
                 ))}
               </span>
               {wanted ? (
-                <SparkleIcon aria-hidden={false} role="img"
-                  aria-label="Something new" weight="fill" className="size-3 shrink-0 text-primary" />
+                <SparkleIcon
+                  aria-hidden={false}
+                  role="img"
+                  aria-label="Something new"
+                  weight="fill"
+                  className="size-3 shrink-0 text-primary"
+                />
               ) : null}
             </span>
           ) : (
@@ -647,7 +657,11 @@ function AgentRow({
           ) : null}
           {/* With no words beside it to carry the mark, the face does. */}
           {rail && unread ? (
-            <SparkleIcon aria-hidden weight="fill" className="absolute -top-0.5 -right-0.5 z-10 size-3 shrink-0 text-primary" />
+            <SparkleIcon
+              aria-hidden
+              weight="fill"
+              className="absolute -top-0.5 -right-0.5 z-10 size-3 shrink-0 text-primary"
+            />
           ) : null}
         </span>
         {rail ? null : (
@@ -701,8 +715,13 @@ function AgentRow({
                 </span>
                 <FaceStack people={with_} className="size-4" />
                 {unread ? (
-                  <SparkleIcon aria-hidden={false} role="img"
-                    aria-label="Something new" weight="fill" className="size-3 shrink-0 text-primary" />
+                  <SparkleIcon
+                    aria-hidden={false}
+                    role="img"
+                    aria-label="Something new"
+                    weight="fill"
+                    className="size-3 shrink-0 text-primary"
+                  />
                 ) : null}
               </span>
             ) : null}
@@ -803,7 +822,11 @@ export function DoodsButton({
     >
       <SidebarSimpleIcon />
       {wanted ? (
-        <SparkleIcon aria-hidden weight="fill" className="absolute -top-0.5 -right-0.5 z-10 size-3 shrink-0 text-primary" />
+        <SparkleIcon
+          aria-hidden
+          weight="fill"
+          className="absolute -top-0.5 -right-0.5 z-10 size-3 shrink-0 text-primary"
+        />
       ) : null}
     </Button>
   )

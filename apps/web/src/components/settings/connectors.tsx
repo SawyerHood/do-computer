@@ -358,10 +358,15 @@ export function ConnectorsSettings({
       </Loads>
       <SlackOffer agent={agent} onOpen={onSlack} />
       <Collapsible>
-        <CollapsibleTrigger className="flex h-10 w-full items-center gap-2 rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-muted">
-          <CaretRightIcon className="size-4" /> Add a connector
+        <CollapsibleTrigger className="flex h-10 w-full items-center gap-3 rounded-lg px-4 text-sm font-medium text-muted-foreground hover:bg-muted">
+          <span className="flex size-8 items-center justify-center">
+            <CaretRightIcon className="size-4" />
+          </span>{" "}
+          Add a connector
         </CollapsibleTrigger>
-        <CollapsibleContent><AddForm agentId={agentId} /></CollapsibleContent>
+        <CollapsibleContent>
+          <AddForm agentId={agentId} />
+        </CollapsibleContent>
       </Collapsible>
     </div>
   )
@@ -372,15 +377,34 @@ export function ConnectorsSettings({
  * the page that puts it there. It is a bot of the agent's own and not an MCP server, so it is
  * set up apart from the connectors above it.
  */
-function Offer({icon,title,description,action,children}: {icon:ReactNode;title:string;description:string;action:ReactNode;children?:ReactNode}) {
-  return <Card className="gap-3 p-4">
-    <div className="flex items-center gap-3">
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/8 text-primary [&_svg]:size-5">{icon}</span>
-      <div className="min-w-0 flex-1"><h2 className="text-sm font-semibold">{title}</h2><p className="text-[0.8125rem] leading-5 text-muted-foreground">{description}</p></div>
-      {action}
-    </div>
-    {children}
-  </Card>
+function Offer({
+  icon,
+  title,
+  description,
+  action,
+  children,
+}: {
+  icon: ReactNode
+  title: string
+  description: string
+  action: ReactNode
+  children?: ReactNode
+}) {
+  return (
+    <Card className="gap-3 p-4">
+      <div className="flex items-center gap-3">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/8 text-primary [&_svg]:size-5">
+          {icon}
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-semibold">{title}</h2>
+          <p className="text-[0.8125rem] leading-5 text-muted-foreground">{description}</p>
+        </div>
+        {action}
+      </div>
+      {children}
+    </Card>
+  )
 }
 
 function SlackOffer({ agent, onOpen }: { agent: AgentSummary; onOpen: () => void }) {
@@ -390,10 +414,26 @@ function SlackOffer({ agent, onOpen }: { agent: AgentSummary; onOpen: () => void
   })
   const name = agent.name ?? "your Dood"
   const app = state?.app ?? null
-  return <Offer icon={<SlackLogoIcon />} title="Slack"
-    description={app === null ? `Chat with ${name} in channels and direct messages.` : `${name} is in ${app.team} as @${app.bot}.`}
-    action={<Button variant="outline" aria-label={app === null ? "Set up Slack" : "Manage Slack"} onClick={onOpen}>{app === null ? "Set up" : "Manage"}</Button>}
-  />
+  return (
+    <Offer
+      icon={<SlackLogoIcon />}
+      title="Slack"
+      description={
+        app === null
+          ? `Chat with ${name} in channels and direct messages.`
+          : `${name} is in ${app.team} as @${app.bot}.`
+      }
+      action={
+        <Button
+          variant="outline"
+          aria-label={app === null ? "Set up Slack" : "Manage Slack"}
+          onClick={onOpen}
+        >
+          {app === null ? "Set up" : "Manage"}
+        </Button>
+      }
+    />
+  )
 }
 
 /** The agent's connectors, which wait for it to list them, and word of one just connected. */
@@ -433,10 +473,25 @@ function AppsOffer({ agentId }: { agentId: string }) {
     onSuccess: follow,
     onSettled: () => queryClient.invalidateQueries({ queryKey: connectorsKey(agentId) }),
   })
-  return <Offer icon={<SquaresFourIcon />} title="Your apps" description="Gmail, Calendar, Slack and more, through Composio."
-    action={<Button disabled={connect.isPending} onClick={() => connect.mutate()}>{connect.isPending ? "Connecting…" : "Connect apps"}</Button>}
-  >
-    <p className="text-[0.8125rem] leading-5 text-muted-foreground">Your Dood asks before acting in your accounts. <AppsGuide>Setup guide</AppsGuide></p>
-    {connect.isError ? <p role="alert" className="text-sm text-destructive">{connect.error.message}</p> : null}
-  </Offer>
+  return (
+    <Offer
+      icon={<SquaresFourIcon />}
+      title="Your apps"
+      description="Gmail, Calendar, Slack and more, through Composio."
+      action={
+        <Button disabled={connect.isPending} onClick={() => connect.mutate()}>
+          {connect.isPending ? "Connecting…" : "Connect apps"}
+        </Button>
+      }
+    >
+      <p className="pl-11 text-[0.8125rem] leading-5 text-muted-foreground">
+        Your Dood asks before acting in your accounts. <AppsGuide>Setup guide</AppsGuide>
+      </p>
+      {connect.isError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {connect.error.message}
+        </p>
+      ) : null}
+    </Offer>
+  )
 }

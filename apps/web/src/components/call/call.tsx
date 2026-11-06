@@ -78,10 +78,7 @@ const clockTime = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: 
 /** A small waveform says a call is live without a colored status dot. */
 function LiveMark({ className }: { className?: string }) {
   return (
-    <WaveformIcon
-      aria-hidden
-      className={cn("call-live size-3 shrink-0 text-primary", className)}
-    />
+    <WaveformIcon aria-hidden className={cn("call-live size-3 shrink-0 text-primary", className)} />
   )
 }
 

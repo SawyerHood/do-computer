@@ -813,11 +813,17 @@ export function Transcript({
                 ))}
                 {activity === null || stepping || signingIn ? null : (
                   // The moving shine says it is working; a spinner beside it would say it twice.
-                  <Marker role="status" aria-live="polite" className="mb-2 min-h-9 w-fit gap-2 px-0 py-1.5 text-sm font-medium text-primary">
+                  <Marker
+                    role="status"
+                    aria-live="polite"
+                    className="mb-2 min-h-9 w-fit gap-2 px-0 py-1.5 text-sm font-medium text-primary"
+                  >
                     {working === undefined ? null : (
                       <AgentFace agent={working} className="size-5 shrink-0" />
                     )}
-                    <MarkerContent className="animate-shine truncate text-sm">{activity}…</MarkerContent>
+                    <MarkerContent className="animate-shine truncate text-sm">
+                      {activity}…
+                    </MarkerContent>
                   </Marker>
                 )}
                 {agentId === undefined || chatId === undefined ? null : (

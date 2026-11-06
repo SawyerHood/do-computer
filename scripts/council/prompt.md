@@ -5,7 +5,7 @@ The screenshots are in the folder given below:
 - `do-computer-*`: **Do Computer**, the app under review. Fixed views of the actual web UI (also the Electron app's main UI), responsive phone UI, and Electron's own computer/device settings pages with a mocked preload bridge. Light and dark themes. A personal agent companion (Doods), with a deliberately friendly creature identity and teal accents.
 - `grok-*`: **Grok Bot**, xAI's always-on agent app launched August 2026: specialized bots using a persistent cloud computer and connected tools. Not Grok chat or Grok Build. Official launch-video frames, including desktop conversations and phone work.
 - `muse-*`: **Meta Muse**, Meta's consumer long-running personal agent at muse.ai, available across mobile, Mac, and web. Continues working while the user is away, handles tasks, goals, browser work, approvals and connected apps. Not Meta AI chat or the muse coding CLI. Official product-site UI images.
-The comparison shots are video frames and marketing crops, some at lower resolution and different sizes. Judge the design, not the image quality, the demo content or the window chrome.
+  The comparison shots are video frames and marketing crops, some at lower resolution and different sizes. Judge the design, not the image quality, the demo content or the window chrome.
 
 Score each of the three apps from 1 to 10 (one decimal allowed) in each of these categories:
 
@@ -54,7 +54,9 @@ Answer with only this JSON object, nothing before or after it:
       "polish": 0
     }
   },
-  "issues": [{ "where": "do-computer-01-thread-light.png", "element": "", "problem": "", "fix": "" }],
+  "issues": [
+    { "where": "do-computer-01-thread-light.png", "element": "", "problem": "", "fix": "" }
+  ],
   "strengths": ["what already works in Do Computer, briefly"]
 }
 ```

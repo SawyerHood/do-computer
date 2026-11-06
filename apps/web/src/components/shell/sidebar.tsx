@@ -1,6 +1,6 @@
 import type { WorkspaceSummary } from "@do-computer/protocol"
 import {
-  CaretUpDownIcon,
+  CaretDownIcon,
   DesktopIcon,
   GearIcon,
   SignOutIcon,
@@ -82,7 +82,12 @@ function AccountMenu({
           <span className="relative shrink-0">
             <PersonFace person={person} title="" className="size-7" />
             {rail && asking > 0 ? (
-              <SparkleIcon weight="fill" aria-label="A Dood is asking to use a computer" aria-hidden={false} className="absolute -top-0.5 -right-0.5 size-3 text-primary" />
+              <SparkleIcon
+                weight="fill"
+                aria-label="A Dood is asking to use a computer"
+                aria-hidden={false}
+                className="absolute -top-0.5 -right-0.5 size-3 text-primary"
+              />
             ) : null}
           </span>
           {rail ? null : (
@@ -93,10 +98,15 @@ function AccountMenu({
               {leaving ? (
                 <Spinner className="size-3.5 shrink-0 text-muted-foreground" />
               ) : asking > 0 ? (
-                <SparkleIcon weight="fill" aria-label="A Dood is asking to use a computer" aria-hidden={false} className="size-3 shrink-0 text-primary" />
+                <SparkleIcon
+                  weight="fill"
+                  aria-label="A Dood is asking to use a computer"
+                  aria-hidden={false}
+                  className="size-3 shrink-0 text-primary"
+                />
               ) : null}
               {leaving ? null : (
-                <CaretUpDownIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+                <CaretDownIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
               )}
             </>
           )}

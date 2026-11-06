@@ -39,6 +39,7 @@ export function AgentAvatar({
   quiet = false,
   still = false,
   pettable = false,
+  compact = false,
 }: {
   avatar: Avatar | null | undefined
   /** The agent's id: what the creature grows from unless it was given a seed of its own. */
@@ -60,14 +61,16 @@ export function AgentAvatar({
   still?: boolean
   /** It can be petted: patted with a click or a tap, and stroked by rubbing the pointer on it. */
   pettable?: boolean
+  /** Shadowless optical variant for small icon faces, including the production SVG fallback. */
+  compact?: boolean
 }) {
   const petting = usePetting(seed)
   // While it hatches it is busy with that, and a click there skips the hatch.
   const canPet = pettable && !hatching
   const look = useMemo(() => avatarLook(avatar, seed), [avatar, seed])
   const standIn = useMemo(
-    () => `data:image/svg+xml;utf8,${encodeURIComponent(avatarSvg(avatar, seed))}`,
-    [avatar, seed],
+    () => `data:image/svg+xml;utf8,${encodeURIComponent(avatarSvg(avatar, seed, compact))}`,
+    [avatar, seed, compact],
   )
   const canvas = useRef<HTMLCanvasElement>(null)
   const [orb, setOrb] = useState<Orb | null>()
@@ -233,6 +236,7 @@ export function AgentFace({
   const mood = useAtomValue(mascotMoodAtom(agent.id))
   return (
     <AgentAvatar
+      compact
       avatar={agent.avatar}
       seed={agent.id}
       outfit={agent.outfit}

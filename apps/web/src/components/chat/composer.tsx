@@ -247,7 +247,7 @@ export function Composer({
       <form
         ref={box}
         data-open={open ? "" : undefined}
-        className="message-box group/box cursor-text rounded-[1.5rem] bg-popover p-1.5 shadow-raised"
+        className="message-box group/box cursor-text rounded-[1.5rem] ring-1 ring-input/65 bg-popover p-1.5 shadow-raised"
         onSubmit={(event) => {
           event.preventDefault()
           send()
@@ -361,6 +361,7 @@ export function Composer({
                   variant="secondary"
                   onClick={onStop}
                   aria-label="Stop"
+                  title="Stop"
                   className="size-11 rounded-full border border-primary bg-primary text-primary-foreground sm:size-9"
                 >
                   <StopIcon weight="fill" className="size-3" />

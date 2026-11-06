@@ -34,12 +34,18 @@ export function MarkdownTable({ children, ...props }: ComponentProps<"table">) {
     const node = table.current
     if (node === null) return
     const rows = [...node.rows]
-    const numeric = new Set(numericColumns(rows.slice(1).map((row) => [...row.cells].map((cell) => cell.textContent ?? ""))))
-    for (const row of rows) for (const [column, cell] of [...row.cells].entries()) {
-      const authored = rows[0]?.cells[column]?.style.textAlign || rows[0]?.cells[column]?.getAttribute("align")
-      if (!authored && numeric.has(column)) cell.dataset.numeric = ""
-      else delete cell.dataset.numeric
-    }
+    const numeric = new Set(
+      numericColumns(
+        rows.slice(1).map((row) => [...row.cells].map((cell) => cell.textContent ?? "")),
+      ),
+    )
+    for (const row of rows)
+      for (const [column, cell] of [...row.cells].entries()) {
+        const authored =
+          rows[0]?.cells[column]?.style.textAlign || rows[0]?.cells[column]?.getAttribute("align")
+        if (!authored && numeric.has(column)) cell.dataset.numeric = ""
+        else delete cell.dataset.numeric
+      }
   }, [children])
   const [oneLine, setOneLine] = useState(false)
   const [copied, copy] = useCopied()

@@ -71,7 +71,9 @@ export function WorkspaceMenu({
         <DropdownMenuTrigger
           aria-label={`${workspace.name}: workspace menu`}
           title="Workspace menu"
-          render={<Button variant="ghost" size="icon-xs" className="size-8 text-muted-foreground" />}
+          render={
+            <Button variant="ghost" size="icon-xs" className="size-8 text-muted-foreground" />
+          }
         >
           <DotsThreeIcon weight="bold" className="size-4" />
         </DropdownMenuTrigger>
@@ -138,7 +140,9 @@ export function MoreWorkspaces({
         </button>
       ))}
       <button type="button" onClick={() => setCreating(true)} className={row}>
-        <span className="flex size-6 shrink-0 items-center justify-center"><PlusIcon aria-hidden className="size-4" /></span>
+        <span className="flex size-6 shrink-0 items-center justify-center">
+          <PlusIcon aria-hidden className="size-4" />
+        </span>
         New team
       </button>
       <NewTeamDialog userId={me.id} open={creating} onOpenChange={setCreating} />

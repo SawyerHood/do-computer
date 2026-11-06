@@ -119,7 +119,9 @@ export function SettingsDialog<Id extends string>({
                   // is marked as open there.
                   className="h-11 justify-start gap-2.5 px-2.5 text-[0.9375rem] font-normal hover:bg-foreground/6 sm:h-9 sm:text-sm sm:text-muted-foreground sm:aria-[current=page]:bg-primary/10 sm:aria-[current=page]:text-foreground "
                 >
-                  <span className="flex size-5 shrink-0 items-center justify-center [&_svg]:size-4">{entry.icon}</span>
+                  <span className="flex size-5 shrink-0 items-center justify-center [&_svg]:size-4">
+                    {entry.icon}
+                  </span>
                   <span className="truncate">{entry.label}</span>
                   <CaretRightIcon className="ml-auto size-3.5 text-muted-foreground sm:hidden" />
                 </Button>
@@ -127,7 +129,13 @@ export function SettingsDialog<Id extends string>({
             </div>
           ))}
         </nav>
-        <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", contained ? "overflow-hidden" : "overflow-y-auto", listing && "hidden sm:flex")}>
+        <div
+          className={cn(
+            "flex min-h-0 min-w-0 flex-1 flex-col",
+            contained ? "overflow-hidden" : "overflow-y-auto",
+            listing && "hidden sm:flex",
+          )}
+        >
           <div className="sticky top-0 z-10 flex h-14 shrink-0 items-center bg-popover px-2 pr-14 sm:hidden">
             <Button
               variant="ghost"
@@ -140,7 +148,9 @@ export function SettingsDialog<Id extends string>({
               <span className="truncate">{name}</span>
             </Button>
           </div>
-          <div className={contained ? "min-h-0 flex-1" : "px-6 pt-1 pb-8 sm:px-9 sm:pt-7"}>{children}</div>
+          <div className={contained ? "min-h-0 flex-1" : "px-6 pt-1 pb-8 sm:px-9 sm:pt-7"}>
+            {children}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

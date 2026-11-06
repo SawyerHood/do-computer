@@ -869,16 +869,33 @@
 }
 
 /* Small fallback creatures retain definition on the dark canvas without changing their hue. */
-.dark [data-mood] > img { filter: brightness(1.16); }
-
-@layer components {
-  .prose-chat .md-table { width: 100%; max-width: 35rem; }
-  .prose-chat table { width: 100%; font-size: 14px; line-height: 22px; }
-  .prose-chat :is(th, td) { padding-top: 9px; padding-bottom: 9px; }
-  .message-box:focus-within { box-shadow: 0 0 0 2px color-mix(in oklch, var(--primary) 32%, transparent); }
+.dark [data-mood] > img {
+  filter: brightness(1.16);
 }
 
-.md [data-numeric] { text-align: right; font-variant-numeric: tabular-nums; }
+@layer components {
+  .prose-chat .md-table {
+    width: 100%;
+    max-width: 35rem;
+  }
+  .prose-chat table {
+    width: 100%;
+    font-size: 14px;
+    line-height: 22px;
+  }
+  .prose-chat :is(th, td) {
+    padding-top: 9px;
+    padding-bottom: 9px;
+  }
+  .message-box:focus-within {
+    box-shadow: 0 0 0 2px color-mix(in oklch, var(--primary) 32%, transparent);
+  }
+}
+
+.md [data-numeric] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 
 [data-settings-body] {
   mask-image: linear-gradient(to bottom, black calc(100% - 20px), transparent);
@@ -887,4 +904,7 @@
   scroll-padding-bottom: 24px;
 }
 
-.prose-chat th { font-size: 13px; line-height: 20px; }
+.prose-chat th {
+  font-size: 13px;
+  line-height: 20px;
+}

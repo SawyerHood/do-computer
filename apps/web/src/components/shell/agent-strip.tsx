@@ -162,7 +162,6 @@ function AgentPill({
             className="relative shrink-0 rounded-full p-0.5 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40"
           >
             <AgentFace agent={agent} className="size-7 sm:size-5" still />
-
           </button>
         ) : (
           <span className="p-0.5">
