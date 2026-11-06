@@ -1,5 +1,6 @@
 import { INLINE_IMAGE_TYPES, type LibraryFile } from "@do-computer/protocol"
 import {
+  DotsThreeIcon,
   DownloadSimpleIcon,
   FileIcon,
   GlobeIcon,
@@ -8,6 +9,8 @@ import {
   ShareNetworkIcon,
 } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
+import { type ReactNode, useSyncExternalStore } from "react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Link } from "@tanstack/react-router"
 import { embedsInChat, LibraryEmbed } from "@/components/embed/library-embed"
 import { client } from "@/lib/client"
@@ -29,11 +32,49 @@ const CARD =
 const OPEN =
   "flex h-full min-w-0 items-center gap-2.5 rounded-xl pr-3.5 pl-3 outline-none hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/40"
 /**
- * What is done to it. Under a finger, quiet buttons at the end of the card. With a pointer, the
- * card is its name alone, and they come out beside it while it is pointed at.
+ * What is done to it. With a pointer, the card is its name alone, and they come out beside it
+ * while it is pointed at (and stay, for one that is pinned).
  */
 const ACTIONS =
-  "flex shrink-0 items-center gap-0.5 pr-1.5 transition-opacity [@media(hover:hover)]:absolute [@media(hover:hover)]:top-1/2 [@media(hover:hover)]:left-full [@media(hover:hover)]:-translate-y-1/2 [@media(hover:hover)]:pl-1 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-focus-within/file:opacity-100 [@media(hover:hover)]:group-hover/file:opacity-100 [@media(hover:hover)]:has-[[aria-pressed=true]]:opacity-100 [@media(hover:none)]:-ml-2"
+  "absolute top-1/2 left-full flex shrink-0 -translate-y-1/2 items-center gap-0.5 pl-1 opacity-0 transition-opacity group-focus-within/file:opacity-100 group-hover/file:opacity-100 has-[[aria-pressed=true]]:opacity-100"
+
+/** Whether there is nothing to point with: a phone or a tablet, under a finger. */
+const fingers = () => matchMedia("(hover: none)").matches
+function useFingers(): boolean {
+  return useSyncExternalStore(
+    (changed) => {
+      const query = matchMedia("(hover: none)")
+      query.addEventListener("change", changed)
+      return () => query.removeEventListener("change", changed)
+    },
+    fingers,
+    () => false,
+  )
+}
+
+/** What is done to a file: beside the card with a pointer, and behind one button under a finger. */
+function Actions({ name, children }: { name: string; children: ReactNode }) {
+  const touch = useFingers()
+  if (!touch) return <span className={ACTIONS}>{children}</span>
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            aria-label={`More for ${name}`}
+            className={cn(ACTION, "mr-1.5 -ml-1.5")}
+          />
+        }
+      >
+        <DotsThreeIcon weight="bold" className="size-4" />
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-auto flex-row gap-0.5 p-1">
+        {children}
+      </PopoverContent>
+    </Popover>
+  )
+}
 /** One of them: a quiet button, with no lines between. */
 const ACTION =
   "flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
@@ -140,7 +181,7 @@ export function FileCard({
               {label}
             </button>
           )}
-          <span className={ACTIONS}>
+          <Actions name={file.name}>
             <a
               href={url}
               download={file.name}
@@ -152,7 +193,7 @@ export function FileCard({
             </a>
             {share}
             {pinning}
-          </span>
+          </Actions>
         </div>
       ) : (
         <div className={CARD}>
@@ -161,10 +202,10 @@ export function FileCard({
             <DownloadSimpleIcon className="ml-2 size-4 shrink-0 text-muted-foreground" />
           </a>
           {share === null && pinning === null ? null : (
-            <span className={ACTIONS}>
+            <Actions name={file.name}>
               {share}
               {pinning}
-            </span>
+            </Actions>
           )}
         </div>
       )}
