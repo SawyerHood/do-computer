@@ -1,3 +1,9 @@
+@font-face {
+  font-family: "Geist";
+  src: url("geist-latin.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
 /* The app's own pages, in the colours of the app they stand beside. */
 :root {
   color-scheme: light dark;
@@ -10,7 +16,7 @@
   --quiet: color-mix(in oklch, var(--ink) 62%, var(--canvas));
   --line: color-mix(in oklch, var(--ink) 13%, var(--canvas));
   font:
-    14px/1.5 Inter,
+    14px/1.5 "Geist",
     system-ui,
     -apple-system,
     "Segoe UI",
@@ -57,11 +63,10 @@ h1 {
 }
 h2 {
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--quiet);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0;
 }
 p {
   margin: 0;
@@ -166,22 +171,11 @@ button.link {
   gap: 12px;
   padding: 16px;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--raised);
+  border-radius: 12px;
+  background: var(--canvas);
 }
 .dot {
-  flex: none;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--quiet);
-}
-.dot[data-tone="on"] {
-  background: var(--teal);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--teal) 22%, transparent);
-}
-.dot[data-tone="busy"] {
-  background: var(--warn);
+  display: none; /* State is already named beside it; never color alone. */
 }
 .code {
   font:
@@ -199,8 +193,9 @@ button.link {
   white-space: nowrap;
 }
 ol.log {
-  flex: 1;
-  min-height: 0;
+  flex: 0 1 auto;
+  min-height: 100px;
+  max-height: 160px;
   margin: 0;
   padding: 10px 12px;
   overflow-y: auto;
@@ -208,7 +203,7 @@ ol.log {
   border-radius: 10px;
   list-style: none;
   font:
-    11.5px/1.55 ui-monospace,
+    12px/1.5 ui-monospace,
     SFMono-Regular,
     Menlo,
     Consolas,
@@ -353,8 +348,8 @@ fieldset.choices legend {
   gap: 10px;
   padding: 12px 14px;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--raised);
+  border-radius: 12px;
+  background: var(--canvas);
   cursor: pointer;
 }
 .choice[data-on="true"] {
@@ -421,3 +416,6 @@ svg.qr {
 svg.qr[data-spent="true"] {
   opacity: 0.18;
 }
+
+#toggle:not(.primary) { align-self: flex-start; min-height: 36px; background: transparent; }
+button { min-height: 36px; }

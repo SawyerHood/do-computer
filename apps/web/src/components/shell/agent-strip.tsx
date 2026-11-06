@@ -162,12 +162,7 @@ function AgentPill({
             className="relative shrink-0 rounded-full p-0.5 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40"
           >
             <AgentFace agent={agent} className="size-7" still />
-            {waiting ? (
-              <span
-                aria-hidden
-                className="absolute top-0 right-0 size-2.5 rounded-full bg-amber-400 ring-2 ring-(--pill)"
-              />
-            ) : null}
+
           </button>
         ) : (
           <span className="p-0.5">

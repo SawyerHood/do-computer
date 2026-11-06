@@ -864,14 +864,14 @@ export function ProfileSettings({
       </div>
       {section === "usage" ? <Usage agentId={agentId} /> : null}
       {typed || dirty ? (
-        <div className="sticky bottom-0 flex items-center justify-end gap-3">
+        <div className="sticky -bottom-8 z-10 -mx-6 -mb-8 flex min-h-16 items-center justify-end gap-3 border-t bg-popover px-6 py-3 sm:-mx-9 sm:px-9">
           {save.isError ? (
             <p role="alert" className="text-sm text-destructive">
               {save.error.message}
             </p>
           ) : null}
           {save.isSuccess && !dirty ? <p className="text-sm text-muted-foreground">Saved</p> : null}
-          <Button type="submit" disabled={!dirty || over || save.isPending} className="shadow-md">
+          <Button type="submit" disabled={!dirty || over || save.isPending} className="h-9 rounded-lg">
             {save.isPending ? "Saving…" : "Save changes"}
           </Button>
         </div>

@@ -7,9 +7,7 @@
  *
  * A cool neutral ramp: every surface is the canvas with some ink mixed in, so light and dark
  * stay in step. The one accent is used for the user's own messages and primary actions. It
- * takes its hue from --agent-color, which is teal until an agent is open and that agent's color
- * after: only the hue and how vivid it is are taken, so the accent is as readable for a pale
- * agent as a dark one.
+ * stays teal across agents so actions are recognizable; each creature keeps its own color.
  *
  * There are three levels above the frame the app sits in, and each is a hairline with a shadow
  * under it: raised, for what is chosen in a list; card, for the page; and float, for what is
@@ -73,8 +71,8 @@ export const THEME_TOKENS: readonly ThemeToken[] = [
   { name: "--popover-foreground", light: "var(--ink)" },
   {
     name: "--primary",
-    light: "oklch(from var(--agent-color) 0.5 c h)",
-    dark: "oklch(from var(--agent-color) 0.52 c h)",
+    light: "oklch(0.5 0.08 195)",
+    dark: "oklch(0.58 0.09 195)",
   },
   {
     name: "--primary-foreground",
@@ -84,7 +82,7 @@ export const THEME_TOKENS: readonly ThemeToken[] = [
   { name: "--secondary", light: mix(7), dark: mix(9) },
   { name: "--secondary-foreground", light: "var(--ink)" },
   { name: "--muted", light: mix(6), dark: mix(8) },
-  { name: "--muted-foreground", light: mix(62) },
+  { name: "--muted-foreground", light: mix(68), dark: mix(72) },
   { name: "--accent", light: mix(8), dark: mix(11) },
   { name: "--accent-foreground", light: "var(--ink)" },
   { name: "--destructive", light: "oklch(0.5 0.19 26)", dark: "oklch(0.7 0.17 24)" },

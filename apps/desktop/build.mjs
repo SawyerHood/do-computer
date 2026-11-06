@@ -49,6 +49,7 @@ await build({
 for (const file of ["welcome.html", "computer.html", "devices.html", "offline.html", "pages.css"]) {
   cpSync(`src/pages/${file}`, `dist/pages/${file}`)
 }
+cpSync("../web/node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2", "dist/pages/geist-latin.woff2")
 cpSync("assets", "dist/assets", { recursive: true })
 
 // What is drawn over the screen while an agent uses it: a page, and the script its window is given.

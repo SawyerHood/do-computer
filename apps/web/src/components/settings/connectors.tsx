@@ -342,8 +342,7 @@ export function ConnectorsSettings({
       <div>
         <h2 className="text-lg font-semibold tracking-tight">Connectors</h2>
         <p className="text-sm text-muted-foreground">
-          Services your Dood can use, such as a calendar or a task tracker, connected through MCP.
-          Your Dood uses them without asking first, with whatever access you grant.
+          Connect services for your Dood. MCP tools use the access you grant.
         </p>
       </div>
       {search.connector_error ? (
@@ -452,13 +451,12 @@ function AppsOffer({ agentId }: { agentId: string }) {
           <h2>Your apps</h2>
         </CardTitle>
         <CardDescription>
-          Gmail, Google Calendar, Drive, Slack, Notion, GitHub and hundreds more, through Composio.
+          Gmail, Calendar, Slack and more, through Composio.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <p className="text-muted-foreground">
-          You sign in with a Composio account, which is free to make, and then to each service the
-          first time it is needed. Your Dood asks before it does anything in an account of yours.{" "}
+          Your Dood asks before acting in your accounts.{" "}
           <AppsGuide>What you get and how to set it up</AppsGuide>
         </p>
       </CardContent>

@@ -135,7 +135,7 @@ export function AgentList({
       className={cn(
         "flex h-full min-h-0 flex-col gap-0.5 overflow-y-auto pb-3",
         // A face is as far from the edge of a narrow screen as it is from the page beside it.
-        narrow === undefined ? "px-2" : "px-1 [scrollbar-width:none]",
+        narrow === undefined ? "px-2" : "px-2 [scrollbar-width:none]",
       )}
     >
       {loading ? (
@@ -605,7 +605,7 @@ function AgentRow({
         // The one that is open is a shade off the frame, and so is one that is being moved,
         // over the rest. The others darken under the pointer.
         active || sortable.isDragging
-          ? "bg-[color-mix(in_oklab,var(--foreground)_9%,var(--frame))] [--face-ring:color-mix(in_oklab,var(--foreground)_9%,var(--frame))]"
+          ? "bg-primary/10 [--face-ring:var(--frame)]"
           : "[--face-ring:var(--frame)] hover:bg-foreground/6",
         sortable.isDragging && "z-10",
       )}

@@ -75,8 +75,8 @@ test('the fixed council views',async({page,baseURL})=>{
  },desktopState)
  await page.route('**/__council-desktop/*',async route=>{
   const name=new URL(route.request().url()).pathname.split('/').pop()!
-  if(!['computer.html','devices.html','computer.js','devices.js','pages.css'].includes(name)) return route.abort()
-  await route.fulfill({body:readFileSync(resolve(ROOT,'.council/desktop',name)),contentType:name.endsWith('.css')?'text/css':name.endsWith('.js')?'text/javascript':'text/html'})
+  if(!['computer.html','devices.html','computer.js','devices.js','pages.css','geist-latin.woff2'].includes(name)) return route.abort()
+  await route.fulfill({body:readFileSync(resolve(ROOT,'.council/desktop',name)),contentType:name.endsWith('.woff2')?'font/woff2':name.endsWith('.css')?'text/css':name.endsWith('.js')?'text/javascript':'text/html'})
  })
  await page.goto('/__council-desktop/computer.html')
  await expect(page.getByRole('status')).toHaveText(desktopState.headline)

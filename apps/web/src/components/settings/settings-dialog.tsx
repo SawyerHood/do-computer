@@ -76,7 +76,7 @@ export function SettingsDialog<Id extends string>({
               size="sm"
               aria-label={`Back to ${spoken(back.label)}`}
               onClick={back.onClick}
-              className="mb-1 h-9 justify-start gap-1 self-start px-2 font-normal text-muted-foreground sm:h-7"
+              className="mb-1 focus-visible:ring-2 h-9 justify-start gap-1 self-start px-2 font-normal text-muted-foreground sm:h-7"
             >
               <CaretLeftIcon className="size-3.5" />
               {back.label}
@@ -111,7 +111,7 @@ export function SettingsDialog<Id extends string>({
                   onClick={() => onSection(entry.id)}
                   // The list is only on a narrow screen when nothing is open, so nothing in it
                   // is marked as open there.
-                  className="h-11 justify-start gap-2.5 px-2.5 text-[0.9375rem] font-normal hover:bg-foreground/6 sm:h-8.5 sm:text-sm sm:text-muted-foreground sm:aria-[current=page]:bg-card sm:aria-[current=page]:text-foreground sm:aria-[current=page]:shadow-raised"
+                  className="h-11 justify-start gap-2.5 px-2.5 text-[0.9375rem] font-normal hover:bg-foreground/6 sm:h-8.5 sm:text-sm sm:text-muted-foreground sm:aria-[current=page]:bg-primary/10 sm:aria-[current=page]:text-foreground "
                 >
                   {entry.icon}
                   {entry.label}
