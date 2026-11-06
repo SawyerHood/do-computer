@@ -886,3 +886,5 @@
   scrollbar-color: var(--border) transparent;
   scroll-padding-bottom: 24px;
 }
+
+.prose-chat th { font-size: 13px; line-height: 20px; }

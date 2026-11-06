@@ -23,6 +23,7 @@ import { ThinkingPicker } from "@/components/thinking-picker"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -273,12 +274,15 @@ function DeleteAgent({ agentId, name }: { agentId: string; name: string | null }
     },
   })
   return (
-    <Section
-      title="Delete this Dood"
-      hint="Removes its memory, chats, schedules, skills and connectors, and disconnects it from every computer. Files in the library stay with the workspace. This cannot be undone."
-    >
-      {open ? (
-        <div className="flex flex-col gap-3 rounded-2xl border border-destructive/40 p-4">
+    <>
+      <Button type="button" variant="ghost" className="mr-auto px-0 text-[0.8125rem] text-destructive" onClick={() => setOpen(true)}>Delete this Dood…</Button>
+      <Dialog open={open} onOpenChange={next => { if (!remove.isPending) { setOpen(next); if (!next) setTyped("") } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this Dood</DialogTitle>
+            <DialogDescription>Removes its memory, chats, schedules, skills and connectors, and disconnects it from every computer. Files in the library stay with the workspace. This cannot be undone.</DialogDescription>
+          </DialogHeader>
+        <div className="flex flex-col gap-3">
           <Label htmlFor="confirm-delete">
             Type <span className="font-semibold">{expected}</span> to confirm
           </Label>
@@ -338,17 +342,9 @@ function DeleteAgent({ agentId, name }: { agentId: string; name: string | null }
             </Button>
           </div>
         </div>
-      ) : (
-        <Button
-          type="button"
-          variant="outline"
-          className="self-start text-destructive"
-          onClick={() => setOpen(true)}
-        >
-          Delete Dood…
-        </Button>
-      )}
-    </Section>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
@@ -777,10 +773,7 @@ export function ProfileSettings({
         </Section>
 
         <Workspace agentId={agentId} name={state.agent.name ?? "This Dood"} />
-        {/* A team's agent is everyone's, so deleting it is for the people who run the team. */}
-        {workspace?.role === "member" ? null : (
-          <DeleteAgent agentId={agentId} name={state.agent.name} />
-        )}
+
       </div>
       <div hidden={section !== "memory"} className="flex flex-col gap-6">
         <div>
@@ -864,6 +857,7 @@ export function ProfileSettings({
       </div>
       {typed || dirty ? (
         <div className="flex min-h-16 shrink-0 items-center justify-end gap-3 border-t bg-popover px-6 py-3 sm:px-9">
+          {section === "profile" && workspace?.role !== "member" ? <DeleteAgent agentId={agentId} name={state.agent.name} /> : null}
           {save.isError ? (
             <p role="alert" className="text-sm text-destructive">
               {save.error.message}

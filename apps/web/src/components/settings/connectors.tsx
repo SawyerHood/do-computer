@@ -1,8 +1,8 @@
 import type { AgentSummary, ConnectorResult, ConnectorSummary } from "@do-computer/protocol"
-import { CaretRightIcon, SlackLogoIcon, TrashIcon } from "@phosphor-icons/react"
+import { CaretRightIcon, SlackLogoIcon, SquaresFourIcon, TrashIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
-import { useEffect, useState } from "react"
+import { type ReactNode, useEffect, useState } from "react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -372,6 +372,17 @@ export function ConnectorsSettings({
  * the page that puts it there. It is a bot of the agent's own and not an MCP server, so it is
  * set up apart from the connectors above it.
  */
+function Offer({icon,title,description,action,children}: {icon:ReactNode;title:string;description:string;action:ReactNode;children?:ReactNode}) {
+  return <Card className="gap-3 p-4">
+    <div className="flex items-center gap-3">
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/8 text-primary [&_svg]:size-5">{icon}</span>
+      <div className="min-w-0 flex-1"><h2 className="text-sm font-semibold">{title}</h2><p className="text-[0.8125rem] leading-5 text-muted-foreground">{description}</p></div>
+      {action}
+    </div>
+    {children}
+  </Card>
+}
+
 function SlackOffer({ agent, onOpen }: { agent: AgentSummary; onOpen: () => void }) {
   const { data: state } = useQuery({
     queryKey: slackKey(agent.id),
@@ -379,37 +390,10 @@ function SlackOffer({ agent, onOpen }: { agent: AgentSummary; onOpen: () => void
   })
   const name = agent.name ?? "your Dood"
   const app = state?.app ?? null
-  return (
-    <Card className="sm:flex-row sm:items-center">
-      <CardHeader className="min-w-0 flex-1">
-        <CardTitle>
-          <h2 className="flex items-center gap-2">
-            <SlackLogoIcon className="size-4.5" /> Slack
-          </h2>
-        </CardTitle>
-        <CardDescription>
-          {app === null
-            ? `Chat with ${name} in channels and direct messages.`
-            : `${name} is in ${app.team} as @${app.bot}.`}
-        </CardDescription>
-        {app === null ? null : (
-          <CardAction>
-            <Badge className={STATUS.connected.tone}>In Slack</Badge>
-          </CardAction>
-        )}
-      </CardHeader>
-      <CardFooter className="shrink-0">
-        <Button
-          size="sm"
-          variant="outline"
-          aria-label={app === null ? "Set up Slack" : "Manage Slack"}
-          onClick={onOpen}
-        >
-          {app === null ? "Set up" : "Manage"}
-        </Button>
-      </CardFooter>
-    </Card>
-  )
+  return <Offer icon={<SlackLogoIcon />} title="Slack"
+    description={app === null ? `Chat with ${name} in channels and direct messages.` : `${name} is in ${app.team} as @${app.bot}.`}
+    action={<Button variant="outline" aria-label={app === null ? "Set up Slack" : "Manage Slack"} onClick={onOpen}>{app === null ? "Set up" : "Manage"}</Button>}
+  />
 }
 
 /** The agent's connectors, which wait for it to list them, and word of one just connected. */
@@ -449,32 +433,10 @@ function AppsOffer({ agentId }: { agentId: string }) {
     onSuccess: follow,
     onSettled: () => queryClient.invalidateQueries({ queryKey: connectorsKey(agentId) }),
   })
-  return (
-    <Card className="sm:grid sm:grid-cols-[1fr_auto] sm:gap-y-2">
-      <CardHeader className="min-w-0">
-        <CardTitle>
-          <h2>Your apps</h2>
-        </CardTitle>
-        <CardDescription>
-          Gmail, Calendar, Slack and more, through Composio.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className="text-muted-foreground">
-          Your Dood asks before acting in your accounts.{" "}
-          <AppsGuide>Setup guide</AppsGuide>
-        </p>
-      </CardContent>
-      <CardFooter className="flex-wrap gap-2 sm:col-start-2 sm:row-span-2 sm:row-start-1">
-        <Button size="sm" disabled={connect.isPending} onClick={() => connect.mutate()}>
-          {connect.isPending ? "Connecting…" : "Connect apps"}
-        </Button>
-        {connect.isError ? (
-          <p role="alert" className="text-sm text-destructive">
-            {connect.error.message}
-          </p>
-        ) : null}
-      </CardFooter>
-    </Card>
-  )
+  return <Offer icon={<SquaresFourIcon />} title="Your apps" description="Gmail, Calendar, Slack and more, through Composio."
+    action={<Button disabled={connect.isPending} onClick={() => connect.mutate()}>{connect.isPending ? "Connecting…" : "Connect apps"}</Button>}
+  >
+    <p className="text-[0.8125rem] leading-5 text-muted-foreground">Your Dood asks before acting in your accounts. <AppsGuide>Setup guide</AppsGuide></p>
+    {connect.isError ? <p role="alert" className="text-sm text-destructive">{connect.error.message}</p> : null}
+  </Offer>
 }

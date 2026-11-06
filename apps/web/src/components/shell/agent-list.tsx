@@ -344,7 +344,7 @@ function Section({
             >
               <WorkspaceMark workspace={workspace} me={me} className="size-5" />
               {folded && wanted ? (
-                <SparkleIcon role="img"
+                <SparkleIcon aria-hidden={false} role="img"
                   aria-label="Something new" weight="fill" className="absolute -top-0.5 -right-0.5 z-10 size-3 shrink-0 text-primary" />
               ) : null}
             </button>
@@ -403,7 +403,7 @@ function Section({
                 ))}
               </span>
               {wanted ? (
-                <SparkleIcon role="img"
+                <SparkleIcon aria-hidden={false} role="img"
                   aria-label="Something new" weight="fill" className="size-3 shrink-0 text-primary" />
               ) : null}
             </span>
@@ -701,7 +701,7 @@ function AgentRow({
                 </span>
                 <FaceStack people={with_} className="size-4" />
                 {unread ? (
-                  <SparkleIcon role="img"
+                  <SparkleIcon aria-hidden={false} role="img"
                     aria-label="Something new" weight="fill" className="size-3 shrink-0 text-primary" />
                 ) : null}
               </span>
