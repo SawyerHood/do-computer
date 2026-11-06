@@ -679,7 +679,7 @@ function AgentRow({
                   title="Working"
                   className="flex shrink-0 self-center text-muted-foreground group-has-[[data-agent-menu]:focus-visible]/agent:invisible group-has-[[data-agent-menu][aria-expanded=true]]/agent:invisible [@media(hover:hover)]:group-hover/agent:invisible"
                 >
-                  <Spinner className="size-3" />
+                  <Spinner className="size-3.5" />
                 </span>
               ) : latest !== undefined ? (
                 <time
