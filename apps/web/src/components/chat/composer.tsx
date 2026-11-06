@@ -361,7 +361,7 @@ export function Composer({
                   variant="secondary"
                   onClick={onStop}
                   aria-label="Stop"
-                  className="size-11 rounded-full border border-primary/25 bg-primary/12 text-primary sm:size-9"
+                  className="size-11 rounded-full border border-primary bg-primary text-primary-foreground sm:size-9"
                 >
                   <StopIcon weight="fill" className="size-3" />
                 </Button>

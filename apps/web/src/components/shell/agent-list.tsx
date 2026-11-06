@@ -29,6 +29,7 @@ import {
   PlusIcon,
   SidebarSimpleIcon,
   SlidersHorizontalIcon,
+  SparkleIcon,
 } from "@phosphor-icons/react"
 import { Link, useNavigate } from "@tanstack/react-router"
 import { useLiveQuery } from "@tanstack/react-db"
@@ -343,11 +344,8 @@ function Section({
             >
               <WorkspaceMark workspace={workspace} me={me} className="size-5" />
               {folded && wanted ? (
-                <span
-                  role="img"
-                  aria-label="Something new"
-                  className="absolute top-0.5 right-0.5 size-2 rounded-full bg-notice ring-2 ring-(--face-ring)"
-                />
+                <SparkleIcon role="img"
+                  aria-label="Something new" weight="fill" className="absolute -top-0.5 -right-0.5 z-10 size-3 shrink-0 text-primary" />
               ) : null}
             </button>
           ) : (
@@ -405,11 +403,8 @@ function Section({
                 ))}
               </span>
               {wanted ? (
-                <span
-                  role="img"
-                  aria-label="Something new"
-                  className="size-2 rounded-full bg-notice"
-                />
+                <SparkleIcon role="img"
+                  aria-label="Something new" weight="fill" className="size-3 shrink-0 text-primary" />
               ) : null}
             </span>
           ) : (
@@ -533,7 +528,7 @@ function MakingAgentRow({ narrow }: { narrow: "rail" | "open" | undefined }) {
       <Skeleton className="size-10 shrink-0 rounded-full" />
       {narrow === "rail" ? null : (
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[0.90625rem] font-medium">New Dood</span>
+          <span className="block truncate text-sm font-medium">New Dood</span>
           <span className="mt-px block truncate text-xs text-muted-foreground">On its way…</span>
         </span>
       )}
@@ -630,13 +625,13 @@ function AgentRow({
       >
         {/* Alone, it is all the row is as tall as: no line of words is kept room for under it. */}
         <span className={cn("relative shrink-0", rail && "flex")}>
-          <AgentFace agent={agent} className={rail ? "size-10" : "size-8"} quiet />
+          <AgentFace agent={agent} className={rail ? "size-10" : "size-6"} quiet />
           {asking ? (
             <span
               role="img"
               aria-label="Waiting on someone"
               title="Waiting on someone"
-              className="absolute -right-0.5 -bottom-0.5 z-10 grid size-3.5 place-items-center rounded-full bg-amber-500 text-[0.625rem] leading-none font-bold text-white ring-2 ring-(--face-ring)"
+              className="absolute -right-0.5 -bottom-0.5 z-10 grid size-3.5 place-items-center rounded bg-amber-500 text-[0.625rem] leading-none font-bold text-white ring-2 ring-(--face-ring)"
             >
               ?
             </span>
@@ -652,10 +647,7 @@ function AgentRow({
           ) : null}
           {/* With no words beside it to carry the mark, the face does. */}
           {rail && unread ? (
-            <span
-              aria-hidden
-              className="absolute -top-0.5 -right-0.5 z-10 size-3 rounded-full bg-notice ring-2 ring-(--face-ring)"
-            />
+            <SparkleIcon aria-hidden weight="fill" className="absolute -top-0.5 -right-0.5 z-10 size-3 shrink-0 text-primary" />
           ) : null}
         </span>
         {rail ? null : (
@@ -663,7 +655,7 @@ function AgentRow({
             <span className="flex items-baseline gap-2">
               <span
                 className={cn(
-                  "min-w-0 flex-1 truncate text-[0.90625rem]",
+                  "min-w-0 flex-1 truncate text-sm",
                   unread ? "font-semibold" : "font-medium",
                 )}
               >
@@ -709,11 +701,8 @@ function AgentRow({
                 </span>
                 <FaceStack people={with_} className="size-4" />
                 {unread ? (
-                  <span
-                    role="img"
-                    aria-label="Something new"
-                    className="size-2 shrink-0 rounded-full bg-notice"
-                  />
+                  <SparkleIcon role="img"
+                    aria-label="Something new" weight="fill" className="size-3 shrink-0 text-primary" />
                 ) : null}
               </span>
             ) : null}
@@ -814,10 +803,7 @@ export function DoodsButton({
     >
       <SidebarSimpleIcon />
       {wanted ? (
-        <span
-          aria-hidden
-          className="absolute top-0.5 right-0.5 size-2 rounded-full bg-notice ring-2 ring-background"
-        />
+        <SparkleIcon aria-hidden weight="fill" className="absolute -top-0.5 -right-0.5 z-10 size-3 shrink-0 text-primary" />
       ) : null}
     </Button>
   )

@@ -1,7 +1,6 @@
 import { AVATAR_COLORS, type Person, workspaceColor } from "@do-computer/protocol"
 import {
   Avatar,
-  AvatarBadge,
   AvatarFallback,
   AvatarGroup,
   AvatarGroupCount,
@@ -43,7 +42,8 @@ export function PersonFace({
     <Avatar
       role="img"
       aria-label={person.name}
-      title={title ?? person.name}
+      title={title ?? `${person.name}${here ? " · Here now" : ""}`}
+      aria-description={here ? "Here now" : undefined}
       // No hairline around it: a face is a flat disc of its own color.
       className={cn("inline-flex size-6 [container-type:inline-size] after:hidden", className)}
     >
@@ -55,12 +55,6 @@ export function PersonFace({
       >
         {initials(person.name)}
       </AvatarFallback>
-      {here ? (
-        <AvatarBadge
-          aria-hidden
-          className="-right-px -bottom-px size-[32%]! min-h-1.5 min-w-1.5 bg-[oklch(0.7_0.16_150)] ring-(--face-ring,var(--background))"
-        />
-      ) : null}
     </Avatar>
   )
 }

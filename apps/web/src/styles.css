@@ -879,3 +879,10 @@
 }
 
 .md [data-numeric] { text-align: right; font-variant-numeric: tabular-nums; }
+
+[data-settings-body] {
+  mask-image: linear-gradient(to bottom, black calc(100% - 20px), transparent);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  scroll-padding-bottom: 24px;
+}
