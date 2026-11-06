@@ -78,7 +78,7 @@ function usePulledSidebar(shell: HTMLElement | null) {
     },
     move: (across) => {
       if (shell === null || shell.dataset.pulling === undefined) return
-      const most = Math.min(320, shell.clientWidth - 48)
+      const most = Math.min(352, shell.clientWidth - 40)
       const width = Math.min(most, Math.max(RAIL, from.current + across))
       shell.style.setProperty("--pull", `${width}px`)
       shell.style.setProperty("--pull-dim", String((width - RAIL) / (most - RAIL)))
@@ -230,7 +230,7 @@ export function AppShell({
         <aside
           data-pulled-sidebar=""
           data-open={pulled.open ? "" : undefined}
-          className="w-[var(--pull,0px)] shrink-0 overflow-hidden transition-[width] duration-200 ease-out group-data-pulling/shell:transition-none data-open:w-[var(--pull,min(20rem,100%-3rem))] motion-reduce:transition-none"
+          className="w-[var(--pull,0px)] shrink-0 overflow-hidden transition-[width] duration-200 ease-out group-data-pulling/shell:transition-none data-open:w-[var(--pull,min(22rem,100%-2.5rem))] motion-reduce:transition-none"
         >
           {pulled.whole ? (
             <Sidebar
@@ -240,7 +240,7 @@ export function AppShell({
               agentId={agentId}
               drawn="open"
               onNavigate={() => pulled.settle(false)}
-              className="w-[min(20rem,100vw-3rem)]"
+              className="w-[min(22rem,100vw-2.5rem)]"
             />
           ) : null}
         </aside>

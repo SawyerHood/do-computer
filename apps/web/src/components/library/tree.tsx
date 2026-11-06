@@ -36,7 +36,12 @@ import { cn } from "@/lib/utils"
 export function KindIcon({ file, className }: { file: LibraryFile; className?: string }) {
   const kind = kindOf(file)
   const size = cn("size-4 shrink-0", className)
-  if (kind === "markdown") return <FileTextIcon className={cn(size, "text-primary")} />
+  if (kind === "markdown")
+    return (
+      <FileTextIcon
+        className={cn(size, "text-primary dark:text-[color-mix(in_oklab,var(--primary)_55%,white)]")}
+      />
+    )
   if (kind === "page")
     return <GlobeIcon className={cn(size, "text-amber-600 dark:text-amber-400")} />
   if (kind === "image") {

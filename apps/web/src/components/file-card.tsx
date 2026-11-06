@@ -98,7 +98,7 @@ export function FileCard({
     )
   const label = (
     <>
-      <FileIcon weight="duotone" className="size-5 shrink-0 text-primary" />
+      <FileIcon weight="duotone" className="size-5 shrink-0 text-primary dark:text-[color-mix(in_oklab,var(--primary)_55%,white)]" />
       <span className="min-w-0 truncate font-medium" title={formatBytes(file.size)}>
         {file.name}
       </span>

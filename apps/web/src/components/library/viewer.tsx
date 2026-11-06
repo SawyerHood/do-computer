@@ -628,9 +628,9 @@ export function Viewer({
             value={mode === "source" ? "read" : mode}
             onChange={onMode}
             options={[
-              ["read", "Read", <EyeIcon key="i" className="size-3.5" />],
-              ["edit", "Edit", <PencilSimpleIcon key="i" className="size-3.5" />],
-              ["split", "Split", <ColumnsIcon key="i" className="size-3.5" />],
+              ["read", "Read", <EyeIcon key="i" className="size-4" />],
+              ["edit", "Edit", <PencilSimpleIcon key="i" className="size-4" />],
+              ["split", "Split", <ColumnsIcon key="i" className="size-4" />],
             ]}
           />
         ) : kind === "page" ? (
@@ -640,8 +640,8 @@ export function Viewer({
             value={mode === "read" ? "read" : "source"}
             onChange={onMode}
             options={[
-              ["read", "Page", <GlobeIcon key="i" className="size-3.5" />],
-              ["source", "Source", <CodeIcon key="i" className="size-3.5" />],
+              ["read", "Page", <GlobeIcon key="i" className="size-4" />],
+              ["source", "Source", <CodeIcon key="i" className="size-4" />],
             ]}
           />
         ) : kind === "table" ? (
@@ -651,8 +651,8 @@ export function Viewer({
             value={mode === "read" ? "read" : "source"}
             onChange={onMode}
             options={[
-              ["read", "Table", <TableIcon key="i" className="size-3.5" />],
-              ["source", "Source", <CodeIcon key="i" className="size-3.5" />],
+              ["read", "Table", <TableIcon key="i" className="size-4" />],
+              ["source", "Source", <CodeIcon key="i" className="size-4" />],
             ]}
           />
         ) : null}

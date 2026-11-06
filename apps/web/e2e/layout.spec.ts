@@ -456,7 +456,7 @@ test("the layout works at phone width", async ({ page }) => {
   await page.screenshot({ path: "test-results/phone-chat.png" })
   // Asked for, it is the list, and the page slides aside as wide as it was.
   await page.getByRole("button", { name: "Show your Doods" }).click()
-  await expect.poll(sidebar).toBe(320)
+  await expect.poll(sidebar).toBe(352)
   await expect(agents.locator("[data-latest]")).toBeVisible()
   expect(await pageWidth()).toBe(400)
   const face = async () => (await juniper.locator("> span").first().boundingBox())!
@@ -599,17 +599,17 @@ test("at phone width a finger pulls the sidebar out across the page, and pushes 
   }
   await expect.poll(sidebar).toBe(100)
   await finger.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
-  await expect.poll(sidebar).toBe(320)
+  await expect.poll(sidebar).toBe(352)
   await expect(names).toBeVisible()
   // Scrolling its list leaves it open, and a finger back across it shuts it.
   await swipe({ x: 160, y: 300 }, { x: 150, y: 500 })
-  expect(await sidebar()).toBe(320)
+  expect(await sidebar()).toBe(352)
   await swipe({ x: 260, y: 400 }, { x: 60, y: 390 })
   await expect.poll(sidebar).toBe(0)
   await expect(names).toHaveCount(0)
   // Open again, a touch on the page beside it shuts it too.
   await swipe({ x: 80, y: 400 }, { x: 280, y: 410 })
-  await expect.poll(sidebar).toBe(320)
+  await expect.poll(sidebar).toBe(352)
   await page.touchscreen.tap(370, 400)
   await expect.poll(sidebar).toBe(0)
 

@@ -362,7 +362,7 @@ export function ConnectorsSettings({
       <div>
         <h2 className="text-lg font-semibold tracking-tight">Connectors</h2>
         <p className="text-sm text-muted-foreground">
-          Services your Dood can use, connected through MCP.
+          Apps and services your Dood can use.
         </p>
       </div>
       {search.connector_error ? (
