@@ -266,8 +266,8 @@ test("what the agent shared is listed in its panel, and a document's edge is dra
   }
   expect(await width()).toBe(640)
   // Dragged as far as it goes it leaves the chat 20rem, here beside a sidebar of 288 and the
-  // hairline between that and the page. The document is a card 10 in from the page's edge.
-  const most = 1280 - 288 - 1 - 320 - 10
+  // hairline between that and the page. The document is flush with the page's edge.
+  const most = 1280 - 288 - 1 - 320
   await drag(-600)
   expect(await width()).toBe(most)
   // It comes back from where it is, with the pointer over the page it shows.

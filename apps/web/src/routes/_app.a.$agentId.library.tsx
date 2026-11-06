@@ -343,7 +343,7 @@ function Library({
           file that is open. On a narrow one it is the page, until a file is opened. */}
       {desktop ? (
         selected === undefined ? null : (
-          <aside className="w-64 shrink-0 border-r border-hairline">{tree}</aside>
+          <aside className="w-70 shrink-0 border-r border-hairline">{tree}</aside>
         )
       ) : (
         <aside className={cn("shrink-0", selected === undefined ? "w-full" : "hidden")}>

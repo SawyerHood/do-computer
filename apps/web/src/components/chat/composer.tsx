@@ -334,8 +334,8 @@ export function Composer({
               <Button
                 type="button"
                 size="icon"
-                variant="secondary"
-                className="rounded-full bg-foreground/8 text-foreground hover:bg-foreground/12"
+                variant="ghost"
+                className="rounded-full text-muted-foreground hover:text-foreground"
                 onClick={() => picker.current?.click()}
                 aria-label="Attach a file"
               >
@@ -376,7 +376,7 @@ export function Composer({
                   disabled={!ready}
                   aria-label="Send"
                   // With nothing to send it is quiet, and in the Dood's color once there is.
-                  className="rounded-full disabled:bg-foreground/8 disabled:text-muted-foreground disabled:opacity-100"
+                  className="rounded-full disabled:bg-foreground/7 disabled:text-muted-foreground/70 disabled:opacity-100"
                 >
                   <ArrowUpIcon weight="bold" className="size-[1.125rem]" />
                 </Button>

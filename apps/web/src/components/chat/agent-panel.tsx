@@ -231,7 +231,7 @@ export function AgentPanel({
   return (
     <aside
       aria-label={`About ${name}`}
-      className="relative my-2.5 mr-2.5 overflow-hidden rounded-2xl border flex shrink-0 flex-col bg-rail/50"
+      className="relative flex shrink-0 flex-col overflow-hidden border-l border-hairline bg-rail/50"
       style={{ width }}
     >
       <ResizeHandle column={agentPanelColumn} edge="left" label={`Resize ${name}'s panel`} />
