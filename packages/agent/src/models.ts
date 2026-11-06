@@ -3,6 +3,8 @@ import {
   fauxAssistantMessage,
   fauxProvider,
   type FauxProviderHandle,
+  fauxText,
+  fauxThinking,
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux"
 import type { CredentialStore } from "@earendil-works/pi-ai"
@@ -100,6 +102,11 @@ export type AgentModelsConfig = {
    * in to the provider is what offers one.
    */
   readonly extraModels?: readonly string[]
+  /**
+   * Written-out answers of the echo model, by the message they answer: its tool calls one after
+   * another, then its words. For pictures of the app with realistic chats (`DC_ECHO_REPLIES`).
+   */
+  readonly echoReplies?: Readonly<Record<string, EchoReply>>
   /** OpenRouter model id that reads web search results. Default: a small, fast model. */
   readonly searchModel?: string
   /** OpenRouter model id that judges whether an agent meant to stop. Default: a small one. */
@@ -117,6 +124,31 @@ export function parseModel(model: string): ModelRef {
 
 export function formatModel(ref: ModelRef): string {
   return `${ref.provider}/${ref.modelId}`
+}
+
+/** A written-out answer of the echo model: words, or tools called in turn and then words. */
+export type EchoReply =
+  | string
+  | {
+      readonly tools?: readonly { readonly name: string; readonly args: Record<string, unknown> }[]
+      readonly thinking?: string
+      readonly text: string
+      /** Files sent with the words, where the chat is one where words are sent. */
+      readonly files?: readonly string[]
+    }
+
+/** The next step of a written-out answer, `done` of its tools having been called. */
+function scripted(reply: EchoReply, done: number): string | ReturnType<typeof fauxAssistantMessage> {
+  if (typeof reply === "string") return reply
+  const next = reply.tools?.[done]
+  if (next !== undefined) {
+    return fauxAssistantMessage(
+      [fauxToolCall(next.name, next.args as Parameters<typeof fauxToolCall>[1])],
+      { stopReason: "toolUse" },
+    )
+  }
+  if (reply.thinking === undefined) return reply.text
+  return fauxAssistantMessage([fauxThinking(reply.thinking), fauxText(reply.text)])
 }
 
 type EchoContext = {
@@ -196,8 +228,8 @@ function sentSince(context: EchoContext, person: number): boolean {
  * (a send it is told to make goes on to its result, and anything after that it says to itself). An event, or a note for the model alone, gets words that nobody is shown, and so does
  * a message that begins `/quiet`, as from a model that forgot to send.
  */
-function echoAnswer(context: EchoContext) {
-  const answer = echoWords(context)
+function echoAnswer(context: EchoContext, replies?: Readonly<Record<string, EchoReply>>) {
+  const answer = echoWords(context, replies)
   if (typeof answer === "object") return answer
   const at = context.messages.findLastIndex(
     (message) => message.role === "user" && blockText(message.content) !== "",
@@ -211,16 +243,52 @@ function echoAnswer(context: EchoContext) {
   if (!person || !offered(context).has(SEND) || sentSince(context, at)) {
     return fauxAssistantMessage(answer)
   }
-  // Its answer is its last word for now, which ends its turn.
-  return fauxAssistantMessage([fauxToolCall(SEND, { text: answer, done: true })], {
-    stopReason: "toolUse",
-  })
+  // Its answer is its last word for now, which ends its turn, with the files a written-out
+  // answer sends.
+  const reply = replies?.[newest.trim()]
+  const files = typeof reply === "object" ? reply.files : undefined
+  return fauxAssistantMessage(
+    [fauxToolCall(SEND, { text: answer, done: true, ...(files === undefined ? {} : { files }) })],
+    { stopReason: "toolUse" },
+  )
 }
 
 /** What the echo model would say, or the message it answers with where that is not words. */
-function echoWords(context: EchoContext): string | ReturnType<typeof fauxAssistantMessage> {
+function echoWords(
+  context: EchoContext,
+  replies?: Readonly<Record<string, EchoReply>>,
+): string | ReturnType<typeof fauxAssistantMessage> {
   // Prompt changes are recorded as system entries, which can follow a tool result.
   const last = context.messages.findLast((message) => message.role !== "system")
+  // A written-out answer to the last thing a person said, where one is configured: its next step.
+  const said = context.messages.findLastIndex(
+    (message) => message.role === "user" && blockText(message.content) !== "",
+  )
+  const reply = said === -1 ? undefined : replies?.[blockText(context.messages[said]!.content).trim()]
+  if (reply !== undefined) {
+    const done = context.messages
+      .slice(said)
+      .filter(
+        (message) =>
+          message.role === "toolResult" &&
+          message.toolName !== SEND &&
+          message.toolName !== LOAD_TOOLS,
+      ).length
+    // A tool of the agent's own that is not loaded yet it loads first, as a model would.
+    const next = typeof reply === "string" ? undefined : reply.tools?.[done]
+    const has = offered(context)
+    if (
+      next !== undefined &&
+      !has.has(next.name) &&
+      has.has(LOAD_TOOLS) &&
+      last?.toolName !== LOAD_TOOLS
+    ) {
+      return fauxAssistantMessage([fauxToolCall(LOAD_TOOLS, { names: [next.name] })], {
+        stopReason: "toolUse",
+      })
+    }
+    return scripted(reply, done)
+  }
   // The newest thing said to it. A note for the model alone, such as word that a sub-agent has
   // reported, says nothing to repeat: what it follows is repeated instead.
   const user = context.messages.findLast(
@@ -398,7 +466,7 @@ export function createAgentModels(
       faux.appendResponses(
         Array.from({ length: 64 }, () => (context: EchoContext) => {
           refill()
-          return echoAnswer(context)
+          return echoAnswer(context, config.echoReplies)
         }),
       )
     }

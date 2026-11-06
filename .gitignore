@@ -42,3 +42,6 @@ prototypes/docs/index.html
 
 # The desktop app, packed by electron-builder
 apps/desktop/release/
+
+# The design council: reference shots and rounds (scripts/council)
+.council/
