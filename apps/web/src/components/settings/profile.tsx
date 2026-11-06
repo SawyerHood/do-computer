@@ -98,7 +98,7 @@ function Section({
 }) {
   const heading = useId()
   return (
-    <section aria-labelledby={heading} className="flex flex-col gap-3 border-t pt-6">
+    <section aria-labelledby={heading} className="flex flex-col gap-3">
       <div>
         <h2 id={heading} className="text-sm font-semibold">
           {title}

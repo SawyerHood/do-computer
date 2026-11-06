@@ -92,7 +92,7 @@ export const THEME_TOKENS: readonly ThemeToken[] = [
   // when one is, so a dot means the same thing whichever agent is in front.
   { name: "--notice", light: "oklch(0.5 0.08 195)", dark: "oklch(0.52 0.08 195)" },
   { name: "--border", light: mix(13) },
-  { name: "--input", light: mix(22), dark: mix(20) },
+  { name: "--input", light: mix(25), dark: mix(32) },
   { name: "--ring", light: "var(--primary)" },
   {
     name: "--rail",

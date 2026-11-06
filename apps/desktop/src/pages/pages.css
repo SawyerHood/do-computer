@@ -15,6 +15,7 @@
   --raised: color-mix(in oklch, var(--ink) 5%, var(--canvas));
   --quiet: color-mix(in oklch, var(--ink) 68%, var(--canvas));
   --line: color-mix(in oklch, var(--ink) 13%, var(--canvas));
+  --control-line: color-mix(in oklch, var(--ink) 25%, var(--canvas));
   font:
     14px/1.5 "Geist",
     system-ui,
@@ -30,6 +31,8 @@
     --teal: oklch(0.7 0.09 195);
     --teal-ink: oklch(0.17 0.02 195);
     --warn: oklch(0.76 0.12 70);
+    --quiet: color-mix(in oklch, var(--ink) 72%, var(--canvas));
+    --control-line: color-mix(in oklch, var(--ink) 32%, var(--canvas));
   }
 }
 * {
@@ -75,7 +78,7 @@ p {
   color: var(--quiet);
 }
 .small {
-  font-size: 12.5px;
+  font-size: 13px;
 }
 .blob {
   width: 64px;
@@ -120,7 +123,7 @@ label.check .quiet {
 }
 button {
   padding: 9px 14px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-line);
   border-radius: 8px;
   background: var(--raised);
   color: var(--ink);
@@ -436,3 +439,6 @@ button { min-height: 36px; }
 .switch { width: 40px; height: 24px; padding: 2px; }
 .switch::before { width: 18px; height: 18px; }
 .switch:checked::before { transform: translateX(16px); }
+
+.metadata { font-size: 14px; line-height: 21px; }
+#log { font-size: 13px; line-height: 19px; }

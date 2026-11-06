@@ -464,12 +464,12 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
                           face={
                             // Where the panel is beside the chat, the creature is in it and not here too.
                             beside ? null : (
-                              <span className="mb-6">
+                              <span className="-mb-6">
                                 {/* On a short screen it is as large as lets the whole hello be seen. */}
                                 <Hatchling
                                   agent={agent}
                                   hatch={hatch}
-                                  className="size-[clamp(6rem,calc(100dvh-34.5rem),18rem)]"
+                                  className="size-[clamp(6rem,calc(100dvh-34.5rem),14rem)]"
                                 />
                               </span>
                             )
@@ -600,7 +600,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
           loading={!live.loaded && !refused}
           face={
             sub === undefined ? (
-              <Hatchling agent={agent} hatch={hatch} className="size-44 -mb-8" />
+              <Hatchling agent={agent} hatch={hatch} className="size-52" />
             ) : (
               <SubagentHero agentId={agent.id} chatId={chatId} className="size-44" />
             )

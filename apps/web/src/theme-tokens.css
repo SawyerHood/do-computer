@@ -31,7 +31,7 @@
   --warning: oklch(0.6 0.13 75);
   --notice: oklch(0.5 0.08 195);
   --border: color-mix(in oklch, var(--ink) 13%, var(--canvas));
-  --input: color-mix(in oklch, var(--ink) 22%, var(--canvas));
+  --input: color-mix(in oklch, var(--ink) 25%, var(--canvas));
   --ring: var(--primary);
   --rail: color-mix(in oklch, var(--ink) 3%, var(--canvas));
   --surface: color-mix(in oklch, var(--ink) 4%, var(--canvas));
@@ -71,7 +71,7 @@
   --success: oklch(0.74 0.14 155);
   --warning: oklch(0.8 0.13 80);
   --notice: oklch(0.52 0.08 195);
-  --input: color-mix(in oklch, var(--ink) 20%, var(--canvas));
+  --input: color-mix(in oklch, var(--ink) 32%, var(--canvas));
   --rail: color-mix(in oklch, black 22%, var(--canvas));
   --surface: color-mix(in oklch, var(--ink) 5%, var(--canvas));
   --chart-1: oklch(0.63 0.105 195);
