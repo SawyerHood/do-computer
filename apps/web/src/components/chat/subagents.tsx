@@ -1,5 +1,12 @@
 import type { AgentState } from "@do-computer/client"
-import type { ChatSummary, NoticePart, SubagentStatus, ToolPart } from "@do-computer/protocol"
+import {
+  type Avatar,
+  type ChatSummary,
+  defaultAvatar,
+  type NoticePart,
+  type SubagentStatus,
+  type ToolPart,
+} from "@do-computer/protocol"
 import {
   CaretRightIcon,
   CheckCircleIcon,
@@ -7,6 +14,7 @@ import {
   WarningCircleIcon,
   XIcon,
 } from "@phosphor-icons/react"
+import { useLiveQuery } from "@tanstack/react-db"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import { useAtomValue } from "jotai"
@@ -16,7 +24,7 @@ import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Spinner } from "@/components/ui/spinner"
 import { client } from "@/lib/client"
-import { agentKey } from "@/lib/collections"
+import { agentKey, agentsCollection } from "@/lib/collections"
 import { IDLE, type MascotMood, mascotMoodAtom } from "@/lib/mascot"
 import { queryClient } from "@/lib/query"
 import { cn } from "@/lib/utils"
@@ -24,10 +32,21 @@ import { Markdown } from "./markdown.tsx"
 import { AgentIdContext } from "./sent-file.tsx"
 
 /**
- * What a sub-agent's creature grows from. It has no look of its own on record: its shape and
- * color come from which sub-agent it is, so it is the same creature wherever it is drawn.
+ * What a sub-agent's creature grows from. It has no look of its own on record: its shape comes
+ * from which sub-agent it is, so it is the same creature wherever it is drawn.
  */
 export const subagentSeed = (agentId: string, chatId: string) => `${agentId}/sub/${chatId}`
+
+/**
+ * A sub-agent's look: its own shape, in the color of the Dood it works for, so that it reads as
+ * that Dood's helper and never as another Dood.
+ */
+function useSubagentAvatar(agentId: string, chatId: string): Avatar {
+  const { data: agents } = useLiveQuery((q) => q.from({ agent: agentsCollection }))
+  const parent = agents?.find((agent) => agent.id === agentId)
+  const color = (parent?.avatar ?? defaultAvatar(agentId)).color
+  return useMemo(() => ({ color, seed: subagentSeed(agentId, chatId) }), [color, agentId, chatId])
+}
 
 const WORDS: Record<SubagentStatus, string> = {
   working: "Working",
@@ -61,9 +80,10 @@ export function SubagentFace({
   status: SubagentStatus | undefined
   className?: string
 }) {
+  const avatar = useSubagentAvatar(agentId, chatId)
   return (
     <AgentAvatar
-      avatar={null}
+      avatar={avatar}
       seed={subagentSeed(agentId, chatId)}
       className={className}
       mood={MOODS[status ?? "done"] ?? IDLE}
@@ -84,8 +104,9 @@ export function SubagentHero({
   className?: string
 }) {
   const seed = subagentSeed(agentId, chatId)
+  const avatar = useSubagentAvatar(agentId, chatId)
   const mood = useAtomValue(mascotMoodAtom(seed))
-  return <AgentAvatar avatar={null} seed={seed} className={className} mood={mood} pettable />
+  return <AgentAvatar avatar={avatar} seed={seed} className={className} mood={mood} pettable />
 }
 
 function StatusMark({ status }: { status: SubagentStatus | undefined }) {

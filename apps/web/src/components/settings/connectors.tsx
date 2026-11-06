@@ -236,8 +236,8 @@ function AddForm({ agentId }: { agentId: string }) {
   if (!open) {
     return (
       <Button
-        variant="outline"
-        className="h-11 justify-start gap-2 rounded-xl border-dashed px-4 font-normal text-muted-foreground hover:text-foreground"
+        variant="ghost"
+        className="-ml-2 self-start font-normal text-muted-foreground hover:text-foreground"
         onClick={() => setOpen(true)}
       >
         <PlusIcon />

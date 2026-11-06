@@ -438,7 +438,7 @@ function Section({
                 onClick={() => void newAgent.create()}
                 aria-label={named ? `New Dood in ${workspace.name}` : "New Dood"}
                 title={named ? `New Dood in ${workspace.name}` : "New Dood"}
-                className="-mr-1 text-muted-foreground [&_svg]:size-4"
+                className="-mr-1 size-7 text-muted-foreground [&_svg]:size-4"
               >
                 {newAgent.making ? <Spinner /> : <PlusIcon />}
               </Button>

@@ -318,7 +318,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
               // What is said goes out of sight at the top of the page, behind the name that
               // floats there, and under more of the page where something of the chat's own is
               // over the transcript as well.
-              floats ? "h-33 via-background/80" : "h-[4.25rem] from-[80%]",
+              floats ? "h-33 via-background/80" : "h-20 from-70%",
             )}
           />
           {sub !== undefined ? (
