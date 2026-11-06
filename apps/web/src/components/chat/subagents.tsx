@@ -216,7 +216,8 @@ export function SubagentRows({
                 {subagentWords(subagent.status)}
               </span>
             </span>
-            <StatusMark status={subagent.status} />
+            {/* At work, its creature moving says so, beside the way to stop it. */}
+            {subagent.status === "working" ? null : <StatusMark status={subagent.status} />}
           </Link>
           {isAtWork(subagent.status) ? (
             <StopSubagent agentId={agentId} subagent={subagent} />

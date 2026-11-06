@@ -25,10 +25,16 @@ const PREVIEWABLE = INLINE_IMAGE_TYPES
 
 /** A file's card: one piece, its name the way in, and what is done to it beside the name. */
 const CARD =
-  "group/file flex h-11 w-fit max-w-full items-center gap-0.5 rounded-xl bg-card pr-1.5 text-sm shadow-raised"
+  "group/file relative flex h-11 w-fit max-w-full items-center gap-0.5 rounded-xl bg-card text-sm shadow-raised"
 const OPEN =
-  "flex h-full min-w-0 items-center gap-2.5 rounded-l-xl pr-2 pl-3 outline-none hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/40"
-/** What is done to it: quiet buttons in the card, with no lines between. */
+  "flex h-full min-w-0 items-center gap-2.5 rounded-xl pr-3.5 pl-3 outline-none hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/40"
+/**
+ * What is done to it. Under a finger, quiet buttons at the end of the card. With a pointer, the
+ * card is its name alone, and they come out beside it while it is pointed at.
+ */
+const ACTIONS =
+  "flex shrink-0 items-center gap-0.5 pr-1.5 transition-opacity [@media(hover:hover)]:absolute [@media(hover:hover)]:top-1/2 [@media(hover:hover)]:left-full [@media(hover:hover)]:-translate-y-1/2 [@media(hover:hover)]:pl-1 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-focus-within/file:opacity-100 [@media(hover:hover)]:group-hover/file:opacity-100 [@media(hover:hover)]:has-[[aria-pressed=true]]:opacity-100 [@media(hover:not(hover))]:-ml-2"
+/** One of them: a quiet button, with no lines between. */
 const ACTION =
   "flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
 
@@ -134,17 +140,19 @@ export function FileCard({
               {label}
             </button>
           )}
-          <a
-            href={url}
-            download={file.name}
-            aria-label={`Download ${file.name}`}
-            title="Download"
-            className={ACTION}
-          >
-            <DownloadSimpleIcon className="size-4" />
-          </a>
-          {share}
-          {pinning}
+          <span className={ACTIONS}>
+            <a
+              href={url}
+              download={file.name}
+              aria-label={`Download ${file.name}`}
+              title="Download"
+              className={ACTION}
+            >
+              <DownloadSimpleIcon className="size-4" />
+            </a>
+            {share}
+            {pinning}
+          </span>
         </div>
       ) : (
         <div className={CARD}>
@@ -152,8 +160,12 @@ export function FileCard({
             {label}
             <DownloadSimpleIcon className="ml-2 size-4 shrink-0 text-muted-foreground" />
           </a>
-          {share}
-          {pinning}
+          {share === null && pinning === null ? null : (
+            <span className={ACTIONS}>
+              {share}
+              {pinning}
+            </span>
+          )}
         </div>
       )}
     </div>
