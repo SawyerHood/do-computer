@@ -694,7 +694,7 @@ export function ProfileSettings({
           <AgentAvatar
             avatar={form.avatar}
             seed={agentId}
-            className="size-20"
+            className="size-18"
             hatched={state.agent.hatched}
           />
           <div className="flex min-w-0 flex-1 flex-col gap-3">

@@ -60,6 +60,11 @@ test('the fixed council views',async({page,baseURL})=>{
  await page.goto(`${chat}?settings=identity`)
  await expect(page.getByRole('dialog')).toBeVisible()
  await shoot(page,'04-settings')
+ const save=page.getByRole('button',{name:'Save changes'})
+ const before=await save.boundingBox();const bounds=await page.getByRole('dialog').boundingBox()
+ expect(before!.y+before!.height).toBeLessThanOrEqual(bounds!.y+bounds!.height)
+ await page.locator('[data-settings-body]').evaluate(node=>{node.scrollTop=node.scrollHeight})
+ expect((await save.boundingBox())!.y).toBe(before!.y)
  await page.goto(`/a/${agent.id}/connectors`)
  await expect(page.getByRole('heading',{name:'Connectors',exact:true})).toBeVisible()
  await shoot(page,'05-connectors')
@@ -67,6 +72,7 @@ test('the fixed council views',async({page,baseURL})=>{
  await page.goto(chat)
  await expect(page.getByRole('log').getByText('A little room to think')).toBeVisible()
  await shoot(page,'06-phone-conversation')
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
  // The Electron-specific settings, rendered from their production HTML/CSS and bundled scripts.
  await page.setViewportSize({width:760,height:1000})
  const desktopState={server:baseURL,local:true,welcomed:true,sharing:{state:'connected'},headline:'Your Doods can use this computer',readOnly:false,screen:true,browser:true,canOpenAtLogin:true,openAtLogin:true,platform:'linux',version:'0.1.0',update:{state:'current'},log:['[2026-11-06T10:30:00.000Z] Connected to Do Computer','[2026-11-06T10:30:01.000Z] Ready for your Doods'],tailnet:{status:{state:'ready',name:'studio.example.ts.net'},on:false,busy:false}}
@@ -81,6 +87,7 @@ test('the fixed council views',async({page,baseURL})=>{
  await page.goto('/__council-desktop/computer.html')
  await expect(page.getByRole('status')).toHaveText(desktopState.headline)
  await shoot(page,'07-desktop-computer')
+ expect(await page.evaluate(async()=>{const fonts=await document.fonts.load('14px Geist');return fonts.length>0&&fonts.every(font=>font.status==='loaded')})).toBe(true)
  await page.goto('/__council-desktop/devices.html')
  await expect(page.getByRole('status')).toContainText('Only this computer')
  await shoot(page,'08-desktop-devices')

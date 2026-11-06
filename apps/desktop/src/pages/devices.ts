@@ -1,4 +1,7 @@
+import { MARK } from "../mark.ts"
 import type { AppState, DeviceLink } from "../api.ts"
+
+document.querySelector("h1")?.insertAdjacentHTML("afterbegin", `<span class="app-mark">${MARK}</span>`)
 
 const at = <T extends Element>(id: string) => document.getElementById(id) as unknown as T
 const reach = at<HTMLInputElement>("reach")

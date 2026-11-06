@@ -1,5 +1,8 @@
+import { MARK } from "../mark.ts"
 import type { AppState } from "../api.ts"
 import { updateAction, updateWords } from "../update.ts"
+
+document.querySelector("h1")?.insertAdjacentHTML("afterbegin", `<span class="app-mark">${MARK}</span>`)
 
 const at = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
 const readOnly = at<HTMLInputElement>("read-only")
