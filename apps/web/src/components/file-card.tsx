@@ -23,6 +23,15 @@ export { formatBytes }
 /** Raster images are previewed; the server serves only these types in place. */
 const PREVIEWABLE = INLINE_IMAGE_TYPES
 
+/** A file's card: one piece, its name the way in, and what is done to it beside the name. */
+const CARD =
+  "group/file flex h-11 w-fit max-w-full items-center gap-0.5 rounded-xl bg-card pr-1.5 text-sm shadow-raised"
+const OPEN =
+  "flex h-full min-w-0 items-center gap-2.5 rounded-l-xl pr-2 pl-3 outline-none hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/40"
+/** What is done to it: quiet buttons in the card, with no lines between. */
+const ACTION =
+  "flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+
 /**
  * A file from the library, in a chat: the thing itself when it is a picture, a film, a sound or
  * a table, a way into the library when it is something that can be shown there, and a download
@@ -56,7 +65,7 @@ export function FileCard({
             site === undefined ? `Share ${file.name}` : `${file.name} is shared with a link`
           }
           title={site === undefined ? "Share with a link" : "Shared with a link"}
-          className="flex shrink-0 items-center border-l px-3 text-muted-foreground hover:bg-accent hover:text-foreground"
+          className={ACTION}
         >
           {site === undefined ? (
             <ShareNetworkIcon className="size-4" />
@@ -80,7 +89,7 @@ export function FileCard({
         disabled={pin.pending}
         onClick={pin.toggle}
         className={cn(
-          "flex shrink-0 items-center border-l px-3 text-muted-foreground hover:bg-accent hover:text-foreground",
+          ACTION,
           pin.pinned && "text-primary hover:text-primary",
         )}
       >
@@ -89,10 +98,9 @@ export function FileCard({
     )
   const label = (
     <>
-      <FileIcon className="size-5 shrink-0 text-muted-foreground" />
-      <span className="min-w-0">
-        <span className="block truncate font-medium">{file.name}</span>
-        <span className="block text-xs text-muted-foreground">{formatBytes(file.size)}</span>
+      <FileIcon weight="duotone" className="size-5 shrink-0 text-primary" />
+      <span className="min-w-0 truncate font-medium" title={formatBytes(file.size)}>
+        {file.name}
       </span>
     </>
   )
@@ -105,14 +113,14 @@ export function FileCard({
         <LibraryEmbed agentId={agentId} file={kept} view={listing.view} />
       )}
       {viewable ? (
-        <div className="flex w-fit max-w-full items-stretch overflow-hidden rounded-2xl bg-card shadow-raised text-sm">
+        <div className={CARD}>
           {onOpen === undefined ? (
             <Link
               to="/a/$agentId/library"
               params={{ agentId }}
               search={{ file: file.id }}
               title="Open in the library"
-              className="flex min-w-0 items-center gap-3 py-2.5 pr-3 pl-3 hover:bg-accent"
+              className={OPEN}
             >
               {label}
             </Link>
@@ -121,7 +129,7 @@ export function FileCard({
               type="button"
               title="Open beside the chat"
               onClick={onOpen}
-              className="flex min-w-0 items-center gap-3 py-2.5 pr-3 pl-3 text-left hover:bg-accent"
+              className={cn(OPEN, "text-left")}
             >
               {label}
             </button>
@@ -131,7 +139,7 @@ export function FileCard({
             download={file.name}
             aria-label={`Download ${file.name}`}
             title="Download"
-            className="flex shrink-0 items-center border-l px-3 text-muted-foreground hover:bg-accent hover:text-foreground"
+            className={ACTION}
           >
             <DownloadSimpleIcon className="size-4" />
           </a>
@@ -139,12 +147,8 @@ export function FileCard({
           {pinning}
         </div>
       ) : (
-        <div className="flex w-fit max-w-full items-stretch overflow-hidden rounded-2xl bg-card shadow-raised text-sm">
-          <a
-            href={url}
-            download={file.name}
-            className="flex min-w-0 items-center gap-3 py-2.5 pr-4 pl-3 hover:bg-accent"
-          >
+        <div className={CARD}>
+          <a href={url} download={file.name} className={OPEN}>
             {label}
             <DownloadSimpleIcon className="ml-2 size-4 shrink-0 text-muted-foreground" />
           </a>

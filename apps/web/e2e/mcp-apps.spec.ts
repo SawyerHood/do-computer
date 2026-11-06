@@ -17,6 +17,7 @@ test("a connector's own page for a tool is shown with what the tool answered, ke
 }) => {
   await signIn(page)
   await openSettings(page, "Connectors")
+  await page.getByRole("button", { name: "Add a connector" }).click()
   await page.locator("#connector-name").fill("Weather")
   await page.getByLabel("Server address").fill(`${mcp.origin}/apps/mcp`)
   await page.getByRole("button", { name: "Add connector" }).click()

@@ -373,7 +373,8 @@ export function Composer({
                   size="icon"
                   disabled={!ready}
                   aria-label="Send"
-                  className="rounded-full"
+                  // With nothing to send it is quiet, and in the Dood's color once there is.
+                  className="rounded-full disabled:bg-foreground/8 disabled:text-muted-foreground disabled:opacity-100"
                 >
                   <ArrowUpIcon weight="bold" className="size-[1.125rem]" />
                 </Button>

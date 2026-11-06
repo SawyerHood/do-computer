@@ -605,7 +605,7 @@ function AgentRow({
         // The one that is open is a shade off the frame, and so is one that is being moved,
         // over the rest. The others darken under the pointer.
         active || sortable.isDragging
-          ? "bg-[color-mix(in_oklab,var(--foreground)_9%,var(--frame))] [--face-ring:color-mix(in_oklab,var(--foreground)_9%,var(--frame))]"
+          ? "bg-[color-mix(in_oklab,var(--foreground)_7%,var(--frame))] [--face-ring:color-mix(in_oklab,var(--foreground)_7%,var(--frame))]"
           : "[--face-ring:var(--frame)] hover:bg-foreground/6",
         sortable.isDragging && "z-10",
       )}
@@ -640,7 +640,8 @@ function AgentRow({
             >
               ?
             </span>
-          ) : working ? (
+          ) : working && rail ? (
+            // Beside words, where it is working is said in the corner of the row instead.
             <span
               role="img"
               aria-label="Working"
@@ -669,16 +670,25 @@ function AgentRow({
               >
                 {name}
               </span>
-              {working || latest !== undefined ? (
+              {working ? (
+                <span
+                  role="img"
+                  aria-label="Working"
+                  title="Working"
+                  className="flex shrink-0 self-center text-muted-foreground group-has-[[data-agent-menu]:focus-visible]/agent:invisible group-has-[[data-agent-menu][aria-expanded=true]]/agent:invisible [@media(hover:hover)]:group-hover/agent:invisible"
+                >
+                  <Spinner className="size-3" />
+                </span>
+              ) : latest !== undefined ? (
                 <time
-                  dateTime={latest === undefined ? undefined : new Date(latest.at).toISOString()}
+                  dateTime={new Date(latest.at).toISOString()}
                   className={cn(
                     // It gives way to the row's menu, where there is a pointer to bring that out.
                     "shrink-0 text-[0.71875rem] text-muted-foreground group-has-[[data-agent-menu]:focus-visible]/agent:invisible group-has-[[data-agent-menu][aria-expanded=true]]/agent:invisible [@media(hover:hover)]:group-hover/agent:invisible",
                     unread && "font-medium text-notice",
                   )}
                 >
-                  {working ? "now" : when(latest!.at, now)}
+                  {when(latest.at, now)}
                 </time>
               ) : null}
             </span>

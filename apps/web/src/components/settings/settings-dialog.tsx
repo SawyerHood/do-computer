@@ -111,7 +111,7 @@ export function SettingsDialog<Id extends string>({
                   onClick={() => onSection(entry.id)}
                   // The list is only on a narrow screen when nothing is open, so nothing in it
                   // is marked as open there.
-                  className="h-11 justify-start gap-2.5 px-2.5 text-[0.9375rem] font-normal hover:bg-foreground/6 sm:h-8.5 sm:text-sm sm:text-muted-foreground sm:aria-[current=page]:bg-card sm:aria-[current=page]:text-foreground sm:aria-[current=page]:shadow-raised"
+                  className="h-11 justify-start gap-2.5 px-2.5 text-[0.9375rem] font-normal hover:bg-foreground/6 sm:h-8.5 sm:text-sm sm:text-muted-foreground sm:aria-[current=page]:bg-foreground/8 sm:aria-[current=page]:font-medium sm:aria-[current=page]:text-foreground"
                 >
                   {entry.icon}
                   {entry.label}

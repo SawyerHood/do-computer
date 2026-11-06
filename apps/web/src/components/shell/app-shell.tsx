@@ -300,7 +300,7 @@ export function AppShell({
             aria-hidden
             data-open={pulled.open ? "" : undefined}
             onClick={() => pulled.settle(false)}
-            className="pointer-events-none absolute inset-0 z-40 bg-frame opacity-[var(--pull-dim,0)] transition-opacity duration-200 group-data-pulling/shell:transition-none data-open:pointer-events-auto data-open:opacity-[var(--pull-dim,0.6)] motion-reduce:transition-none"
+            className="pointer-events-none absolute inset-0 z-40 bg-frame opacity-[var(--pull-dim,0)] transition-opacity duration-200 group-data-pulling/shell:transition-none data-open:pointer-events-auto data-open:opacity-[var(--pull-dim,0.78)] motion-reduce:transition-none"
           />
         )}
       </main>

@@ -65,6 +65,7 @@
   --primary-foreground: oklch(from var(--agent-color) 0.97 0.012 h);
   --secondary: color-mix(in oklch, var(--ink) 9%, var(--canvas));
   --muted: color-mix(in oklch, var(--ink) 8%, var(--canvas));
+  --muted-foreground: color-mix(in oklch, var(--ink) 70%, var(--canvas));
   --accent: color-mix(in oklch, var(--ink) 11%, var(--canvas));
   --destructive: oklch(0.7 0.17 24);
   --success: oklch(0.74 0.14 155);

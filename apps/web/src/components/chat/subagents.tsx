@@ -184,10 +184,12 @@ export function SubagentRows({
             />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm">{subagent.title}</span>
+              {/* At work, the mark at the end says so: words are for what wants saying. */}
               <span
                 className={cn(
                   "block truncate text-xs text-muted-foreground",
                   subagent.status === "waiting" && "text-foreground",
+                  subagent.status === "working" && "sr-only",
                 )}
               >
                 {subagentWords(subagent.status)}
@@ -251,10 +253,9 @@ export function SubagentChip({ part }: { part: ToolPart }) {
     >
       <SubagentFace agentId={agentId} chatId={chatId} status={status} className="size-6" />
       <span className="truncate font-medium">{title}</span>
-      <span className="shrink-0 text-xs text-muted-foreground">
-        {subagentWords(status).toLowerCase()}
-      </span>
-      <CaretRightIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      {/* How it is getting on is its mark; the words are there for whoever cannot see it. */}
+      <span className="sr-only">{subagentWords(status).toLowerCase()}</span>
+      <StatusMark status={status} />
     </Link>
   )
 }

@@ -223,7 +223,10 @@ export function AgentPanel({
       ? waitingWords(running, false)
       : subagent !== undefined && mood.state === "idle"
         ? subagentWords(subagent.status)
-        : moodWords(mood, agent.hatched)
+        : // At rest itself, while sub-agents of its work for it, it is not idle.
+          subagent === undefined && mood.state === "idle" && subagents.length > 0
+          ? "Working"
+          : moodWords(mood, agent.hatched)
   const seed = subagent === undefined ? undefined : subagentSeed(agent.id, subagent.chatId)
   return (
     <aside
@@ -265,7 +268,7 @@ export function AgentPanel({
         </button>
       ) : null}
       <div ref={scroller} onScroll={follow} className="min-h-0 flex-1 overflow-y-auto">
-        <div className="flex flex-col items-center gap-1 px-6 pt-10 pb-5 text-center">
+        <div className="flex flex-col items-center gap-1 px-6 pt-7 pb-5 text-center">
           {call === undefined ? null : (
             <div ref={nameplate} className="w-full">
               <CallFace call={call} face={face} />
