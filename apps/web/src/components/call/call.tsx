@@ -75,13 +75,10 @@ function phaseWords(call: CallView): string {
 
 const clockTime = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })
 
-/** The dot that says a call is live. */
-function LiveDot({ className }: { className?: string }) {
+/** A small waveform says a call is live without a colored status dot. */
+function LiveMark({ className }: { className?: string }) {
   return (
-    <span
-      aria-hidden
-      className={cn("call-live size-2 shrink-0 rounded-full bg-emerald-500", className)}
-    />
+    <WaveformIcon aria-hidden className={cn("call-live size-3 shrink-0 text-primary", className)} />
   )
 }
 
@@ -213,7 +210,7 @@ export function CallFace({ call, face }: { call: CallView; face: ReactNode }) {
   return (
     <div data-call={call.phase} className="flex w-full flex-col items-center">
       <p className="-mt-6 mb-2 flex items-center gap-2 self-start text-sm font-medium text-emerald-700 dark:text-emerald-400">
-        <LiveDot />
+        <LiveMark />
         {call.startedAt === undefined ? "Calling" : "On a call"}
         {call.startedAt === undefined ? null : (
           <span className="font-normal text-muted-foreground tabular-nums">{clock}</span>
@@ -461,7 +458,7 @@ export function LiveCall({ call }: { call: CallView }) {
       className="overflow-hidden rounded-2xl bg-card shadow-raised ring-1 ring-emerald-500/60 [box-shadow:0_0_0_5px_color-mix(in_oklch,var(--color-emerald-500)_14%,transparent)]"
     >
       <header className="flex items-center gap-2.5 px-4 py-2.5 text-sm">
-        <LiveDot />
+        <LiveMark />
         <span className="font-medium">
           {call.startedAt === undefined
             ? `Calling ${call.agentName}…`

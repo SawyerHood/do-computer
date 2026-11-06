@@ -9,6 +9,7 @@ import {
   randomId,
   type ThinkingLevel,
 } from "@do-computer/protocol"
+import { DiceFiveIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { useNavigate, useParams } from "@tanstack/react-router"
 import { useEffect, useId, useState } from "react"
@@ -22,6 +23,13 @@ import { ThinkingPicker } from "@/components/thinking-picker"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -97,9 +105,9 @@ function Section({
 }) {
   const heading = useId()
   return (
-    <section aria-labelledby={heading} className="flex flex-col gap-3 border-t pt-6">
+    <section aria-labelledby={heading} className="flex flex-col gap-3">
       <div>
-        <h2 id={heading} className="text-sm font-medium">
+        <h2 id={heading} className="text-sm font-semibold">
           {title}
         </h2>
         <p className="text-sm text-muted-foreground">{hint}</p>
@@ -272,82 +280,95 @@ function DeleteAgent({ agentId, name }: { agentId: string; name: string | null }
     },
   })
   return (
-    <Section
-      title="Delete this Dood"
-      hint="Removes its memory, chats, schedules, skills and connectors, and disconnects it from every computer. Files in the library stay with the workspace. This cannot be undone."
-    >
-      {open ? (
-        <div className="flex flex-col gap-3 rounded-2xl border border-destructive/40 p-4">
-          <Label htmlFor="confirm-delete">
-            Type <span className="font-semibold">{expected}</span> to confirm
-          </Label>
-          <Input
-            id="confirm-delete"
-            autoComplete="off"
-            value={typed}
-            onChange={(event) => setTyped(event.target.value)}
-          />
-          {alone.length > 0 ? (
-            <div className="flex flex-col gap-1">
-              <label className="flex items-start gap-2 text-sm">
-                <Checkbox
-                  className="mt-0.5"
-                  checked={withComputers}
-                  disabled={remove.isPending}
-                  onCheckedChange={setWithComputers}
-                />
-                <span>
-                  Also delete{" "}
-                  <span className="font-mono">
-                    {new Intl.ListFormat("en").format(alone.map((computer) => computer.name))}
+    <>
+      <Button
+        type="button"
+        variant="ghost"
+        className="mr-auto -ml-2 px-2 text-[0.8125rem] text-destructive hover:bg-destructive/8"
+        onClick={() => setOpen(true)}
+      >
+        Delete this Dood…
+      </Button>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          if (!remove.isPending) {
+            setOpen(next)
+            if (!next) setTyped("")
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this Dood</DialogTitle>
+            <DialogDescription>
+              Removes its memory, chats, schedules, skills and connectors, and disconnects it from
+              every computer. Files in the library stay with the workspace. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <Label htmlFor="confirm-delete">
+              Type <span className="font-semibold">{expected}</span> to confirm
+            </Label>
+            <Input
+              id="confirm-delete"
+              autoComplete="off"
+              value={typed}
+              onChange={(event) => setTyped(event.target.value)}
+            />
+            {alone.length > 0 ? (
+              <div className="flex flex-col gap-1">
+                <label className="flex items-start gap-2 text-sm">
+                  <Checkbox
+                    className="mt-0.5"
+                    checked={withComputers}
+                    disabled={remove.isPending}
+                    onCheckedChange={setWithComputers}
+                  />
+                  <span>
+                    Also delete{" "}
+                    <span className="font-mono">
+                      {new Intl.ListFormat("en").format(alone.map((computer) => computer.name))}
+                    </span>
                   </span>
-                </span>
-              </label>
-              <p className="pl-6 text-sm text-muted-foreground">
-                {alone.length === 1
-                  ? "No other Dood can use this computer. Deleting it deletes everything on it."
-                  : "No other Dood can use these computers. Deleting them deletes everything on them."}
+                </label>
+                <p className="pl-6 text-sm text-muted-foreground">
+                  {alone.length === 1
+                    ? "No other Dood can use this computer. Deleting it deletes everything on it."
+                    : "No other Dood can use these computers. Deleting them deletes everything on them."}
+                </p>
+              </div>
+            ) : null}
+            {remove.isError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {remove.error.message}
               </p>
+            ) : null}
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={typed.trim() !== expected || remove.isPending}
+                onClick={() => remove.mutate()}
+              >
+                {remove.isPending ? "Deleting…" : "Delete for good"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={remove.isPending}
+                onClick={() => {
+                  setOpen(false)
+                  setTyped("")
+                }}
+              >
+                Cancel
+              </Button>
             </div>
-          ) : null}
-          {remove.isError ? (
-            <p role="alert" className="text-sm text-destructive">
-              {remove.error.message}
-            </p>
-          ) : null}
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={typed.trim() !== expected || remove.isPending}
-              onClick={() => remove.mutate()}
-            >
-              {remove.isPending ? "Deleting…" : "Delete for good"}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={remove.isPending}
-              onClick={() => {
-                setOpen(false)
-                setTyped("")
-              }}
-            >
-              Cancel
-            </Button>
           </div>
-        </div>
-      ) : (
-        <Button
-          type="button"
-          variant="outline"
-          className="self-start text-destructive"
-          onClick={() => setOpen(true)}
-        >
-          Delete Dood…
-        </Button>
-      )}
-    </Section>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
@@ -425,16 +446,14 @@ function Workspace({ agentId, name }: { agentId: string; name: string }) {
       hint={
         workspace.kind === "team"
           ? `${name} is in ${workspace.name}: everyone there can use it and read its chats.`
-          : `${name} is yours alone. Move it to a team to share it.`
+          : elsewhere.length === 0
+            ? "Private to you. Create a team in the sidebar to share."
+            : "Private to you. Move it to a team to share it."
       }
     >
       {!may ? (
         <p className="text-sm text-muted-foreground">Only an admin of the team can move it.</p>
-      ) : elsewhere.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          Start a team with New team, at the foot of the sidebar, to have somewhere to move it.
-        </p>
-      ) : (
+      ) : elsewhere.length === 0 ? null : (
         <div className="flex flex-wrap items-center gap-2">
           <Select
             items={elsewhere.map((entry) => ({ value: entry.id, label: entry.name }))}
@@ -683,195 +702,196 @@ export function ProfileSettings({
   const typed = section === "profile" || section === "memory" || section === "model"
   const name = state.agent.name ?? "this Dood"
   return (
-    <form hidden={section === undefined} className="flex flex-col gap-6" onSubmit={submit}>
-      <div hidden={section !== "profile"} className="flex flex-col gap-6">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight">Profile</h2>
-          <p className="text-sm text-muted-foreground">{`Who ${name} is: how it looks, how it talks, and which workspace it is in.`}</p>
-        </div>
-        <div className="flex items-center gap-5">
-          <AgentAvatar
-            avatar={form.avatar}
-            seed={agentId}
-            className="size-24"
-            hatched={state.agent.hatched}
-          />
-          <div className="flex min-w-0 flex-1 flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                value={form.name}
-                maxLength={40}
-                placeholder="Not named yet"
-                onChange={(event) => set("name", event.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="tagline">Tagline</Label>
-              <Input
-                id="tagline"
-                value={form.tagline}
-                maxLength={120}
-                onChange={(event) => set("tagline", event.target.value)}
-              />
+    <form hidden={section === undefined} className="flex h-full min-h-0 flex-col" onSubmit={submit}>
+      <div
+        data-settings-body=""
+        className="min-h-0 flex-1 overflow-y-auto px-6 pt-1 pb-20 sm:px-9 sm:pt-7"
+      >
+        <div hidden={section !== "profile"} className="flex flex-col gap-6">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">Profile</h2>
+          </div>
+          <div className="flex items-center gap-5">
+            <AgentAvatar
+              avatar={form.avatar}
+              seed={agentId}
+              className="size-18"
+              hatched={state.agent.hatched}
+            />
+            <div className="flex min-w-0 flex-1 flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  value={form.name}
+                  maxLength={40}
+                  placeholder="Not named yet"
+                  onChange={(event) => set("name", event.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="tagline">Tagline</Label>
+                <Input
+                  id="tagline"
+                  value={form.tagline}
+                  maxLength={120}
+                  onChange={(event) => set("tagline", event.target.value)}
+                />
+              </div>
             </div>
           </div>
-        </div>
 
-        <Section
-          title="Look"
-          hint="Its shape and face were not chosen: they grew from a roll of the dice. Pick its color, or roll again for a different creature."
-        >
-          <ToggleGroup
-            aria-label="Color"
-            value={[form.avatar.color]}
-            // Pressing the color it has leaves it that color: a creature always has one.
-            onValueChange={([next]) => {
-              const color = AVATAR_COLORS.find((entry) => entry.id === next)
-              if (color !== undefined) set("avatar", { ...form.avatar, color: color.id })
-            }}
-            spacing={1.5}
-            className="flex-wrap"
-          >
-            {AVATAR_COLORS.map((color) => (
-              <ToggleGroupItem
-                key={color.id}
-                value={color.id}
-                aria-label={color.label}
-                title={color.label}
-                className="size-auto min-w-0 rounded-full border-2 border-transparent p-0.5 hover:bg-transparent aria-pressed:border-primary aria-pressed:bg-transparent"
-              >
-                <span
-                  className="block size-7 rounded-full"
-                  style={{ backgroundColor: color.hex }}
-                />
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="self-start"
-            // Shown at once, above. It is only kept once the changes are saved.
-            onClick={() => set("avatar", { ...form.avatar, seed: randomId().slice(0, 12) })}
-          >
-            Roll a new look
-          </Button>
-        </Section>
+          <Section title="Look" hint="Pick a color or roll a new creature.">
+            <ToggleGroup
+              aria-label="Color"
+              value={[form.avatar.color]}
+              // Pressing the color it has leaves it that color: a creature always has one.
+              onValueChange={([next]) => {
+                const color = AVATAR_COLORS.find((entry) => entry.id === next)
+                if (color !== undefined) set("avatar", { ...form.avatar, color: color.id })
+              }}
+              spacing={1.5}
+              className="flex-wrap"
+            >
+              {AVATAR_COLORS.map((color) => (
+                <ToggleGroupItem
+                  key={color.id}
+                  value={color.id}
+                  aria-label={color.label}
+                  title={color.label}
+                  className="size-auto min-w-0 rounded-full border-2 border-transparent p-1 hover:bg-transparent aria-pressed:border-primary aria-pressed:bg-transparent"
+                >
+                  <span
+                    className="block size-7 rounded-full border-2 border-popover"
+                    style={{ backgroundColor: color.hex }}
+                  />
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="self-start"
+              // Shown at once, above. It is only kept once the changes are saved.
+              onClick={() => set("avatar", { ...form.avatar, seed: randomId().slice(0, 12) })}
+            >
+              <DiceFiveIcon className="size-4" /> Roll a new look
+            </Button>
+          </Section>
 
-        {/* How it sounds is beside how it looks. It is saved as it is chosen, apart from the form. */}
-        <Voice agentId={agentId} name={state.agent.name ?? "your Dood"} />
+          {/* How it sounds is beside how it looks. It is saved as it is chosen, apart from the form. */}
+          <Voice agentId={agentId} name={state.agent.name ?? "your Dood"} />
 
-        <Section
-          title="Personality"
-          hint="How the Dood talks and behaves, written to it in the second person."
-        >
-          <Textarea
-            id="soul"
-            rows={6}
-            value={form.soul}
-            maxLength={4000}
-            placeholder="You are…"
-            onChange={(event) => set("soul", event.target.value)}
-          />
-        </Section>
-
-        <Workspace agentId={agentId} name={state.agent.name ?? "This Dood"} />
-        {/* A team's agent is everyone's, so deleting it is for the people who run the team. */}
-        {workspace?.role === "member" ? null : (
-          <DeleteAgent agentId={agentId} name={state.agent.name} />
-        )}
-      </div>
-      <div hidden={section !== "memory"} className="flex flex-col gap-6">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight">Memory</h2>
-          <p className="text-sm text-muted-foreground">{`What ${name} has learned and keeps between chats, and what it has been told about who it works for.`}</p>
-        </div>
-        <Section
-          title="Memory"
-          hint="The Dood's own long-term notes, also read in every conversation."
-        >
-          <Counted
-            id="memory"
-            rows={8}
-            value={form.memory}
-            limit={state.limits.memory}
-            onChange={(value) => set("memory", value)}
-          />
-        </Section>
-        <Section
-          title={state.team ? "About the team" : "About you"}
-          hint={
-            state.team
-              ? `What the Dood knows about ${state.team} and the people in it. It reads this in every conversation, one entry per line.`
-              : "What the Dood knows about you. It reads this in every conversation, one entry per line."
-          }
-        >
-          <Counted
-            id="user"
-            rows={6}
-            value={form.user}
-            limit={state.limits.user}
-            onChange={(value) => set("user", value)}
-          />
-        </Section>
-        <StartFresh agentId={agentId} state={state} />
-      </div>
-      <div hidden={section !== "model"} className="flex flex-col gap-6">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight">Model and computers</h2>
-          <p className="text-sm text-muted-foreground">{`What ${name} thinks with, the computers it can work on, and what it does with a message that arrives while it is busy.`}</p>
-        </div>
-        <Section
-          title="Model"
-          hint="Which model this Dood thinks with. Applies from its next reply."
-        >
-          <ModelPicker
-            label="Model"
-            models={models ?? []}
-            value={form.model}
-            onChange={(model) => set("model", model)}
-          />
-          {chosen ? (
-            <ThinkingPicker
-              label="Thinking"
-              levels={chosen.thinking ?? []}
-              value={form.thinking}
-              onChange={(thinking) => set("thinking", thinking)}
+          <Section title="Personality" hint="How your Dood talks and behaves.">
+            <Textarea
+              id="soul"
+              rows={6}
+              value={form.soul}
+              maxLength={4000}
+              placeholder="You are…"
+              onChange={(event) => set("soul", event.target.value)}
             />
-          ) : null}
-          {workspace === undefined ? null : (
-            <p className="text-sm text-muted-foreground">
-              The models to choose from are those {workspace.name} is signed in to, under{" "}
-              <Button
-                type="button"
-                variant="link"
-                className="h-auto p-0 align-baseline text-foreground underline"
-                onClick={() =>
-                  open({ at: "workspace", workspaceId: workspace.id, section: "models" })
-                }
-              >
-                Models
-              </Button>{" "}
-              in the workspace's settings.
-            </p>
-          )}
-        </Section>
+          </Section>
 
-        <Computers agentId={agentId} />
+          <Workspace agentId={agentId} name={state.agent.name ?? "This Dood"} />
+        </div>
+        <div hidden={section !== "memory"} className="flex flex-col gap-6">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">Memory</h2>
+            <p className="text-sm text-muted-foreground">{`What ${name} has learned and keeps between chats, and what it has been told about who it works for.`}</p>
+          </div>
+          <Section
+            title="Memory"
+            hint="The Dood's own long-term notes, also read in every conversation."
+          >
+            <Counted
+              id="memory"
+              rows={8}
+              value={form.memory}
+              limit={state.limits.memory}
+              onChange={(value) => set("memory", value)}
+            />
+          </Section>
+          <Section
+            title={state.team ? "About the team" : "About you"}
+            hint={
+              state.team
+                ? `What the Dood knows about ${state.team} and the people in it. It reads this in every conversation, one entry per line.`
+                : "What the Dood knows about you. It reads this in every conversation, one entry per line."
+            }
+          >
+            <Counted
+              id="user"
+              rows={6}
+              value={form.user}
+              limit={state.limits.user}
+              onChange={(value) => set("user", value)}
+            />
+          </Section>
+          <StartFresh agentId={agentId} state={state} />
+        </div>
+        <div hidden={section !== "model"} className="flex flex-col gap-6">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">Model and computers</h2>
+            <p className="text-sm text-muted-foreground">{`What ${name} thinks with, the computers it can work on, and what it does with a message that arrives while it is busy.`}</p>
+          </div>
+          <Section
+            title="Model"
+            hint="Which model this Dood thinks with. Applies from its next reply."
+          >
+            <ModelPicker
+              label="Model"
+              models={models ?? []}
+              value={form.model}
+              onChange={(model) => set("model", model)}
+            />
+            {chosen ? (
+              <ThinkingPicker
+                label="Thinking"
+                levels={chosen.thinking ?? []}
+                value={form.thinking}
+                onChange={(thinking) => set("thinking", thinking)}
+              />
+            ) : null}
+            {workspace === undefined ? null : (
+              <p className="text-sm text-muted-foreground">
+                The models to choose from are those {workspace.name} is signed in to, under{" "}
+                <Button
+                  type="button"
+                  variant="link"
+                  className="h-auto p-0 align-baseline text-foreground underline"
+                  onClick={() =>
+                    open({ at: "workspace", workspaceId: workspace.id, section: "models" })
+                  }
+                >
+                  Models
+                </Button>{" "}
+                in the workspace's settings.
+              </p>
+            )}
+          </Section>
+
+          <Computers agentId={agentId} />
+        </div>
+        {section === "usage" ? <Usage agentId={agentId} /> : null}
       </div>
-      {section === "usage" ? <Usage agentId={agentId} /> : null}
       {typed || dirty ? (
-        <div className="sticky bottom-0 flex items-center justify-end gap-3">
+        <div className="flex min-h-16 shrink-0 items-center justify-end gap-3 border-t bg-popover px-6 py-3 sm:px-9">
+          {section === "profile" && workspace?.role !== "member" ? (
+            <DeleteAgent agentId={agentId} name={state.agent.name} />
+          ) : null}
           {save.isError ? (
             <p role="alert" className="text-sm text-destructive">
               {save.error.message}
             </p>
           ) : null}
           {save.isSuccess && !dirty ? <p className="text-sm text-muted-foreground">Saved</p> : null}
-          <Button type="submit" disabled={!dirty || over || save.isPending} className="shadow-md">
+          <Button
+            type="submit"
+            disabled={!dirty || over || save.isPending}
+            className="h-9 rounded-lg disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+          >
             {save.isPending ? "Saving…" : "Save changes"}
           </Button>
         </div>

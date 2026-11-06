@@ -7,7 +7,7 @@ import {
   sentFiles,
   chatUses,
 } from "@do-computer/protocol"
-import { FileIcon, TShirtIcon } from "@phosphor-icons/react"
+import { ClockIcon, FileIcon, TShirtIcon } from "@phosphor-icons/react"
 import { useAtomValue, useSetAtom } from "jotai"
 import { type ReactNode, useMemo, useRef, useState } from "react"
 import { AgentAvatar, AgentFace } from "@/components/agent-avatar"
@@ -122,7 +122,7 @@ function threadsSaid(threads: ChatSummary[]): ReactNode {
     return (
       <>
         <span className="text-foreground">{waiting} waiting</span>
-        <span aria-hidden className="size-2 shrink-0 animate-pulse rounded-full bg-amber-500" />
+        <ClockIcon aria-hidden className="size-3.5 shrink-0" />
       </>
     )
   }

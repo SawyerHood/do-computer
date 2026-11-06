@@ -55,6 +55,8 @@ export function toolActivity(part: Pick<ToolPart, "name" | "args">): string {
       return path === undefined ? `Writing a file${on}` : `Writing ${fileName(path)}${on}`
     case "edit":
       return path === undefined ? `Editing a file${on}` : `Editing ${fileName(path)}${on}`
+    case "browse":
+      return "Browsing"
     case "web_search":
       return withDetail("Searching the web", text(args.query))
     case "tool_search":

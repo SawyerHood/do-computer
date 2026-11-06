@@ -247,7 +247,7 @@ export function Composer({
       <form
         ref={box}
         data-open={open ? "" : undefined}
-        className="message-box group/box cursor-text rounded-[1.5rem] bg-popover p-1.5 shadow-raised"
+        className="message-box group/box cursor-text rounded-[1.5rem] ring-1 ring-input/65 bg-popover p-1.5 shadow-raised"
         onSubmit={(event) => {
           event.preventDefault()
           send()
@@ -333,11 +333,11 @@ export function Composer({
                 type="button"
                 size="icon"
                 variant="secondary"
-                className="rounded-full bg-foreground/8 text-foreground hover:bg-foreground/12"
+                className="size-11 rounded-full bg-foreground/8 text-foreground hover:bg-foreground/12 sm:size-9"
                 onClick={() => picker.current?.click()}
                 aria-label="Attach a file"
               >
-                <PlusIcon className="size-[1.125rem]" />
+                <PlusIcon className="size-5" />
               </Button>
               {open ? extras : null}
             </div>
@@ -347,7 +347,7 @@ export function Composer({
                   type="button"
                   size="icon"
                   variant="ghost"
-                  className="rounded-full text-muted-foreground"
+                  className="size-11 rounded-full text-muted-foreground sm:size-9"
                   onClick={dictation.start}
                   aria-label="Dictate"
                 >
@@ -361,9 +361,10 @@ export function Composer({
                   variant="secondary"
                   onClick={onStop}
                   aria-label="Stop"
-                  className="rounded-full"
+                  title="Stop"
+                  className="size-11 rounded-full border border-primary bg-primary text-primary-foreground sm:size-9"
                 >
-                  <StopIcon weight="fill" />
+                  <StopIcon weight="fill" className="size-3" />
                 </Button>
               ) : !ready && uploading === 0 && call ? (
                 call
@@ -373,9 +374,9 @@ export function Composer({
                   size="icon"
                   disabled={!ready}
                   aria-label="Send"
-                  className="rounded-full"
+                  className="size-11 rounded-full disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 sm:size-9"
                 >
-                  <ArrowUpIcon weight="bold" className="size-[1.125rem]" />
+                  <ArrowUpIcon weight="bold" className="size-5" />
                 </Button>
               )}
             </div>

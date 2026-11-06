@@ -42,7 +42,7 @@ function show(state: AppState): void {
   // Whether agents may change anything is said when the computer is shared, not after.
   at("read-only-row").hidden = !off
   if (off) readOnly.checked = state.readOnly
-  toggle.textContent = off ? "Let Doods use this computer" : "Stop letting Doods use it"
+  toggle.textContent = off ? "Let Doods use this computer" : "Stop access"
   toggle.className = off ? "primary" : ""
   toggle.disabled = state.server === undefined
   // An agent that may only read files uses neither, whatever the switches say.

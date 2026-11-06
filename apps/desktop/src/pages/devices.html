@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self'"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'"
     />
     <link rel="stylesheet" href="pages.css" />
     <title>Other Devices</title>
@@ -13,10 +13,7 @@
     <main class="scrolls">
       <div>
         <h1>Other devices</h1>
-        <p class="quiet">
-          Do Computer runs on this computer. With Tailscale, your phone and your other computers can
-          use it too, and nobody else can.
-        </p>
+        <p class="quiet">Use Do Computer on your phone and other devices with Tailscale.</p>
       </div>
       <section class="card">
         <div class="row">
@@ -32,8 +29,7 @@
           <span class="grow">
             <strong>Reach it from your other devices</strong>
             <span class="quiet small">
-              Any device on your Tailscale network can open it. It answers only while this app is
-              running and this computer is awake.
+              Only your Tailscale devices, while this computer is awake.
             </span>
           </span>
           <input id="reach" class="switch" type="checkbox" role="switch" />

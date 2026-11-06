@@ -31,6 +31,7 @@ describe("toolActivity", () => {
     [tool("read", { path: "notes/todo.md" }), "Reading todo.md"],
     [tool("write", { path: "/workspace/plan.md", content: "x" }), "Writing plan.md"],
     [tool("edit", { path: "plan.md", computer: "studio" }), "Editing plan.md on studio"],
+    [tool("browse", { url: "https://example.com" }), "Browsing"],
     [tool("web_search", { query: "latest Node LTS" }), "Searching the web: latest Node LTS"],
     [tool("tool_search", { query: "calendar events" }), "Looking for a tool: calendar events"],
     [tool("load_tools", { names: ["visual", "pin"] }), "Loading tools: visual, pin"],

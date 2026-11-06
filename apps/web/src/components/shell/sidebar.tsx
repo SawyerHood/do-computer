@@ -1,9 +1,10 @@
 import type { WorkspaceSummary } from "@do-computer/protocol"
 import {
-  CaretUpDownIcon,
+  CaretDownIcon,
   DesktopIcon,
   GearIcon,
   SignOutIcon,
+  SparkleIcon,
   UserPlusIcon,
 } from "@phosphor-icons/react"
 import { useState } from "react"
@@ -81,9 +82,11 @@ function AccountMenu({
           <span className="relative shrink-0">
             <PersonFace person={person} title="" className="size-7" />
             {rail && asking > 0 ? (
-              <span
-                title="A Dood is asking to use a computer"
-                className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-notice ring-2 ring-frame"
+              <SparkleIcon
+                weight="fill"
+                aria-label="A Dood is asking to use a computer"
+                aria-hidden={false}
+                className="absolute -top-0.5 -right-0.5 size-3 text-primary"
               />
             ) : null}
           </span>
@@ -95,13 +98,15 @@ function AccountMenu({
               {leaving ? (
                 <Spinner className="size-3.5 shrink-0 text-muted-foreground" />
               ) : asking > 0 ? (
-                <span
-                  title="A Dood is asking to use a computer"
-                  className="size-2 shrink-0 rounded-full bg-notice"
+                <SparkleIcon
+                  weight="fill"
+                  aria-label="A Dood is asking to use a computer"
+                  aria-hidden={false}
+                  className="size-3 shrink-0 text-primary"
                 />
               ) : null}
               {leaving ? null : (
-                <CaretUpDownIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+                <CaretDownIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
               )}
             </>
           )}
@@ -125,7 +130,7 @@ function AccountMenu({
               <span className="flex-1">
                 {asking === 1 ? "A Dood asks for a computer" : `${asking} Doods ask for computers`}
               </span>
-              <span aria-hidden className="size-2 shrink-0 rounded-full bg-notice" />
+              <SparkleIcon aria-hidden weight="fill" className="size-3 shrink-0 text-primary" />
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuItem onClick={() => openSettings({ at: "top" })}>

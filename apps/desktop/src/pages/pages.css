@@ -1,16 +1,23 @@
+@font-face {
+  font-family: "Geist";
+  src: url("geist-latin.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
 /* The app's own pages, in the colours of the app they stand beside. */
 :root {
   color-scheme: light dark;
-  --canvas: oklch(0.985 0.003 212);
+  --canvas: oklch(0.997 0.001 212);
   --ink: oklch(0.27 0.008 212);
   --teal: oklch(0.5 0.08 195);
   --teal-ink: oklch(0.985 0.01 195);
   --warn: oklch(0.55 0.13 60);
   --raised: color-mix(in oklch, var(--ink) 5%, var(--canvas));
-  --quiet: color-mix(in oklch, var(--ink) 62%, var(--canvas));
+  --quiet: color-mix(in oklch, var(--ink) 68%, var(--canvas));
   --line: color-mix(in oklch, var(--ink) 13%, var(--canvas));
+  --control-line: color-mix(in oklch, var(--ink) 25%, var(--canvas));
   font:
-    14px/1.5 Inter,
+    14px/1.5 "Geist",
     system-ui,
     -apple-system,
     "Segoe UI",
@@ -19,11 +26,13 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --canvas: oklch(0.19 0.005 212);
-    --ink: oklch(0.93 0.005 212);
-    --teal: oklch(0.64 0.09 195);
+    --canvas: oklch(0.212 0.004 212);
+    --ink: oklch(0.9 0.006 212);
+    --teal: oklch(0.7 0.09 195);
     --teal-ink: oklch(0.17 0.02 195);
     --warn: oklch(0.76 0.12 70);
+    --quiet: color-mix(in oklch, var(--ink) 72%, var(--canvas));
+    --control-line: color-mix(in oklch, var(--ink) 32%, var(--canvas));
   }
 }
 * {
@@ -57,11 +66,10 @@ h1 {
 }
 h2 {
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--quiet);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0;
 }
 p {
   margin: 0;
@@ -70,7 +78,7 @@ p {
   color: var(--quiet);
 }
 .small {
-  font-size: 12.5px;
+  font-size: 13px;
 }
 .blob {
   width: 64px;
@@ -115,7 +123,7 @@ label.check .quiet {
 }
 button {
   padding: 9px 14px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-line);
   border-radius: 8px;
   background: var(--raised);
   color: var(--ink);
@@ -166,22 +174,11 @@ button.link {
   gap: 12px;
   padding: 16px;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--raised);
+  border-radius: 12px;
+  background: var(--canvas);
 }
 .dot {
-  flex: none;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--quiet);
-}
-.dot[data-tone="on"] {
-  background: var(--teal);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--teal) 22%, transparent);
-}
-.dot[data-tone="busy"] {
-  background: var(--warn);
+  display: none; /* State is already named beside it; never color alone. */
 }
 .code {
   font:
@@ -199,8 +196,9 @@ button.link {
   white-space: nowrap;
 }
 ol.log {
-  flex: 1;
-  min-height: 0;
+  flex: 0 1 auto;
+  min-height: 72px;
+  max-height: 120px;
   margin: 0;
   padding: 10px 12px;
   overflow-y: auto;
@@ -208,7 +206,7 @@ ol.log {
   border-radius: 10px;
   list-style: none;
   font:
-    11.5px/1.55 ui-monospace,
+    12px/1.5 ui-monospace,
     SFMono-Regular,
     Menlo,
     Consolas,
@@ -329,7 +327,7 @@ main.scrolls > * {
 /* A log in such a page fills what room is left, and keeps some for itself where there is none:
    it scrolls by itself, and the page past it. */
 main.scrolls > ol.log {
-  flex: 1 0 160px;
+  flex: 0 0 auto;
 }
 
 /* Where Do Computer runs: one of two, each with what it means under its name. */
@@ -353,8 +351,8 @@ fieldset.choices legend {
   gap: 10px;
   padding: 12px 14px;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--raised);
+  border-radius: 12px;
+  background: var(--canvas);
   cursor: pointer;
 }
 .choice[data-on="true"] {
@@ -420,4 +418,94 @@ svg.qr {
 }
 svg.qr[data-spent="true"] {
   opacity: 0.18;
+}
+
+#toggle:not(.primary) {
+  align-self: flex-start;
+  min-height: 36px;
+  background: transparent;
+}
+button {
+  min-height: 36px;
+}
+
+.metadata {
+  gap: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.metadata > .row {
+  min-height: 44px;
+}
+.metadata > .row + .row {
+  border-top: 1px solid var(--line);
+}
+.metadata > .row > .quiet:first-child {
+  flex: 0 0 86px;
+}
+.card:has(#toggle) {
+  flex-flow: row wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+.card:has(#toggle) > .row {
+  flex: 1 1 auto;
+}
+
+.card:has(#toggle) > :is(#pairing, #detail, #read-only-row) {
+  flex-basis: 100%;
+}
+.card > .switch-row ~ .switch-row {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+.card > #reach-row {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.card:has(#toggle),
+.card:has(#reach) {
+  background: color-mix(in oklch, var(--teal) 3%, var(--canvas));
+  border-color: color-mix(in oklch, var(--teal) 20%, var(--line));
+}
+.caption {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  margin-top: 2px;
+  line-height: 1.5;
+}
+.switch {
+  width: 40px;
+  height: 24px;
+  padding: 2px;
+}
+.switch::after {
+  width: 18px;
+  height: 18px;
+}
+.switch:checked::after {
+  translate: 16px 0;
+  background: var(--teal-ink);
+}
+.switch-row {
+  min-height: 44px;
+  align-items: center;
+}
+.switch {
+  margin: 0;
+  border-radius: 12px;
+  border: 1px solid var(--control-line);
+}
+.switch:checked {
+  border-color: var(--teal);
+}
+
+.metadata {
+  font-size: 14px;
+  line-height: 21px;
+}
+#log {
+  font-size: 13px;
+  line-height: 19px;
 }

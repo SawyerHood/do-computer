@@ -317,7 +317,7 @@ function FromSlack({
           part.type === "text" ? (
             <SentText key={index} text={part.text} pictures={hasPictures(message)}>
               {(text) => (
-                <Bubble align="end" variant="secondary">
+                <Bubble align="end" variant="tinted">
                   <BubbleContent className="whitespace-pre-wrap text-[0.9375rem]">
                     {text}
                   </BubbleContent>
@@ -543,7 +543,7 @@ function MessageView({
     return (
       <Message align="end">
         <MessageContent>
-          <Bubble align="end" variant="secondary">
+          <Bubble align="end" variant="tinted">
             <BubbleContent className="border-border whitespace-pre-wrap text-[0.9375rem]">
               <span className="mb-0.5 block text-xs text-muted-foreground">
                 {answered ? `${answerer} answered` : `${asker} asked`}
@@ -584,7 +584,7 @@ function MessageView({
             part.type === "text" ? (
               <SentText key={index} text={part.text} pictures={hasPictures(message)}>
                 {(text) => (
-                  <Bubble align="end" variant={other === undefined ? "plain" : "secondary"}>
+                  <Bubble align="end" variant={other === undefined ? "tinted" : "secondary"}>
                     <BubbleContent className="rounded-[1.125rem] px-4 py-2 text-base leading-[1.55] whitespace-pre-wrap">
                       {text}
                     </BubbleContent>
@@ -791,7 +791,7 @@ export function Transcript({
           <MessageScroller>
             <MessageScrollerViewport>
               {/* A short chat sits at the bottom, next to the box the next message is typed in. */}
-              <MessageScrollerContent className="mx-auto w-full max-w-[45rem] justify-end gap-6 px-4 pt-[var(--chat-top,6rem)] pb-6">
+              <MessageScrollerContent className="mx-auto w-full max-w-[45rem] gap-6 px-4 pt-[var(--chat-top,6rem)] pb-6">
                 {untouched && !state.busy ? empty : null}
                 {before}
                 {shown.map(({ message, failures }, index) => (
@@ -813,11 +813,17 @@ export function Transcript({
                 ))}
                 {activity === null || stepping || signingIn ? null : (
                   // The moving shine says it is working; a spinner beside it would say it twice.
-                  <Marker role="status" aria-live="polite" className="gap-2 px-1">
+                  <Marker
+                    role="status"
+                    aria-live="polite"
+                    className="mb-2 min-h-9 w-fit gap-2 px-0 py-1.5 text-sm font-medium text-primary"
+                  >
                     {working === undefined ? null : (
-                      <AgentFace agent={working} className="size-5 shrink-0" still />
+                      <AgentFace agent={working} className="size-5 shrink-0" />
                     )}
-                    <MarkerContent className="animate-shine truncate">{activity}…</MarkerContent>
+                    <MarkerContent className="animate-shine truncate text-sm">
+                      {activity}…
+                    </MarkerContent>
                   </Marker>
                 )}
                 {agentId === undefined || chatId === undefined ? null : (

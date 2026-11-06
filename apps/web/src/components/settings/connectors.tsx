@@ -1,8 +1,8 @@
 import type { AgentSummary, ConnectorResult, ConnectorSummary } from "@do-computer/protocol"
-import { CaretRightIcon, SlackLogoIcon, TrashIcon } from "@phosphor-icons/react"
+import { CaretRightIcon, SlackLogoIcon, SquaresFourIcon, TrashIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
-import { useEffect, useState } from "react"
+import { type ReactNode, useEffect, useState } from "react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -227,7 +227,7 @@ function AddForm({ agentId }: { agentId: string }) {
   })
   return (
     <form
-      className="flex flex-col gap-3 rounded-2xl border border-dashed p-4"
+      className="flex flex-col gap-3 border-t pt-6"
       onSubmit={(event) => {
         event.preventDefault()
         add.mutate()
@@ -342,8 +342,7 @@ export function ConnectorsSettings({
       <div>
         <h2 className="text-lg font-semibold tracking-tight">Connectors</h2>
         <p className="text-sm text-muted-foreground">
-          Services your Dood can use, such as a calendar or a task tracker, connected through MCP.
-          Your Dood uses them without asking first, with whatever access you grant.
+          Connect services for your Dood. MCP tools use the access you grant.
         </p>
       </div>
       {search.connector_error ? (
@@ -358,7 +357,17 @@ export function ConnectorsSettings({
         />
       </Loads>
       <SlackOffer agent={agent} onOpen={onSlack} />
-      <AddForm agentId={agentId} />
+      <Collapsible>
+        <CollapsibleTrigger className="flex h-10 w-full items-center gap-3 rounded-lg px-4 text-sm font-medium text-muted-foreground hover:bg-muted">
+          <span className="flex size-8 items-center justify-center">
+            <CaretRightIcon className="size-4" />
+          </span>{" "}
+          Add a connector
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <AddForm agentId={agentId} />
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   )
 }
@@ -368,6 +377,36 @@ export function ConnectorsSettings({
  * the page that puts it there. It is a bot of the agent's own and not an MCP server, so it is
  * set up apart from the connectors above it.
  */
+function Offer({
+  icon,
+  title,
+  description,
+  action,
+  children,
+}: {
+  icon: ReactNode
+  title: string
+  description: string
+  action: ReactNode
+  children?: ReactNode
+}) {
+  return (
+    <Card className="gap-3 p-4">
+      <div className="flex items-center gap-3">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/8 text-primary [&_svg]:size-5">
+          {icon}
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-semibold">{title}</h2>
+          <p className="text-[0.8125rem] leading-5 text-muted-foreground">{description}</p>
+        </div>
+        {action}
+      </div>
+      {children}
+    </Card>
+  )
+}
+
 function SlackOffer({ agent, onOpen }: { agent: AgentSummary; onOpen: () => void }) {
   const { data: state } = useQuery({
     queryKey: slackKey(agent.id),
@@ -376,35 +415,24 @@ function SlackOffer({ agent, onOpen }: { agent: AgentSummary; onOpen: () => void
   const name = agent.name ?? "your Dood"
   const app = state?.app ?? null
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          <h2 className="flex items-center gap-2">
-            <SlackLogoIcon className="size-4.5" /> Slack
-          </h2>
-        </CardTitle>
-        <CardDescription>
-          {app === null
-            ? `Put ${name} in Slack as a bot of its own. Mention it in a channel or message it, and it answers there.`
-            : `${name} is in ${app.team} as @${app.bot}.`}
-        </CardDescription>
-        {app === null ? null : (
-          <CardAction>
-            <Badge className={STATUS.connected.tone}>In Slack</Badge>
-          </CardAction>
-        )}
-      </CardHeader>
-      <CardFooter>
+    <Offer
+      icon={<SlackLogoIcon />}
+      title="Slack"
+      description={
+        app === null
+          ? `Chat with ${name} in channels and direct messages.`
+          : `${name} is in ${app.team} as @${app.bot}.`
+      }
+      action={
         <Button
-          size="sm"
           variant="outline"
           aria-label={app === null ? "Set up Slack" : "Manage Slack"}
           onClick={onOpen}
         >
           {app === null ? "Set up" : "Manage"}
         </Button>
-      </CardFooter>
-    </Card>
+      }
+    />
   )
 }
 
@@ -446,32 +474,24 @@ function AppsOffer({ agentId }: { agentId: string }) {
     onSettled: () => queryClient.invalidateQueries({ queryKey: connectorsKey(agentId) }),
   })
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          <h2>Your apps</h2>
-        </CardTitle>
-        <CardDescription>
-          Gmail, Google Calendar, Drive, Slack, Notion, GitHub and hundreds more, through Composio.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className="text-muted-foreground">
-          You sign in with a Composio account, which is free to make, and then to each service the
-          first time it is needed. Your Dood asks before it does anything in an account of yours.{" "}
-          <AppsGuide>What you get and how to set it up</AppsGuide>
-        </p>
-      </CardContent>
-      <CardFooter className="flex-wrap gap-2">
-        <Button size="sm" disabled={connect.isPending} onClick={() => connect.mutate()}>
+    <Offer
+      icon={<SquaresFourIcon />}
+      title="Your apps"
+      description="Gmail, Calendar, Slack and more, through Composio."
+      action={
+        <Button disabled={connect.isPending} onClick={() => connect.mutate()}>
           {connect.isPending ? "Connecting…" : "Connect apps"}
         </Button>
-        {connect.isError ? (
-          <p role="alert" className="text-sm text-destructive">
-            {connect.error.message}
-          </p>
-        ) : null}
-      </CardFooter>
-    </Card>
+      }
+    >
+      <p className="pl-11 text-[0.8125rem] leading-5 text-muted-foreground">
+        Your Dood asks before acting in your accounts. <AppsGuide>Setup guide</AppsGuide>
+      </p>
+      {connect.isError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {connect.error.message}
+        </p>
+      ) : null}
+    </Offer>
   )
 }

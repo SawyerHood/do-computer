@@ -8,6 +8,7 @@ import type {
 } from "@do-computer/protocol"
 import {
   CaretRightIcon,
+  ClockIcon,
   CheckCircleIcon,
   StopCircleIcon,
   WarningCircleIcon,
@@ -63,7 +64,7 @@ export function StatusMark({ status }: { status: SubagentStatus | undefined }) {
     case "working":
       return <Spinner className={tone} />
     case "waiting":
-      return <span className="mx-1 size-2 shrink-0 animate-pulse rounded-full bg-amber-500" />
+      return <ClockIcon className="size-4 shrink-0 text-muted-foreground" />
     case "stopped":
       return <StopCircleIcon className={tone} />
     case "failed":

@@ -318,11 +318,11 @@
     @apply overflow-x-auto;
   }
   .md table {
-    @apply border-collapse text-sm tabular-nums;
+    @apply border-collapse text-sm leading-5 tabular-nums;
   }
   .md th,
   .md td {
-    @apply border-b border-border px-3 py-1.5 text-left align-top;
+    @apply border-b border-border px-3 py-2 text-left align-top;
   }
   .md th:first-child,
   .md td:first-child {
@@ -866,4 +866,45 @@
   [data-call] .call-rings i {
     animation: none;
   }
+}
+
+/* Small fallback creatures retain definition on the dark canvas without changing their hue. */
+.dark [data-mood] > img {
+  filter: brightness(1.16);
+}
+
+@layer components {
+  .prose-chat .md-table {
+    width: 100%;
+    max-width: 35rem;
+  }
+  .prose-chat table {
+    width: 100%;
+    font-size: 14px;
+    line-height: 22px;
+  }
+  .prose-chat :is(th, td) {
+    padding-top: 9px;
+    padding-bottom: 9px;
+  }
+  .message-box:focus-within {
+    box-shadow: 0 0 0 2px color-mix(in oklch, var(--primary) 32%, transparent);
+  }
+}
+
+.md [data-numeric] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-settings-body] {
+  mask-image: linear-gradient(to bottom, black calc(100% - 20px), transparent);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  scroll-padding-bottom: 24px;
+}
+
+.prose-chat th {
+  font-size: 13px;
+  line-height: 20px;
 }

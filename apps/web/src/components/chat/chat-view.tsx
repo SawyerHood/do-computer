@@ -164,7 +164,7 @@ function Welcome({
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center [@media(max-height:600px)]:py-6">
         {face}
-        <h1 className="text-xl font-medium">
+        <h1 className="text-[1.375rem] font-semibold">
           Hi {met.first}, I’m {agent.name}.
         </h1>
         <p className="text-sm text-muted-foreground">What should we do first?</p>
@@ -193,7 +193,7 @@ function Welcome({
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center [@media(max-height:600px)]:py-6">
       {face}
-      <h1 className="text-xl font-medium">{agent.name ?? "Say hello"}</h1>
+      <h1 className="text-[1.375rem] font-semibold">{agent.name ?? "Say hello"}</h1>
       <p className="max-w-sm text-sm text-muted-foreground">
         {agent.name
           ? (agent.tagline ?? "What would you like to do?")
@@ -464,12 +464,12 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
                           face={
                             // Where the panel is beside the chat, the creature is in it and not here too.
                             beside ? null : (
-                              <span className="mb-6">
+                              <span className="-mb-6">
                                 {/* On a short screen it is as large as lets the whole hello be seen. */}
                                 <Hatchling
                                   agent={agent}
                                   hatch={hatch}
-                                  className="size-[clamp(6rem,calc(100dvh-34.5rem),18rem)]"
+                                  className="size-[clamp(6rem,calc(100dvh-34.5rem),14rem)]"
                                 />
                               </span>
                             )

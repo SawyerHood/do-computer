@@ -71,7 +71,9 @@ export function WorkspaceMenu({
         <DropdownMenuTrigger
           aria-label={`${workspace.name}: workspace menu`}
           title="Workspace menu"
-          render={<Button variant="ghost" size="icon-xs" className="text-muted-foreground" />}
+          render={
+            <Button variant="ghost" size="icon-xs" className="size-8 text-muted-foreground" />
+          }
         >
           <DotsThreeIcon weight="bold" className="size-4" />
         </DropdownMenuTrigger>
@@ -118,9 +120,9 @@ export function MoreWorkspaces({
   const state = useWorkspaces()
   const [creating, setCreating] = useState(false)
   const row =
-    "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[0.8125rem] text-muted-foreground outline-none hover:bg-foreground/6 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+    "flex h-9 w-full items-center gap-3 rounded-lg px-2.5 py-1.5 text-left text-[0.8125rem] text-muted-foreground outline-none hover:bg-foreground/6 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
   return (
-    <div className="mt-3 flex shrink-0 flex-col gap-0.5 border-t pt-2">
+    <div className="mt-3 flex shrink-0 flex-col gap-0.5 pt-2">
       {(state?.invitations ?? []).map((invitation) => (
         <button
           key={invitation.id}
@@ -138,7 +140,9 @@ export function MoreWorkspaces({
         </button>
       ))}
       <button type="button" onClick={() => setCreating(true)} className={row}>
-        <PlusIcon aria-hidden className="size-4 shrink-0" />
+        <span className="flex size-6 shrink-0 items-center justify-center">
+          <PlusIcon aria-hidden className="size-4" />
+        </span>
         New team
       </button>
       <NewTeamDialog userId={me.id} open={creating} onOpenChange={setCreating} />

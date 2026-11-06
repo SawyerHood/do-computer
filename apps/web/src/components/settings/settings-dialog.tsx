@@ -1,5 +1,5 @@
 import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react"
-import type { ReactNode } from "react"
+import { useRef, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
@@ -38,6 +38,7 @@ export function SettingsDialog<Id extends string>({
   onSection,
   onList,
   children,
+  contained = false,
 }: {
   onClose: () => void
   /** The list this was chosen from, inside an agent or a workspace. */
@@ -56,10 +57,15 @@ export function SettingsDialog<Id extends string>({
   /** Back from a section to the list, on a narrow screen. */
   onList: () => void
   children: ReactNode
+  /** A form with its own scrolling body and fixed action footer. */
+  contained?: boolean
 }) {
+  const popup = useRef<HTMLDivElement>(null)
   return (
     <Dialog open onOpenChange={(next) => (next ? undefined : onClose())}>
       <DialogContent
+        ref={popup}
+        initialFocus={popup}
         // The way out stays over the bar a narrow screen has at the top of a section.
         className="flex h-dvh max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[min(42rem,calc(100dvh-3rem))] sm:max-w-4xl sm:flex-row sm:rounded-2xl [&>[data-slot=dialog-close]]:z-20"
       >
@@ -76,7 +82,7 @@ export function SettingsDialog<Id extends string>({
               size="sm"
               aria-label={`Back to ${spoken(back.label)}`}
               onClick={back.onClick}
-              className="mb-1 h-9 justify-start gap-1 self-start px-2 font-normal text-muted-foreground sm:h-7"
+              className="mb-1 focus-visible:ring-2 h-9 justify-start gap-1 self-start px-2 font-normal text-muted-foreground sm:h-7"
             >
               <CaretLeftIcon className="size-3.5" />
               {back.label}
@@ -111,18 +117,26 @@ export function SettingsDialog<Id extends string>({
                   onClick={() => onSection(entry.id)}
                   // The list is only on a narrow screen when nothing is open, so nothing in it
                   // is marked as open there.
-                  className="h-11 justify-start gap-2.5 px-2.5 text-[0.9375rem] font-normal hover:bg-foreground/6 sm:h-8.5 sm:text-sm sm:text-muted-foreground sm:aria-[current=page]:bg-card sm:aria-[current=page]:text-foreground sm:aria-[current=page]:shadow-raised"
+                  className="h-11 justify-start gap-2.5 px-2.5 text-[0.9375rem] font-normal hover:bg-foreground/6 sm:h-9 sm:text-sm sm:text-muted-foreground sm:aria-[current=page]:bg-primary/10 sm:aria-[current=page]:text-foreground "
                 >
-                  {entry.icon}
-                  {entry.label}
+                  <span className="flex size-5 shrink-0 items-center justify-center [&_svg]:size-4">
+                    {entry.icon}
+                  </span>
+                  <span className="truncate">{entry.label}</span>
                   <CaretRightIcon className="ml-auto size-3.5 text-muted-foreground sm:hidden" />
                 </Button>
               ))}
             </div>
           ))}
         </nav>
-        <div className={cn("min-h-0 min-w-0 flex-1 overflow-y-auto sm:block", listing && "hidden")}>
-          <div className="sticky top-0 z-10 flex h-14 items-center bg-popover px-2 pr-14 sm:hidden">
+        <div
+          className={cn(
+            "flex min-h-0 min-w-0 flex-1 flex-col",
+            contained ? "overflow-hidden" : "overflow-y-auto",
+            listing && "hidden sm:flex",
+          )}
+        >
+          <div className="sticky top-0 z-10 flex h-14 shrink-0 items-center bg-popover px-2 pr-14 sm:hidden">
             <Button
               variant="ghost"
               size="sm"
@@ -134,7 +148,9 @@ export function SettingsDialog<Id extends string>({
               <span className="truncate">{name}</span>
             </Button>
           </div>
-          <div className="px-6 pt-1 pb-8 sm:px-9 sm:pt-7">{children}</div>
+          <div className={contained ? "min-h-0 flex-1" : "px-6 pt-1 pb-8 sm:px-9 sm:pt-7"}>
+            {children}
+          </div>
         </div>
       </DialogContent>
     </Dialog>
