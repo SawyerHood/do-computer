@@ -318,7 +318,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
               // What is said goes out of sight at the top of the page, behind the name that
               // floats there, and under more of the page where something of the chat's own is
               // over the transcript as well.
-              floats ? "h-33 via-background/80" : "h-24 from-45%",
+              floats ? "h-33 via-background/80" : "h-[5.25rem] from-[62%]",
             )}
           />
           {sub !== undefined ? (
@@ -576,9 +576,9 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
           loading={!live.loaded && !refused}
           face={
             sub === undefined ? (
-              <Hatchling agent={agent} hatch={hatch} className="size-40" />
+              <Hatchling agent={agent} hatch={hatch} className="size-32" />
             ) : (
-              <SubagentHero agentId={agent.id} chatId={chatId} className="size-36" />
+              <SubagentHero agentId={agent.id} chatId={chatId} className="size-28" />
             )
           }
           subagent={

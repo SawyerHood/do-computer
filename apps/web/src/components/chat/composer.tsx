@@ -217,8 +217,10 @@ export function Composer({
       : []
     const files = attached
     // Cleared at once, as a sent message should be, and put back if it turns out not to have gone.
+    // Sent, the box rests at its one line until it is written in again; the cursor stays in it.
     setDraft("")
     setAttached([])
+    setEntered(false)
     onTyping?.(false)
     void onSend(
       [typed.trim(), names === "" ? "" : `Attached: ${names}`].filter(Boolean).join("\n\n") ||

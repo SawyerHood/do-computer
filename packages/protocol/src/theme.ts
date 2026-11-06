@@ -73,8 +73,8 @@ export const THEME_TOKENS: readonly ThemeToken[] = [
   { name: "--popover-foreground", light: "var(--ink)" },
   {
     name: "--primary",
-    light: "oklch(from var(--agent-color) 0.5 c h)",
-    dark: "oklch(from var(--agent-color) 0.52 c h)",
+    light: "oklch(from var(--agent-color) 0.5 calc(c * 1.3) h)",
+    dark: "oklch(from var(--agent-color) 0.52 calc(c * 1.3) h)",
   },
   {
     name: "--primary-foreground",

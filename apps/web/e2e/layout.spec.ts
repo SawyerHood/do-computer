@@ -344,8 +344,12 @@ test("the message box is one line at rest, and opens out once it is written in",
   const settled = async (height: number) =>
     expect.poll(async () => (await place(around)).height).toBe(height)
 
-  // Sent from, it is still being written in: what is written has the whole width of the box.
+  // Sent from, it rests at one line with the cursor still in it. Gone to again, what is
+  // written has the whole width of the box.
   await expect(box).toBeFocused()
+  await settled(48)
+  const rest = await place(around)
+  await page.mouse.click(rest.x + rest.width / 2, rest.y + rest.height / 2)
   await settled(112)
   const [text, open, clip, arrow] = await Promise.all([
     place(box),
@@ -392,7 +396,7 @@ test("the message box is one line at rest, and opens out once it is written in",
   await expect(page.getByRole("log").getByText("You said: And again")).toBeVisible()
   await expect(box).toBeFocused()
   await expect(box).toHaveValue("")
-  await settled(112)
+  await settled(48)
 
   // Typed in without being gone to, it opens for what is typed, and stays open while that is there.
   await said.click()
