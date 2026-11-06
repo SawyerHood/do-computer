@@ -135,7 +135,12 @@ export function AgentList({
       className={cn(
         "flex h-full min-h-0 flex-col gap-0.5 overflow-y-auto pb-3",
         // A face is as far from the edge of a narrow screen as it is from the page beside it.
-        narrow === undefined ? "px-2" : "px-1 [scrollbar-width:none]",
+        // Open, its rows, its heading and its faces share one left edge, 16px in.
+        narrow === "rail"
+          ? "px-1 [scrollbar-width:none]"
+          : narrow === "open"
+            ? "px-2 [scrollbar-width:none]"
+            : "px-2",
       )}
     >
       {loading ? (
@@ -438,7 +443,7 @@ function Section({
                 onClick={() => void newAgent.create()}
                 aria-label={named ? `New Dood in ${workspace.name}` : "New Dood"}
                 title={named ? `New Dood in ${workspace.name}` : "New Dood"}
-                className="-mr-1 text-muted-foreground [&_svg]:size-4"
+                className="-mr-1 size-7 text-muted-foreground [&_svg]:size-4"
               >
                 {newAgent.making ? <Spinner /> : <PlusIcon />}
               </Button>
@@ -516,7 +521,7 @@ function Section({
  * edge whether its words are beside it or not, and as far from its top, so the row of a face alone
  * is a square around it.
  */
-const ROW = { wide: "px-2.5 py-2", open: "py-1.5 pr-2.5 pl-1.5", rail: "p-1.5" }
+const ROW = { wide: "px-2.5 py-2", open: "py-1.5 pr-2.5 pl-2", rail: "p-1.5" }
 
 /**
  * An agent that is being made, in the list from the moment it is asked for: the row it will have,
@@ -605,7 +610,7 @@ function AgentRow({
         // The one that is open is a shade off the frame, and so is one that is being moved,
         // over the rest. The others darken under the pointer.
         active || sortable.isDragging
-          ? "bg-[color-mix(in_oklab,var(--foreground)_9%,var(--frame))] [--face-ring:color-mix(in_oklab,var(--foreground)_9%,var(--frame))]"
+          ? "bg-[color-mix(in_oklab,var(--foreground)_7%,var(--frame))] [--face-ring:color-mix(in_oklab,var(--foreground)_7%,var(--frame))] dark:bg-[color-mix(in_oklab,var(--foreground)_11%,var(--frame))] dark:[--face-ring:color-mix(in_oklab,var(--foreground)_11%,var(--frame))]"
           : "[--face-ring:var(--frame)] hover:bg-foreground/6",
         sortable.isDragging && "z-10",
       )}
@@ -630,7 +635,8 @@ function AgentRow({
       >
         {/* Alone, it is all the row is as tall as: no line of words is kept room for under it. */}
         <span className={cn("relative shrink-0", rail && "flex")}>
-          <AgentFace agent={agent} className="size-10" quiet />
+          {/* Its sparkles stay in its own box at this size: a list is no place for them. */}
+          <AgentFace agent={agent} className="size-10 overflow-hidden" quiet />
           {asking ? (
             <span
               role="img"
@@ -640,7 +646,8 @@ function AgentRow({
             >
               ?
             </span>
-          ) : working ? (
+          ) : working && rail ? (
+            // Beside words, where it is working is said in the corner of the row instead.
             <span
               role="img"
               aria-label="Working"
@@ -669,16 +676,25 @@ function AgentRow({
               >
                 {name}
               </span>
-              {working || latest !== undefined ? (
+              {working ? (
+                <span
+                  role="img"
+                  aria-label="Working"
+                  title="Working"
+                  className="flex shrink-0 self-center text-muted-foreground group-has-[[data-agent-menu]:focus-visible]/agent:invisible group-has-[[data-agent-menu][aria-expanded=true]]/agent:invisible [@media(hover:hover)]:group-hover/agent:invisible"
+                >
+                  <Spinner className="size-3.5" />
+                </span>
+              ) : latest !== undefined ? (
                 <time
-                  dateTime={latest === undefined ? undefined : new Date(latest.at).toISOString()}
+                  dateTime={new Date(latest.at).toISOString()}
                   className={cn(
                     // It gives way to the row's menu, where there is a pointer to bring that out.
                     "shrink-0 text-[0.71875rem] text-muted-foreground group-has-[[data-agent-menu]:focus-visible]/agent:invisible group-has-[[data-agent-menu][aria-expanded=true]]/agent:invisible [@media(hover:hover)]:group-hover/agent:invisible",
                     unread && "font-medium text-notice",
                   )}
                 >
-                  {working ? "now" : when(latest!.at, now)}
+                  {when(latest.at, now)}
                 </time>
               ) : null}
             </span>
@@ -806,17 +822,18 @@ export function DoodsButton({
   return (
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       aria-label={wanted ? "Show your Doods: something new" : "Show your Doods"}
       title="Your Doods"
-      className="relative shrink-0 text-muted-foreground"
+      // A pill like the name beside it, floating over the page as the name does.
+      className="relative size-9 shrink-0 rounded-full bg-popover text-muted-foreground shadow-raised hover:bg-accent [&_svg]:size-[1.125rem]"
       onClick={onClick}
     >
       <SidebarSimpleIcon />
       {wanted ? (
         <span
           aria-hidden
-          className="absolute top-0.5 right-0.5 size-2 rounded-full bg-notice ring-2 ring-background"
+          className="absolute top-0 right-0 size-2.5 rounded-full bg-notice ring-2 ring-background"
         />
       ) : null}
     </Button>

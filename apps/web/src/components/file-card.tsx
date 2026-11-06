@@ -1,5 +1,6 @@
 import { INLINE_IMAGE_TYPES, type LibraryFile } from "@do-computer/protocol"
 import {
+  DotsThreeIcon,
   DownloadSimpleIcon,
   FileIcon,
   GlobeIcon,
@@ -8,6 +9,8 @@ import {
   ShareNetworkIcon,
 } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
+import { type ReactNode, useSyncExternalStore } from "react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Link } from "@tanstack/react-router"
 import { embedsInChat, LibraryEmbed } from "@/components/embed/library-embed"
 import { client } from "@/lib/client"
@@ -22,6 +25,59 @@ export { formatBytes }
 
 /** Raster images are previewed; the server serves only these types in place. */
 const PREVIEWABLE = INLINE_IMAGE_TYPES
+
+/** A file's card: one piece, its name the way in, and what is done to it beside the name. */
+const CARD =
+  "group/file relative flex h-10 w-fit max-w-full items-center gap-0.5 rounded-xl bg-card text-sm shadow-raised"
+const OPEN =
+  "flex h-full min-w-0 items-center gap-2.5 rounded-xl pr-3.5 pl-3 outline-none hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/40"
+/**
+ * What is done to it. With a pointer, the card is its name alone, and they come out beside it
+ * while it is pointed at (and stay, for one that is pinned).
+ */
+const ACTIONS =
+  "absolute top-1/2 left-full flex shrink-0 -translate-y-1/2 items-center gap-0.5 pl-1 opacity-0 transition-opacity group-focus-within/file:opacity-100 group-hover/file:opacity-100 has-[[aria-pressed=true]]:opacity-100"
+
+/** Whether there is nothing to point with: a phone or a tablet, under a finger. */
+const fingers = () => matchMedia("(hover: none)").matches
+function useFingers(): boolean {
+  return useSyncExternalStore(
+    (changed) => {
+      const query = matchMedia("(hover: none)")
+      query.addEventListener("change", changed)
+      return () => query.removeEventListener("change", changed)
+    },
+    fingers,
+    () => false,
+  )
+}
+
+/** What is done to a file: beside the card with a pointer, and behind one button under a finger. */
+function Actions({ name, children }: { name: string; children: ReactNode }) {
+  const touch = useFingers()
+  if (!touch) return <span className={ACTIONS}>{children}</span>
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            aria-label={`More for ${name}`}
+            className={cn(ACTION, "mr-1.5 -ml-1.5")}
+          />
+        }
+      >
+        <DotsThreeIcon weight="bold" className="size-4" />
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-auto flex-row gap-0.5 p-1">
+        {children}
+      </PopoverContent>
+    </Popover>
+  )
+}
+/** One of them: a quiet button, with no lines between. */
+const ACTION =
+  "flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
 
 /**
  * A file from the library, in a chat: the thing itself when it is a picture, a film, a sound or
@@ -56,7 +112,7 @@ export function FileCard({
             site === undefined ? `Share ${file.name}` : `${file.name} is shared with a link`
           }
           title={site === undefined ? "Share with a link" : "Shared with a link"}
-          className="flex shrink-0 items-center border-l px-3 text-muted-foreground hover:bg-accent hover:text-foreground"
+          className={ACTION}
         >
           {site === undefined ? (
             <ShareNetworkIcon className="size-4" />
@@ -79,20 +135,19 @@ export function FileCard({
         title={pin.pinned ? "Pinned beside the chat. Press to unpin" : "Pin beside the chat"}
         disabled={pin.pending}
         onClick={pin.toggle}
-        className={cn(
-          "flex shrink-0 items-center border-l px-3 text-muted-foreground hover:bg-accent hover:text-foreground",
-          pin.pinned && "text-primary hover:text-primary",
-        )}
+        className={cn(ACTION, pin.pinned && "text-primary hover:text-primary")}
       >
         <PushPinIcon weight={pin.pinned ? "fill" : "regular"} className="size-4" />
       </button>
     )
   const label = (
     <>
-      <FileIcon className="size-5 shrink-0 text-muted-foreground" />
-      <span className="min-w-0">
-        <span className="block truncate font-medium">{file.name}</span>
-        <span className="block text-xs text-muted-foreground">{formatBytes(file.size)}</span>
+      <FileIcon
+        weight="duotone"
+        className="size-5 shrink-0 text-primary dark:text-[color-mix(in_oklab,var(--primary)_55%,white)]"
+      />
+      <span className="min-w-0 truncate font-medium" title={formatBytes(file.size)}>
+        {file.name}
       </span>
     </>
   )
@@ -105,14 +160,14 @@ export function FileCard({
         <LibraryEmbed agentId={agentId} file={kept} view={listing.view} />
       )}
       {viewable ? (
-        <div className="flex w-fit max-w-full items-stretch overflow-hidden rounded-2xl bg-card shadow-raised text-sm">
+        <div className={CARD}>
           {onOpen === undefined ? (
             <Link
               to="/a/$agentId/library"
               params={{ agentId }}
               search={{ file: file.id }}
               title="Open in the library"
-              className="flex min-w-0 items-center gap-3 py-2.5 pr-3 pl-3 hover:bg-accent"
+              className={OPEN}
             >
               {label}
             </Link>
@@ -121,35 +176,37 @@ export function FileCard({
               type="button"
               title="Open beside the chat"
               onClick={onOpen}
-              className="flex min-w-0 items-center gap-3 py-2.5 pr-3 pl-3 text-left hover:bg-accent"
+              className={cn(OPEN, "text-left")}
             >
               {label}
             </button>
           )}
-          <a
-            href={url}
-            download={file.name}
-            aria-label={`Download ${file.name}`}
-            title="Download"
-            className="flex shrink-0 items-center border-l px-3 text-muted-foreground hover:bg-accent hover:text-foreground"
-          >
-            <DownloadSimpleIcon className="size-4" />
-          </a>
-          {share}
-          {pinning}
+          <Actions name={file.name}>
+            <a
+              href={url}
+              download={file.name}
+              aria-label={`Download ${file.name}`}
+              title="Download"
+              className={ACTION}
+            >
+              <DownloadSimpleIcon className="size-4" />
+            </a>
+            {share}
+            {pinning}
+          </Actions>
         </div>
       ) : (
-        <div className="flex w-fit max-w-full items-stretch overflow-hidden rounded-2xl bg-card shadow-raised text-sm">
-          <a
-            href={url}
-            download={file.name}
-            className="flex min-w-0 items-center gap-3 py-2.5 pr-4 pl-3 hover:bg-accent"
-          >
+        <div className={CARD}>
+          <a href={url} download={file.name} className={OPEN}>
             {label}
             <DownloadSimpleIcon className="ml-2 size-4 shrink-0 text-muted-foreground" />
           </a>
-          {share}
-          {pinning}
+          {share === null && pinning === null ? null : (
+            <Actions name={file.name}>
+              {share}
+              {pinning}
+            </Actions>
+          )}
         </div>
       )}
     </div>

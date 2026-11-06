@@ -1,8 +1,9 @@
-import type { AgentSummary } from "@do-computer/protocol"
+import type { AgentSummary, ChatSummary } from "@do-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import { Link, useRouteContext } from "@tanstack/react-router"
 import { ArrowLeftIcon, StopIcon } from "@phosphor-icons/react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { useAtomValue } from "jotai"
 import { AgentAvatar, AgentFace } from "@/components/agent-avatar"
 import { CallComposerButton, useCallButton } from "@/components/call/call"
@@ -11,7 +12,7 @@ import { TranscriptPlaceholder } from "@/components/placeholders"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Separator } from "@/components/ui/separator"
-import { agentPanelOpenAtom, chatKey } from "@/lib/atoms"
+import { agentPanelOpenAtom, chatKey, stripEndAtom } from "@/lib/atoms"
 import { isSideChat, mainChatOf } from "@/lib/chats"
 import { client } from "@/lib/client"
 import { agentKey, agentQuery, agentsKey, workspaceModelsKey } from "@/lib/collections"
@@ -296,8 +297,9 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
   const atWork = useMemo(() => subagents.filter((entry) => isAtWork(entry.status)), [subagents])
   // What the chat has to say that the strip above it does not, where the panel is not there to.
   const notes = !beside && (live.status === "reconnecting" || atWork.length > 0)
-  // Whether anything is over the top of the transcript.
-  const floats = sub !== undefined || thread?.peer !== undefined || notes
+  // Whether anything is over the top of the transcript. What the chat has to say of itself is
+  // beside the name, and not over the transcript.
+  const floats = sub !== undefined || thread?.peer !== undefined
   return (
     <div className="flex h-full min-h-0">
       <div className="flex min-w-0 flex-1 flex-col">
@@ -316,7 +318,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
               // What is said goes out of sight at the top of the page, behind the name that
               // floats there, and under more of the page where something of the chat's own is
               // over the transcript as well.
-              floats ? "h-33 via-background/80" : "h-8",
+              floats ? "h-33 via-background/80" : "h-16 from-[87.5%]",
             )}
           />
           {sub !== undefined ? (
@@ -396,37 +398,11 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
               </div>
             </div>
           ) : !notes ? null : (
-            // The strip above says whose chat this is, and the panel beside it says the rest. With
-            // the panel away, what is left to say here is what neither does, when there is any.
-            <div className="pointer-events-none absolute inset-x-0 top-[calc(var(--lift)+0.75rem)] z-10 flex justify-center">
-              <div className="pointer-events-auto relative flex items-center gap-1 rounded-full bg-background/85 px-1.5 py-1 shadow-raised backdrop-blur">
-                {live.status === "reconnecting" ? (
-                  <span className="px-1.5 text-xs text-muted-foreground">reconnecting…</span>
-                ) : null}
-                {/* Without the panel, this is the way to the chat's sub-agents while they work. */}
-                {atWork.length === 0 ? null : (
-                  <Popover>
-                    <PopoverTrigger
-                      render={
-                        <Button
-                          variant="outline"
-                          size="xs"
-                          className="font-normal text-muted-foreground"
-                        />
-                      }
-                    >
-                      {atWork.length} {atWork.length === 1 ? "sub-agent" : "sub-agents"} at work
-                    </PopoverTrigger>
-                    <PopoverContent
-                      sideOffset={12}
-                      className="max-h-80 max-w-[90vw] gap-0 overflow-y-auto p-1.5"
-                    >
-                      <SubagentRows agentId={agent.id} subagents={atWork} />
-                    </PopoverContent>
-                  </Popover>
-                )}
-              </div>
-            </div>
+            <ChatNotes
+              agentId={agent.id}
+              atWork={atWork}
+              reconnecting={live.status === "reconnecting"}
+            />
           )}
           {/*
             The chat runs under the Dood's name, where that floats: see styles.css. What is
@@ -469,7 +445,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
                                 <Hatchling
                                   agent={agent}
                                   hatch={hatch}
-                                  className="size-[clamp(6rem,calc(100dvh-34.5rem),18rem)]"
+                                  className="size-[clamp(6rem,calc(100dvh-34.5rem),14rem)]"
                                 />
                               </span>
                             )
@@ -600,9 +576,9 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
           loading={!live.loaded && !refused}
           face={
             sub === undefined ? (
-              <Hatchling agent={agent} hatch={hatch} className="size-52" />
+              <Hatchling agent={agent} hatch={hatch} className="size-28" />
             ) : (
-              <SubagentHero agentId={agent.id} chatId={chatId} className="size-44" />
+              <SubagentHero agentId={agent.id} chatId={chatId} className="size-24" />
             )
           }
           subagent={
@@ -655,5 +631,66 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
         />
       ) : null}
     </div>
+  )
+}
+
+/**
+ * What the chat has to say that the name above it does not, where the panel is not there to:
+ * its sub-agents while they work, and that it is reconnecting. It is at the end of the row the
+ * name is in, and not over what is said.
+ */
+function ChatNotes({
+  agentId,
+  atWork,
+  reconnecting,
+}: {
+  agentId: string
+  atWork: ChatSummary[]
+  reconnecting: boolean
+}) {
+  const end = useAtomValue(stripEndAtom)
+  if (end === null) return null
+  return createPortal(
+    <div data-no-drag="" className="flex min-w-0 items-center gap-1">
+      {reconnecting ? (
+        <span className="truncate px-1.5 text-xs text-muted-foreground">reconnecting…</span>
+      ) : null}
+      {/* Without the panel, this is the way to the chat's sub-agents while they work. */}
+      {atWork.length === 0 ? null : (
+        <Popover>
+          <PopoverTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={`${atWork.length} ${atWork.length === 1 ? "sub-agent" : "sub-agents"} at work`}
+                className="gap-1.5 rounded-full bg-popover pr-2.5 pl-1 font-normal text-muted-foreground shadow-raised hover:text-foreground"
+              />
+            }
+          >
+            <span className="flex -space-x-1.5">
+              {atWork.slice(0, 3).map((entry) => (
+                <SubagentFace
+                  key={entry.id}
+                  agentId={agentId}
+                  chatId={entry.id}
+                  status={entry.status}
+                  className="size-6"
+                />
+              ))}
+            </span>
+            <span className="tabular-nums">{atWork.length}</span>
+          </PopoverTrigger>
+          <PopoverContent
+            align="end"
+            sideOffset={8}
+            className="max-h-80 max-w-[90vw] gap-0 overflow-y-auto p-1.5"
+          >
+            <SubagentRows agentId={agentId} subagents={atWork} />
+          </PopoverContent>
+        </Popover>
+      )}
+    </div>,
+    end,
   )
 }

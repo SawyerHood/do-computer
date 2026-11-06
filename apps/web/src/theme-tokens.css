@@ -18,12 +18,12 @@
   --card-foreground: var(--ink);
   --popover: var(--canvas);
   --popover-foreground: var(--ink);
-  --primary: oklch(from var(--agent-color) 0.5 c h);
+  --primary: oklch(from var(--agent-color) 0.5 calc(c * 1.3) h);
   --primary-foreground: oklch(from var(--agent-color) 0.985 0.01 h);
   --secondary: color-mix(in oklch, var(--ink) 7%, var(--canvas));
   --secondary-foreground: var(--ink);
   --muted: color-mix(in oklch, var(--ink) 6%, var(--canvas));
-  --muted-foreground: color-mix(in oklch, var(--ink) 62%, var(--canvas));
+  --muted-foreground: color-mix(in oklch, var(--ink) 66%, var(--canvas));
   --accent: color-mix(in oklch, var(--ink) 8%, var(--canvas));
   --accent-foreground: var(--ink);
   --destructive: oklch(0.5 0.19 26);
@@ -61,10 +61,11 @@
   --elevation-float: 0 0 0 1px var(--hairline), inset 0 1px 0 oklch(1 0 0 / 0.05), 0 22px 48px -22px oklch(0 0 0 / 0.7);
   --card: color-mix(in oklch, var(--ink) 4%, var(--canvas));
   --popover: color-mix(in oklch, var(--ink) 5%, var(--canvas));
-  --primary: oklch(from var(--agent-color) 0.52 c h);
+  --primary: oklch(from var(--agent-color) 0.52 calc(c * 1.3) h);
   --primary-foreground: oklch(from var(--agent-color) 0.97 0.012 h);
   --secondary: color-mix(in oklch, var(--ink) 9%, var(--canvas));
   --muted: color-mix(in oklch, var(--ink) 8%, var(--canvas));
+  --muted-foreground: color-mix(in oklch, var(--ink) 74%, var(--canvas));
   --accent: color-mix(in oklch, var(--ink) 11%, var(--canvas));
   --destructive: oklch(0.7 0.17 24);
   --success: oklch(0.74 0.14 155);

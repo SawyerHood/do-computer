@@ -161,13 +161,8 @@ function AgentPill({
             onClick={() => (wide ? togglePanel() : openWardrobe(true))}
             className="relative shrink-0 rounded-full p-0.5 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40"
           >
+            {/* A box that is waiting is in the panel, beside the creature, and not a dot here. */}
             <AgentFace agent={agent} className="size-7" still />
-            {waiting ? (
-              <span
-                aria-hidden
-                className="absolute top-0 right-0 size-2.5 rounded-full bg-amber-400 ring-2 ring-(--pill)"
-              />
-            ) : null}
           </button>
         ) : (
           <span className="p-0.5">

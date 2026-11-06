@@ -13,7 +13,7 @@ import {
 import { defineExtension, defineTool, type JsonObject } from "@earendil-works/pi-durable"
 import { afterEach, describe, expect, it } from "vitest"
 import { calledIn, LOAD_TOOLS, summaryOf, withLoaded } from "../src/deferred.ts"
-import { createAgentActor, createAgentModels, ECHO_MODEL } from "../src/index.ts"
+import { createAgentActor, createAgentModels, ECHO_MODEL, type EchoReply } from "../src/index.ts"
 import { quietOnReminder, sent } from "./quiet.ts"
 
 describe("naming a deferred tool", () => {
@@ -81,14 +81,18 @@ const greeter = defineExtension({
   },
 })
 
-function open(directory: string, model: "test" | "echo" = "test"): World {
+function open(
+  directory: string,
+  model: "test" | "echo" = "test",
+  echoReplies?: Record<string, EchoReply>,
+): World {
   const faux = quietOnReminder(
     fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 }),
   )
   // The deployment's own models, with only the echo model in them, and the scripted one beside.
   const scripted = createModels()
   scripted.setProvider(faux.provider)
-  const models = model === "echo" ? createAgentModels({}).models : scripted
+  const models = model === "echo" ? createAgentModels({ echoReplies }).models : scripted
   const errors: unknown[] = []
   const namespace = new NodeActorNamespace({
     directory: join(directory, "actors"),
@@ -224,6 +228,23 @@ describe("deferred tools in a chat", () => {
       [LOAD_TOOLS, "done"],
       ["settings", "done"],
     ])
+  })
+
+  it("are loaded by the echo model before a written-out answer calls one", async () => {
+    const world = open(temporary(), "echo", {
+      "Look at the settings.": {
+        tools: [{ name: "settings", args: { action: "get" } }],
+        text: "Looked: all as it was.",
+      },
+    })
+    const chat = await setup(world)
+    const state = await say(world, chat.id, "Look at the settings.", "Looked: all as it was.")
+    expect(tools(state).map((part) => [part.name, part.status])).toEqual([
+      [LOAD_TOOLS, "done"],
+      ["settings", "done"],
+    ])
+    // Nothing else is asked of it: what was written out is all it says.
+    expect(JSON.stringify(state.messages)).not.toContain("You said")
   })
 
   it("stay offered in a main chat that called one before it was deferred", async () => {

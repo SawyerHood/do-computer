@@ -266,8 +266,8 @@ test("what the agent shared is listed in its panel, and a document's edge is dra
   }
   expect(await width()).toBe(640)
   // Dragged as far as it goes it leaves the chat 20rem, here beside a sidebar of 288 and the
-  // hairline between that and the page. The document is a card 10 in from the page's edge.
-  const most = 1280 - 288 - 1 - 320 - 10
+  // hairline between that and the page. The document is flush with the page's edge.
+  const most = 1280 - 288 - 1 - 320
   await drag(-600)
   expect(await width()).toBe(most)
   // It comes back from where it is, with the pointer over the page it shows.
@@ -344,8 +344,12 @@ test("the message box is one line at rest, and opens out once it is written in",
   const settled = async (height: number) =>
     expect.poll(async () => (await place(around)).height).toBe(height)
 
-  // Sent from, it is still being written in: what is written has the whole width of the box.
+  // Sent from, it rests at one line with the cursor still in it. Gone to again, what is
+  // written has the whole width of the box.
   await expect(box).toBeFocused()
+  await settled(48)
+  const rest = await place(around)
+  await page.mouse.click(rest.x + rest.width / 2, rest.y + rest.height / 2)
   await settled(112)
   const [text, open, clip, arrow] = await Promise.all([
     place(box),
@@ -392,7 +396,7 @@ test("the message box is one line at rest, and opens out once it is written in",
   await expect(page.getByRole("log").getByText("You said: And again")).toBeVisible()
   await expect(box).toBeFocused()
   await expect(box).toHaveValue("")
-  await settled(112)
+  await settled(48)
 
   // Typed in without being gone to, it opens for what is typed, and stays open while that is there.
   await said.click()
@@ -452,11 +456,11 @@ test("the layout works at phone width", async ({ page }) => {
   await page.screenshot({ path: "test-results/phone-chat.png" })
   // Asked for, it is the list, and the page slides aside as wide as it was.
   await page.getByRole("button", { name: "Show your Doods" }).click()
-  await expect.poll(sidebar).toBe(320)
+  await expect.poll(sidebar).toBe(352)
   await expect(agents.locator("[data-latest]")).toBeVisible()
   expect(await pageWidth()).toBe(400)
   const face = async () => (await juniper.locator("> span").first().boundingBox())!
-  expect(await face()).toMatchObject({ x: 10, width: 40 })
+  expect(await face()).toMatchObject({ x: 16, width: 40 })
   await page.screenshot({ path: "test-results/phone-doods.png" })
   // Choosing the agent there is talking to it: its main chat. The list is gone again.
   await juniper.click()
@@ -595,17 +599,17 @@ test("at phone width a finger pulls the sidebar out across the page, and pushes 
   }
   await expect.poll(sidebar).toBe(100)
   await finger.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
-  await expect.poll(sidebar).toBe(320)
+  await expect.poll(sidebar).toBe(352)
   await expect(names).toBeVisible()
   // Scrolling its list leaves it open, and a finger back across it shuts it.
   await swipe({ x: 160, y: 300 }, { x: 150, y: 500 })
-  expect(await sidebar()).toBe(320)
+  expect(await sidebar()).toBe(352)
   await swipe({ x: 260, y: 400 }, { x: 60, y: 390 })
   await expect.poll(sidebar).toBe(0)
   await expect(names).toHaveCount(0)
   // Open again, a touch on the page beside it shuts it too.
   await swipe({ x: 80, y: 400 }, { x: 280, y: 410 })
-  await expect.poll(sidebar).toBe(320)
+  await expect.poll(sidebar).toBe(352)
   await page.touchscreen.tap(370, 400)
   await expect.poll(sidebar).toBe(0)
 

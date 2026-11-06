@@ -223,12 +223,15 @@ export function AgentPanel({
       ? waitingWords(running, false)
       : subagent !== undefined && mood.state === "idle"
         ? subagentWords(subagent.status)
-        : moodWords(mood, agent.hatched)
+        : // At rest itself, while sub-agents of its work for it, it is not idle.
+          subagent === undefined && mood.state === "idle" && subagents.length > 0
+          ? "Working"
+          : moodWords(mood, agent.hatched)
   const seed = subagent === undefined ? undefined : subagentSeed(agent.id, subagent.chatId)
   return (
     <aside
       aria-label={`About ${name}`}
-      className="relative my-2.5 mr-2.5 overflow-hidden rounded-2xl border flex shrink-0 flex-col bg-rail/50"
+      className="relative flex shrink-0 flex-col overflow-hidden border-l border-hairline bg-rail/50"
       style={{ width }}
     >
       <ResizeHandle column={agentPanelColumn} edge="left" label={`Resize ${name}'s panel`} />
@@ -265,7 +268,20 @@ export function AgentPanel({
         </button>
       ) : null}
       <div ref={scroller} onScroll={follow} className="min-h-0 flex-1 overflow-y-auto">
-        <div className="flex flex-col items-center gap-1 px-6 pt-10 pb-5 text-center">
+        <div className="relative flex flex-col items-center gap-1 px-6 pt-7 pb-5 text-center">
+          {/* Its wardrobe is in the corner, so that its name is in the middle under it. */}
+          {subagent !== undefined || !agent.hatched || call !== undefined ? null : (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`${name}'s wardrobe`}
+              title="Wardrobe"
+              onClick={() => openWardrobe(true)}
+              className="absolute top-2.5 right-2.5 text-muted-foreground"
+            >
+              <TShirtIcon />
+            </Button>
+          )}
           {call === undefined ? null : (
             <div ref={nameplate} className="w-full">
               <CallFace call={call} face={face} />
@@ -284,21 +300,7 @@ export function AgentPanel({
             ref={call === undefined ? nameplate : undefined}
             className={cn("flex flex-col items-center gap-1", call !== undefined && "hidden")}
           >
-            <div className="mt-3 flex items-center gap-0.5">
-              <h2 className="text-lg font-medium">{name}</h2>
-              {subagent !== undefined || !agent.hatched ? null : (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`${name}'s wardrobe`}
-                  title="Wardrobe"
-                  onClick={() => openWardrobe(true)}
-                  className="-mr-8 size-7 text-muted-foreground/70"
-                >
-                  <TShirtIcon />
-                </Button>
-              )}
-            </div>
+            <h2 className="mt-3 text-lg font-medium">{name}</h2>
             {/* The line in the transcript is the one announced; this repeats it beside the creature. */}
             {loading ? (
               // Not "Ready": nothing has been heard from it yet.

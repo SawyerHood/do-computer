@@ -59,8 +59,11 @@ export const agentPanelColumn = column("dc-agent-panel-width", { min: 256, max: 
  */
 export const docPanelColumn = column("dc-doc-panel-width", { min: 352, max: 1280, start: 640 })
 export const DOC_PANEL_LEAVES = "20rem"
-/** What is beside a chat is a card in the page, with this much between it and the page's edge. */
-export const BESIDE_GAP = "0.625rem"
+/**
+ * What is beside a chat is a pane flush with the window's edge, with a hairline between it and
+ * the chat, as the sidebar and the library's list are: nothing between it and the edge.
+ */
+export const BESIDE_GAP = "0px"
 
 /**
  * How much of the right of the window is taken by what is beside the chat, in pixels, its margin

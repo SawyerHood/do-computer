@@ -36,7 +36,15 @@ import { cn } from "@/lib/utils"
 export function KindIcon({ file, className }: { file: LibraryFile; className?: string }) {
   const kind = kindOf(file)
   const size = cn("size-4 shrink-0", className)
-  if (kind === "markdown") return <FileTextIcon className={cn(size, "text-primary")} />
+  if (kind === "markdown")
+    return (
+      <FileTextIcon
+        className={cn(
+          size,
+          "text-primary dark:text-[color-mix(in_oklab,var(--primary)_55%,white)]",
+        )}
+      />
+    )
   if (kind === "page")
     return <GlobeIcon className={cn(size, "text-amber-600 dark:text-amber-400")} />
   if (kind === "image") {
@@ -58,6 +66,10 @@ export function KindIcon({ file, className }: { file: LibraryFile; className?: s
 
 const ROW =
   "flex h-8 w-full items-center gap-1.5 rounded-lg pr-2 text-left text-sm text-muted-foreground outline-none hover:bg-foreground/6 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+
+/** The open one, as a row in any list of the app is: a shade over the column, and nothing more. */
+const SELECTED =
+  "bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)] text-foreground hover:bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)]"
 
 function FileRow({
   agentId,
@@ -81,7 +93,7 @@ function FileRow({
         search={{ path: file.path }}
         title={file.path}
         aria-current={selected ? "page" : undefined}
-        className={cn(ROW, selected && "bg-card text-foreground shadow-raised hover:bg-card")}
+        className={cn(ROW, selected && SELECTED)}
         style={{ paddingLeft: 8 + depth * 14 + 18 }}
       >
         <KindIcon file={file} />
@@ -133,7 +145,12 @@ function FolderRows({
           >
             <div className="group/folder relative">
               <CollapsibleTrigger
-                className={cn(ROW, "pr-8 text-foreground", dir === child.path && "bg-foreground/5")}
+                className={cn(
+                  ROW,
+                  "pr-8 text-foreground",
+                  // Where a new document would go, while no file is open to say so.
+                  selected === undefined && dir === child.path && "bg-foreground/5",
+                )}
                 style={{ paddingLeft: 8 + depth * 14 }}
               >
                 {open ? (

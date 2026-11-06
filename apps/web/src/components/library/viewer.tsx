@@ -628,9 +628,9 @@ export function Viewer({
             value={mode === "source" ? "read" : mode}
             onChange={onMode}
             options={[
-              ["read", "Read", <EyeIcon key="i" className="size-3.5" />],
-              ["edit", "Edit", <PencilSimpleIcon key="i" className="size-3.5" />],
-              ["split", "Split", <ColumnsIcon key="i" className="size-3.5" />],
+              ["read", "Read", <EyeIcon key="i" className="size-4" />],
+              ["edit", "Edit", <PencilSimpleIcon key="i" className="size-4" />],
+              ["split", "Split", <ColumnsIcon key="i" className="size-4" />],
             ]}
           />
         ) : kind === "page" ? (
@@ -640,8 +640,8 @@ export function Viewer({
             value={mode === "read" ? "read" : "source"}
             onChange={onMode}
             options={[
-              ["read", "Page", <GlobeIcon key="i" className="size-3.5" />],
-              ["source", "Source", <CodeIcon key="i" className="size-3.5" />],
+              ["read", "Page", <GlobeIcon key="i" className="size-4" />],
+              ["source", "Source", <CodeIcon key="i" className="size-4" />],
             ]}
           />
         ) : kind === "table" ? (
@@ -651,10 +651,14 @@ export function Viewer({
             value={mode === "read" ? "read" : "source"}
             onChange={onMode}
             options={[
-              ["read", "Table", <TableIcon key="i" className="size-3.5" />],
-              ["source", "Source", <CodeIcon key="i" className="size-3.5" />],
+              ["read", "Table", <TableIcon key="i" className="size-4" />],
+              ["source", "Source", <CodeIcon key="i" className="size-4" />],
             ]}
           />
+        ) : null}
+        {/* How it is shown, then what is done to it: a hairline between the two. */}
+        {kind === "markdown" || kind === "page" || kind === "table" ? (
+          <span aria-hidden className="mx-0.5 h-4 w-px shrink-0 bg-border" />
         ) : null}
         <Button
           variant="ghost"
@@ -675,7 +679,8 @@ export function Viewer({
         {/* Anything can be shared: a page as the page, and the rest as what each is. */}
         <SharePopover agentId={agentId} site={site} path={file.path}>
           <Button
-            variant="outline"
+            // Floating, it is one of a row of quiet buttons; in a bar of its own it stands out.
+            variant={floating ? "ghost" : "outline"}
             size={compact || floating ? "icon-sm" : "sm"}
             aria-label={site === undefined ? "Share" : "Shared with a link"}
             title={site === undefined ? "Share with a link" : "Shared with a link"}

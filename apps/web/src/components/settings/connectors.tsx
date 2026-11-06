@@ -1,5 +1,11 @@
 import type { AgentSummary, ConnectorResult, ConnectorSummary } from "@do-computer/protocol"
-import { CaretRightIcon, SlackLogoIcon, TrashIcon } from "@phosphor-icons/react"
+import {
+  CaretRightIcon,
+  PlusIcon,
+  SlackLogoIcon,
+  SquaresFourIcon,
+  TrashIcon,
+} from "@phosphor-icons/react"
 import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import { useEffect, useState } from "react"
@@ -225,6 +231,20 @@ function AddForm({ agentId }: { agentId: string }) {
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: connectorsKey(agentId) }),
   })
+  // A server of one's own is the rarer way in: until it is asked for, it is a row to open.
+  const [open, setOpen] = useState(false)
+  if (!open) {
+    return (
+      <Button
+        variant="ghost"
+        className="-ml-2 self-start font-normal text-muted-foreground hover:text-foreground"
+        onClick={() => setOpen(true)}
+      >
+        <PlusIcon />
+        Add a connector
+      </Button>
+    )
+  }
   return (
     <form
       className="flex flex-col gap-3 rounded-2xl border border-dashed p-4"
@@ -341,10 +361,7 @@ export function ConnectorsSettings({
     <div className="flex flex-col gap-6">
       <div>
         <h2 className="text-lg font-semibold tracking-tight">Connectors</h2>
-        <p className="text-sm text-muted-foreground">
-          Services your Dood can use, such as a calendar or a task tracker, connected through MCP.
-          Your Dood uses them without asking first, with whatever access you grant.
-        </p>
+        <p className="text-sm text-muted-foreground">Apps and services your Dood can use.</p>
       </div>
       {search.connector_error ? (
         <Alert className="border-destructive/40 bg-destructive/10">
@@ -385,25 +402,20 @@ function SlackOffer({ agent, onOpen }: { agent: AgentSummary; onOpen: () => void
         </CardTitle>
         <CardDescription>
           {app === null
-            ? `Put ${name} in Slack as a bot of its own. Mention it in a channel or message it, and it answers there.`
+            ? `${name} as a bot of its own, answering where it is mentioned.`
             : `${name} is in ${app.team} as @${app.bot}.`}
         </CardDescription>
-        {app === null ? null : (
-          <CardAction>
-            <Badge className={STATUS.connected.tone}>In Slack</Badge>
-          </CardAction>
-        )}
+        <CardAction>
+          <Button
+            size="sm"
+            variant="outline"
+            aria-label={app === null ? "Set up Slack" : "Manage Slack"}
+            onClick={onOpen}
+          >
+            {app === null ? "Set up" : "Manage"}
+          </Button>
+        </CardAction>
       </CardHeader>
-      <CardFooter>
-        <Button
-          size="sm"
-          variant="outline"
-          aria-label={app === null ? "Set up Slack" : "Manage Slack"}
-          onClick={onOpen}
-        >
-          {app === null ? "Set up" : "Manage"}
-        </Button>
-      </CardFooter>
     </Card>
   )
 }
@@ -449,29 +461,27 @@ function AppsOffer({ agentId }: { agentId: string }) {
     <Card>
       <CardHeader>
         <CardTitle>
-          <h2>Your apps</h2>
+          <h2 className="flex items-center gap-2">
+            <SquaresFourIcon className="size-4.5" /> Your apps
+          </h2>
         </CardTitle>
         <CardDescription>
-          Gmail, Google Calendar, Drive, Slack, Notion, GitHub and hundreds more, through Composio.
+          Gmail, Calendar, Drive, Notion, GitHub and hundreds more. Your Dood asks before it acts in
+          one. <AppsGuide>How it works</AppsGuide>
         </CardDescription>
+        <CardAction>
+          <Button size="sm" disabled={connect.isPending} onClick={() => connect.mutate()}>
+            {connect.isPending ? "Connecting…" : "Connect apps"}
+          </Button>
+        </CardAction>
       </CardHeader>
-      <CardContent>
-        <p className="text-muted-foreground">
-          You sign in with a Composio account, which is free to make, and then to each service the
-          first time it is needed. Your Dood asks before it does anything in an account of yours.{" "}
-          <AppsGuide>What you get and how to set it up</AppsGuide>
-        </p>
-      </CardContent>
-      <CardFooter className="flex-wrap gap-2">
-        <Button size="sm" disabled={connect.isPending} onClick={() => connect.mutate()}>
-          {connect.isPending ? "Connecting…" : "Connect apps"}
-        </Button>
-        {connect.isError ? (
+      {connect.isError ? (
+        <CardContent>
           <p role="alert" className="text-sm text-destructive">
             {connect.error.message}
           </p>
-        ) : null}
-      </CardFooter>
+        </CardContent>
+      ) : null}
     </Card>
   )
 }

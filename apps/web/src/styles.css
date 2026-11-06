@@ -318,18 +318,18 @@
     @apply overflow-x-auto;
   }
   .md table {
-    @apply border-collapse text-sm tabular-nums;
+    @apply border-collapse text-[0.9375rem] tabular-nums;
   }
   .md th,
   .md td {
-    @apply border-b border-border px-3 py-1.5 text-left align-top;
+    @apply border-b border-hairline px-4 py-2 text-left align-top;
   }
   .md th:first-child,
   .md td:first-child {
     @apply pl-0;
   }
   .md th {
-    @apply border-input align-bottom font-medium text-muted-foreground;
+    @apply border-border align-bottom text-[0.8125rem] font-medium text-muted-foreground;
   }
   .md tbody tr:last-child td {
     @apply border-b-0;

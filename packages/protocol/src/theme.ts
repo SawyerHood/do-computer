@@ -73,8 +73,8 @@ export const THEME_TOKENS: readonly ThemeToken[] = [
   { name: "--popover-foreground", light: "var(--ink)" },
   {
     name: "--primary",
-    light: "oklch(from var(--agent-color) 0.5 c h)",
-    dark: "oklch(from var(--agent-color) 0.52 c h)",
+    light: "oklch(from var(--agent-color) 0.5 calc(c * 1.3) h)",
+    dark: "oklch(from var(--agent-color) 0.52 calc(c * 1.3) h)",
   },
   {
     name: "--primary-foreground",
@@ -84,7 +84,7 @@ export const THEME_TOKENS: readonly ThemeToken[] = [
   { name: "--secondary", light: mix(7), dark: mix(9) },
   { name: "--secondary-foreground", light: "var(--ink)" },
   { name: "--muted", light: mix(6), dark: mix(8) },
-  { name: "--muted-foreground", light: mix(62) },
+  { name: "--muted-foreground", light: mix(66), dark: mix(74) },
   { name: "--accent", light: mix(8), dark: mix(11) },
   { name: "--accent-foreground", light: "var(--ink)" },
   { name: "--destructive", light: "oklch(0.5 0.19 26)", dark: "oklch(0.7 0.17 24)" },

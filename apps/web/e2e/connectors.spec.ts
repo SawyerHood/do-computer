@@ -32,6 +32,7 @@ test.describe("connectors", () => {
 
   test("a connector with a token gives the agent its tools", async ({ page }) => {
     await openConnectors(page)
+    await page.getByRole("button", { name: "Add a connector" }).click()
     await page.locator("#connector-name").fill("Sums")
     await page.getByLabel("Server address").fill(`${mcp.origin}/token/mcp`)
     await page.getByLabel("Access token (optional)").fill(FIXED_TOKEN)
@@ -53,6 +54,7 @@ test.describe("connectors", () => {
     page,
   }) => {
     await openConnectors(page)
+    await page.getByRole("button", { name: "Add a connector" }).click()
     await page.locator("#connector-name").fill("Books")
     await page.getByLabel("Server address").fill(`${mcp.origin}/many/mcp`)
     await page.getByRole("button", { name: "Add connector" }).click()
@@ -78,6 +80,7 @@ test.describe("connectors", () => {
 
   test("a wrong token is reported, and the connector can be removed", async ({ page }) => {
     await openConnectors(page)
+    await page.getByRole("button", { name: "Add a connector" }).click()
     await page.locator("#connector-name").fill("Locked")
     await page.getByLabel("Server address").fill(`${mcp.origin}/token/mcp`)
     await page.getByLabel("Access token (optional)").fill("not-the-token")
@@ -93,6 +96,7 @@ test.describe("connectors", () => {
     page,
   }) => {
     await openConnectors(page)
+    await page.getByRole("button", { name: "Add a connector" }).click()
     await page.locator("#connector-name").fill("Calendar")
     await page.getByLabel("Server address").fill(`${mcp.origin}/oauth/mcp`)
     await page.getByRole("button", { name: "Add connector" }).click()
@@ -143,7 +147,7 @@ test.describe("connectors", () => {
     try {
       await openConnectors(page)
       // What it is, and how to set it up, is a guide: it opens beside the app.
-      const guide = page.getByRole("link", { name: "What you get and how to set it up" })
+      const guide = page.getByRole("link", { name: "How it works" })
       await expect(guide).toHaveAttribute("href", "/docs/apps")
       await expect(guide).toHaveAttribute("target", "_blank")
       await page.getByRole("button", { name: "Connect apps" }).click()

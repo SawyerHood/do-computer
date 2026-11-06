@@ -28,7 +28,7 @@ export function AgentPanelPlaceholder({
       data-loading
       aria-busy="true"
       className={cn(
-        "relative my-2.5 mr-2.5 overflow-hidden rounded-2xl border flex shrink-0 flex-col bg-rail/50",
+        "relative flex shrink-0 flex-col overflow-hidden border-l border-hairline bg-rail/50",
         className,
       )}
       style={{ width }}
@@ -104,7 +104,7 @@ export function AppSkeleton() {
       </aside>
       <main className="relative flex min-w-0 flex-1 flex-col bg-background md:border-l md:border-hairline">
         {/* The Dood's name, floating over the middle of the page, clear of the panel beside it. */}
-        <header className="absolute top-0 left-0 right-0 z-10 flex h-13 items-center justify-center xl:[[data-panel=open]_&]:right-[calc(var(--kept-panel,320px)+0.625rem)]">
+        <header className="absolute top-0 left-0 right-0 z-10 flex h-13 items-center justify-center xl:[[data-panel=open]_&]:right-[var(--kept-panel,320px)]">
           <div className="flex items-center gap-2 rounded-full bg-popover py-1 pr-3 pl-1 shadow-raised">
             <Skeleton className="size-7 rounded-full" />
             <Skeleton className="h-3 w-20 rounded-full" />

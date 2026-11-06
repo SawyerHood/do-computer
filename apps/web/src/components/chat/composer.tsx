@@ -217,8 +217,10 @@ export function Composer({
       : []
     const files = attached
     // Cleared at once, as a sent message should be, and put back if it turns out not to have gone.
+    // Sent, the box rests at its one line until it is written in again; the cursor stays in it.
     setDraft("")
     setAttached([])
+    setEntered(false)
     onTyping?.(false)
     void onSend(
       [typed.trim(), names === "" ? "" : `Attached: ${names}`].filter(Boolean).join("\n\n") ||
@@ -332,8 +334,8 @@ export function Composer({
               <Button
                 type="button"
                 size="icon"
-                variant="secondary"
-                className="rounded-full bg-foreground/8 text-foreground hover:bg-foreground/12"
+                variant="ghost"
+                className="rounded-full text-foreground/75 hover:text-foreground"
                 onClick={() => picker.current?.click()}
                 aria-label="Attach a file"
               >
@@ -347,7 +349,7 @@ export function Composer({
                   type="button"
                   size="icon"
                   variant="ghost"
-                  className="rounded-full text-muted-foreground"
+                  className="rounded-full text-foreground/75 hover:text-foreground"
                   onClick={dictation.start}
                   aria-label="Dictate"
                 >
@@ -373,7 +375,8 @@ export function Composer({
                   size="icon"
                   disabled={!ready}
                   aria-label="Send"
-                  className="rounded-full"
+                  // With nothing to send it is quiet, and in the Dood's color once there is.
+                  className="rounded-full disabled:bg-foreground/7 disabled:text-muted-foreground/70 disabled:opacity-100"
                 >
                   <ArrowUpIcon weight="bold" className="size-[1.125rem]" />
                 </Button>

@@ -1,4 +1,4 @@
-import type { ComputerChoices } from "@do-computer/agent"
+import type { ComputerChoices, EchoReply } from "@do-computer/agent"
 import { SECRET_KINDS, type SecretKind, type SecretsMode } from "@do-computer/protocol"
 import type { ActorNamespace, AppDatabase } from "@do-computer/runtime"
 
@@ -38,6 +38,11 @@ export type Config = {
    * everyone's agents.
    */
   readonly adminEmails: readonly string[]
+  /**
+   * Written-out answers of the built-in echo model, by the message they answer, from
+   * `DC_ECHO_REPLIES` (JSON): for pictures of the app with realistic chats and no model key.
+   */
+  readonly echoReplies: Readonly<Record<string, EchoReply>> | undefined
   /** OpenRouter model id that reads web search results. Default: the default model. */
   readonly searchModel: string | undefined
   /** OpenRouter model id that judges whether an agent meant to stop. Default: a small one. */
@@ -259,6 +264,19 @@ function sandboxKinds(value: string | undefined): readonly SandboxKind[] | undef
     : names.map((name) => sandboxKind(name, "DC_SANDBOX_KINDS includes"))
 }
 
+/** `DC_ECHO_REPLIES`: a JSON object of answers by message. Anything else is none. */
+function echoReplies(value: string | undefined): Readonly<Record<string, EchoReply>> | undefined {
+  if (value === undefined) return undefined
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+      ? (parsed as Record<string, EchoReply>)
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export function readConfig(env: Record<string, string | undefined>): Config {
   const optional = (name: string) => (env[name] === "" ? undefined : env[name])
   /** A length of time in milliseconds. Anything that is not a whole number from 0 up is as if unset. */
@@ -286,6 +304,7 @@ export function readConfig(env: Record<string, string | undefined>): Config {
       // The one person a server run by the desktop app is for signs it in for all their Doods.
       ...(optional("DC_OWNER_KEY") === undefined ? [] : [LOCAL_OWNER_EMAIL]),
     ],
+    echoReplies: echoReplies(optional("DC_ECHO_REPLIES")),
     searchModel: optional("DC_SEARCH_MODEL"),
     judgeModel: optional("DC_JUDGE_MODEL"),
     reviewModel: optional("DC_REVIEW_MODEL"),
