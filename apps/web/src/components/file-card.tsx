@@ -28,7 +28,7 @@ const PREVIEWABLE = INLINE_IMAGE_TYPES
 
 /** A file's card: one piece, its name the way in, and what is done to it beside the name. */
 const CARD =
-  "group/file relative flex h-11 w-fit max-w-full items-center gap-0.5 rounded-xl bg-card text-sm shadow-raised"
+  "group/file relative flex h-10 w-fit max-w-full items-center gap-0.5 rounded-xl bg-card text-sm shadow-raised"
 const OPEN =
   "flex h-full min-w-0 items-center gap-2.5 rounded-xl pr-3.5 pl-3 outline-none hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/40"
 /**

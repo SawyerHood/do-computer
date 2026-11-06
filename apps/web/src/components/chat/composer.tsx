@@ -335,7 +335,7 @@ export function Composer({
                 type="button"
                 size="icon"
                 variant="ghost"
-                className="rounded-full text-muted-foreground hover:text-foreground"
+                className="rounded-full text-foreground/75 hover:text-foreground"
                 onClick={() => picker.current?.click()}
                 aria-label="Attach a file"
               >
@@ -349,7 +349,7 @@ export function Composer({
                   type="button"
                   size="icon"
                   variant="ghost"
-                  className="rounded-full text-muted-foreground"
+                  className="rounded-full text-foreground/75 hover:text-foreground"
                   onClick={dictation.start}
                   aria-label="Dictate"
                 >
