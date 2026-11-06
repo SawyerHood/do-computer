@@ -147,7 +147,7 @@ test.describe("connectors", () => {
     try {
       await openConnectors(page)
       // What it is, and how to set it up, is a guide: it opens beside the app.
-      const guide = page.getByRole("link", { name: "What you get and how to set it up" })
+      const guide = page.getByRole("link", { name: "How it works" })
       await expect(guide).toHaveAttribute("href", "/docs/apps")
       await expect(guide).toHaveAttribute("target", "_blank")
       await page.getByRole("button", { name: "Connect apps" }).click()
