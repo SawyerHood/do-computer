@@ -317,7 +317,7 @@ function FromSlack({
           part.type === "text" ? (
             <SentText key={index} text={part.text} pictures={hasPictures(message)}>
               {(text) => (
-                <Bubble align="end" variant="secondary">
+                <Bubble align="end" variant="tinted">
                   <BubbleContent className="whitespace-pre-wrap text-[0.9375rem]">
                     {text}
                   </BubbleContent>
@@ -543,7 +543,7 @@ function MessageView({
     return (
       <Message align="end">
         <MessageContent>
-          <Bubble align="end" variant="secondary">
+          <Bubble align="end" variant="tinted">
             <BubbleContent className="border-border whitespace-pre-wrap text-[0.9375rem]">
               <span className="mb-0.5 block text-xs text-muted-foreground">
                 {answered ? `${answerer} answered` : `${asker} asked`}
@@ -813,11 +813,11 @@ export function Transcript({
                 ))}
                 {activity === null || stepping || signingIn ? null : (
                   // The moving shine says it is working; a spinner beside it would say it twice.
-                  <Marker role="status" aria-live="polite" className="gap-2 px-1">
+                  <Marker role="status" aria-live="polite" className="gap-2 px-0 text-sm font-medium text-primary">
                     {working === undefined ? null : (
                       <AgentFace agent={working} className="size-5 shrink-0" still />
                     )}
-                    <MarkerContent className="animate-shine truncate">{activity}…</MarkerContent>
+                    <MarkerContent className="animate-shine truncate text-sm">{activity}…</MarkerContent>
                   </Marker>
                 )}
                 {agentId === undefined || chatId === undefined ? null : (

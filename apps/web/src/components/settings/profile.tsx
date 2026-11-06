@@ -99,7 +99,7 @@ function Section({
   return (
     <section aria-labelledby={heading} className="flex flex-col gap-3 border-t pt-6">
       <div>
-        <h2 id={heading} className="text-sm font-medium">
+        <h2 id={heading} className="text-sm font-semibold">
           {title}
         </h2>
         <p className="text-sm text-muted-foreground">{hint}</p>
@@ -687,7 +687,7 @@ export function ProfileSettings({
       <div hidden={section !== "profile"} className="flex flex-col gap-6">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Profile</h2>
-          <p className="text-sm text-muted-foreground">{`Who ${name} is: how it looks, how it talks, and which workspace it is in.`}</p>
+          
         </div>
         <div className="flex items-center gap-5">
           <AgentAvatar
@@ -721,7 +721,7 @@ export function ProfileSettings({
 
         <Section
           title="Look"
-          hint="Its shape and face were not chosen: they grew from a roll of the dice. Pick its color, or roll again for a different creature."
+          hint="Pick a color or roll a new creature."
         >
           <ToggleGroup
             aria-label="Color"
@@ -766,7 +766,7 @@ export function ProfileSettings({
 
         <Section
           title="Personality"
-          hint="How the Dood talks and behaves, written to it in the second person."
+          hint="How your Dood talks and behaves."
         >
           <Textarea
             id="soul"
@@ -864,7 +864,7 @@ export function ProfileSettings({
       </div>
       {section === "usage" ? <Usage agentId={agentId} /> : null}
       {typed || dirty ? (
-        <div className="sticky -bottom-8 z-10 -mx-6 -mb-8 flex min-h-16 items-center justify-end gap-3 border-t bg-popover px-6 py-3 sm:-mx-9 sm:px-9">
+        <div className="sticky bottom-0 z-10 -mx-6 -mb-8 flex min-h-16 items-center justify-end gap-3 border-t bg-popover px-6 py-3 sm:-mx-9 sm:px-9">
           {save.isError ? (
             <p role="alert" className="text-sm text-destructive">
               {save.error.message}

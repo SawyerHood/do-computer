@@ -630,7 +630,7 @@ function AgentRow({
       >
         {/* Alone, it is all the row is as tall as: no line of words is kept room for under it. */}
         <span className={cn("relative shrink-0", rail && "flex")}>
-          <AgentFace agent={agent} className="size-10" quiet />
+          <AgentFace agent={agent} className={rail ? "size-10" : "size-8"} quiet />
           {asking ? (
             <span
               role="img"

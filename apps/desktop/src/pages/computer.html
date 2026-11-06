@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self'"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'"
     />
     <link rel="stylesheet" href="pages.css" />
     <title>This Computer</title>
@@ -37,15 +37,13 @@
         </label>
         <button id="toggle" class="primary" type="button"></button>
       </section>
-      <h2>What Doods can use here</h2>
+      <h2>What Doods can use</h2>
       <section class="card" id="allow">
         <label class="switch-row">
           <span class="grow">
             <strong>The screen</strong>
             <span class="quiet small">
-              They work in your apps' windows behind whatever you have in front, so your mouse and
-              keyboard stay yours. For what cannot be done that way they take them for a moment. You
-              can pause or stop them at any time.
+              Work in app windows. Pause or stop them at any time.
             </span>
             <span id="screen-unavailable" class="quiet small" hidden></span>
           </span>
@@ -71,9 +69,7 @@
           <span class="grow">
             <strong>A browser</strong>
             <span class="quiet small">
-              They use your own Chrome when it is open and lets itself be used
-              (chrome://inspect/#remote-debugging), with everything you are signed in to. Otherwise
-              a browser of their own, which keeps its own sign-ins.
+              Use your signed-in Chrome when allowed, or a separate browser.
             </span>
           </span>
           <input id="browser" class="switch" type="checkbox" role="switch" />
@@ -95,7 +91,7 @@
       <p class="quiet small">A Dood cannot change these. They are kept on this computer.</p>
       <label class="check" id="login-row">
         <input id="login" type="checkbox" />
-        <span>Open Do Computer when I sign in to this computer</span>
+        <span>Open at sign-in</span>
         <span class="quiet small">
           Doods can only reach this computer while Do Computer is running. Closing its window leaves
           it running in the tray.
@@ -115,7 +111,7 @@
         </span>
         <button id="update" class="link" type="button"></button>
       </div>
-      <h2>What happened here</h2>
+      <h2>Recent activity</h2>
       <ol id="log" class="log" aria-label="What the daemon did"></ol>
       <p class="quiet small">
         To take this computer away from your Doods for good, remove it under Computers.

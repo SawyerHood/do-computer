@@ -25,10 +25,10 @@ for judge, title in JUDGES:
             low = min(v for v in values if isinstance(v, (int, float)))
             cells = [f"{v:g}" if isinstance(v, (int, float)) else "?" for v in values]
             label = f"**{name}**" if key == "do_computer" else name
-            lines.append(f"| {r[1:]} | {label} | " + " | ".join(cells) + f" | {low:g} |")
+            lines.append(f"| {r[1:]} | {label} | " + " | ".join(cells) + f" | {low:g} | {sum(values)/len(values):.2f} |")
     if lines:
         print(f"#### {title}\n")
-        print("| Round | App | " + " | ".join(HEADERS) + " | Lowest |")
-        print("| ---: | --- | " + " | ".join("---:" for _ in HEADERS) + " | ---: |")
+        print("| Round | App | " + " | ".join(HEADERS) + " | Lowest | Average |")
+        print("| ---: | --- | " + " | ".join("---:" for _ in HEADERS) + " | ---: | ---: |")
         print("\n".join(lines))
         print()

@@ -1,5 +1,5 @@
 import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react"
-import type { ReactNode } from "react"
+import { useRef, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
@@ -57,9 +57,12 @@ export function SettingsDialog<Id extends string>({
   onList: () => void
   children: ReactNode
 }) {
+  const popup = useRef<HTMLDivElement>(null)
   return (
     <Dialog open onOpenChange={(next) => (next ? undefined : onClose())}>
       <DialogContent
+        ref={popup}
+        initialFocus={popup}
         // The way out stays over the bar a narrow screen has at the top of a section.
         className="flex h-dvh max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[min(42rem,calc(100dvh-3rem))] sm:max-w-4xl sm:flex-row sm:rounded-2xl [&>[data-slot=dialog-close]]:z-20"
       >

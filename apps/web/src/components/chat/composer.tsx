@@ -361,7 +361,7 @@ export function Composer({
                   variant="secondary"
                   onClick={onStop}
                   aria-label="Stop"
-                  className="rounded-full"
+                  className="rounded-full border border-primary/40 bg-primary/10 text-primary"
                 >
                   <StopIcon weight="fill" />
                 </Button>
@@ -373,7 +373,7 @@ export function Composer({
                   size="icon"
                   disabled={!ready}
                   aria-label="Send"
-                  className="rounded-full"
+                  className="rounded-full disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
                 >
                   <ArrowUpIcon weight="bold" className="size-[1.125rem]" />
                 </Button>
