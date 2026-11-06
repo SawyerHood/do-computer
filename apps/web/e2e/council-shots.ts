@@ -34,7 +34,12 @@ let data = ""
 test.beforeAll(async () => {
   rmSync(OUT, { recursive: true, force: true })
   mkdirSync(OUT, { recursive: true })
-  if (await fetch(`${ORIGIN}/api/health`).then((r) => r.ok, () => false)) {
+  if (
+    await fetch(`${ORIGIN}/api/health`).then(
+      (r) => r.ok,
+      () => false,
+    )
+  ) {
     throw new Error(`Something is already listening on ${ORIGIN}: stop it, or set DC_COUNCIL_PORT.`)
   }
   data = mkdtempSync(join(tmpdir(), "dc-council-"))
@@ -51,7 +56,12 @@ test.beforeAll(async () => {
     },
   })
   const deadline = Date.now() + 30_000
-  while (!(await fetch(`${ORIGIN}/api/health`).then((r) => r.ok, () => false))) {
+  while (
+    !(await fetch(`${ORIGIN}/api/health`).then(
+      (r) => r.ok,
+      () => false,
+    ))
+  ) {
     if (Date.now() > deadline) throw new Error("The server did not come up. Is it built?")
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
@@ -72,7 +82,10 @@ async function shoot(page: Page, name: string, settle = 900) {
   for (const scheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: scheme })
     // The app reads the system's theme as it opens; following it after is what this does.
-    await page.evaluate((dark) => document.documentElement.classList.toggle("dark", dark), scheme === "dark")
+    await page.evaluate(
+      (dark) => document.documentElement.classList.toggle("dark", dark),
+      scheme === "dark",
+    )
     await page.mouse.move(2, 450)
     await page.waitForTimeout(settle)
     await page.screenshot({ path: join(OUT, `${name}-${scheme}.png`) })
@@ -93,7 +106,8 @@ test("the council's pictures", async ({ page, browser }) => {
   test.setTimeout(600_000)
   await page.addInitScript(() => {
     if (localStorage.getItem("dc-chat-list") === null) localStorage.setItem("dc-chat-list", "open")
-    if (localStorage.getItem("dc-agent-panel") === null) localStorage.setItem("dc-agent-panel", "closed")
+    if (localStorage.getItem("dc-agent-panel") === null)
+      localStorage.setItem("dc-agent-panel", "closed")
   })
   expect((await page.request.post("/api/auth/sign-up/email", { data: ACCOUNT })).status()).toBe(200)
   // The other Doods first, so that Juniper, made last, is the one that opens.
@@ -104,7 +118,9 @@ test("the council's pictures", async ({ page, browser }) => {
   }
   const made = await page.request.post("/api/agents")
   const { id } = ((await made.json()) as { agent: { id: string } }).agent
-  await page.request.patch(`/api/agents/${id}`, { data: { name: "Juniper", avatar: LOOKS.Juniper } })
+  await page.request.patch(`/api/agents/${id}`, {
+    data: { name: "Juniper", avatar: LOOKS.Juniper },
+  })
   await page.goto(`/a/${id}`)
   await expect(composer(page)).toBeVisible({ timeout: 20_000 })
   await page.waitForTimeout(1_500)

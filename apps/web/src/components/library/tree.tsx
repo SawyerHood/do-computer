@@ -39,7 +39,10 @@ export function KindIcon({ file, className }: { file: LibraryFile; className?: s
   if (kind === "markdown")
     return (
       <FileTextIcon
-        className={cn(size, "text-primary dark:text-[color-mix(in_oklab,var(--primary)_55%,white)]")}
+        className={cn(
+          size,
+          "text-primary dark:text-[color-mix(in_oklab,var(--primary)_55%,white)]",
+        )}
       />
     )
   if (kind === "page")

@@ -37,8 +37,9 @@ for judge, title in JUDGES:
 
 # Do Computer's average per judge, round by round, beside the best reference app's.
 print("#### Do Computer average by round\n")
-print("| Round | " + " | ".join(f"{t.split(' (')[0]}: DC / best ref" for _, t in JUDGES) + " | Started | Judged |")
-print("| ---: | " + " | ".join("---" for _ in JUDGES) + " | --- | --- |")
+print("| Round | " + " | ".join(f"{t.split(' (')[0]}: DC / best ref" for _, t in JUDGES) + " | Fixes from | Shots from | Judged |")
+print("| ---: | " + " | ".join("---" for _ in JUDGES) + " | --- | --- | --- |")
+previous = ""
 for r in rounds:
     cells = []
     for judge, _ in JUDGES:
@@ -50,4 +51,6 @@ for r in rounds:
         avg = lambda key: sum(scores[key][c] for c in CATEGORIES) / len(CATEGORIES)
         cells.append(f"{avg('do_computer'):.2f} / {max(avg(k) for k, _ in APPS[1:]):.2f}")
     times = [open(os.path.join(root, r, f)).read().strip() if os.path.exists(os.path.join(root, r, f)) else "" for f in ("started.txt", "judged-end.txt")]
-    print(f"| {r[1:]} | " + " | ".join(cells) + f" | {times[0]} | {times[1]} |")
+    # A round's fixes are made from when the round before it was judged.
+    print(f"| {r[1:]} | " + " | ".join(cells) + f" | {previous or '–'} | {times[0]} | {times[1]} |")
+    previous = times[1]

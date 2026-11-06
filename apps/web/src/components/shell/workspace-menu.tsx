@@ -71,7 +71,9 @@ export function WorkspaceMenu({
         <DropdownMenuTrigger
           aria-label={`${workspace.name}: workspace menu`}
           title="Workspace menu"
-          render={<Button variant="ghost" size="icon-xs" className="size-7 text-muted-foreground" />}
+          render={
+            <Button variant="ghost" size="icon-xs" className="size-7 text-muted-foreground" />
+          }
         >
           <DotsThreeIcon weight="bold" className="size-4" />
         </DropdownMenuTrigger>

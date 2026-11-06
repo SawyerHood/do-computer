@@ -361,9 +361,7 @@ export function ConnectorsSettings({
     <div className="flex flex-col gap-6">
       <div>
         <h2 className="text-lg font-semibold tracking-tight">Connectors</h2>
-        <p className="text-sm text-muted-foreground">
-          Apps and services your Dood can use.
-        </p>
+        <p className="text-sm text-muted-foreground">Apps and services your Dood can use.</p>
       </div>
       {search.connector_error ? (
         <Alert className="border-destructive/40 bg-destructive/10">

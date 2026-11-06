@@ -15,7 +15,8 @@ export const ASK_TRIP =
 
 export const ASK_BOOK = "Go with Memmo Alfama. Hold it, and keep an eye on the fare for me."
 
-export const ASK_DINNER = "Also find somewhere for dinner on Saturday with a view. Mia loves seafood."
+export const ASK_DINNER =
+  "Also find somewhere for dinner on Saturday with a view. Mia loves seafood."
 
 const ITINERARY = `# Lisbon weekend
 

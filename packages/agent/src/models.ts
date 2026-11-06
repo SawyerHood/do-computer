@@ -138,7 +138,10 @@ export type EchoReply =
     }
 
 /** The next step of a written-out answer, `done` of its tools having been called. */
-function scripted(reply: EchoReply, done: number): string | ReturnType<typeof fauxAssistantMessage> {
+function scripted(
+  reply: EchoReply,
+  done: number,
+): string | ReturnType<typeof fauxAssistantMessage> {
   if (typeof reply === "string") return reply
   const next = reply.tools?.[done]
   if (next !== undefined) {
@@ -264,7 +267,8 @@ function echoWords(
   const said = context.messages.findLastIndex(
     (message) => message.role === "user" && blockText(message.content) !== "",
   )
-  const reply = said === -1 ? undefined : replies?.[blockText(context.messages[said]!.content).trim()]
+  const reply =
+    said === -1 ? undefined : replies?.[blockText(context.messages[said]!.content).trim()]
   if (reply !== undefined) {
     const done = context.messages
       .slice(said)

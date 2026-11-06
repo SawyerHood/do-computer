@@ -136,7 +136,11 @@ export function AgentList({
         "flex h-full min-h-0 flex-col gap-0.5 overflow-y-auto pb-3",
         // A face is as far from the edge of a narrow screen as it is from the page beside it.
         // Open, its rows, its heading and its faces share one left edge, 16px in.
-        narrow === "rail" ? "px-1 [scrollbar-width:none]" : narrow === "open" ? "px-2 [scrollbar-width:none]" : "px-2",
+        narrow === "rail"
+          ? "px-1 [scrollbar-width:none]"
+          : narrow === "open"
+            ? "px-2 [scrollbar-width:none]"
+            : "px-2",
       )}
     >
       {loading ? (
