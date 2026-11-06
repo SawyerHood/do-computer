@@ -194,8 +194,8 @@ button.link {
 }
 ol.log {
   flex: 0 1 auto;
-  min-height: 100px;
-  max-height: 160px;
+  min-height: 72px;
+  max-height: 120px;
   margin: 0;
   padding: 10px 12px;
   overflow-y: auto;
@@ -419,3 +419,10 @@ svg.qr[data-spent="true"] {
 
 #toggle:not(.primary) { align-self: flex-start; min-height: 36px; background: transparent; }
 button { min-height: 36px; }
+
+.metadata { gap: 0; padding-top: 0; padding-bottom: 0; }
+.metadata > .row { min-height: 44px; }
+.metadata > .row + .row { border-top: 1px solid var(--line); }
+.metadata > .row > .quiet:first-child { flex: 0 0 86px; }
+.card:has(#toggle) { flex-flow: row wrap; align-items: center; justify-content: space-between; }
+.card:has(#toggle) > .row { flex: 1 1 auto; }

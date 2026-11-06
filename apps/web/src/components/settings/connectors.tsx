@@ -227,7 +227,7 @@ function AddForm({ agentId }: { agentId: string }) {
   })
   return (
     <form
-      className="flex flex-col gap-3 rounded-2xl border border-dashed p-4"
+      className="flex flex-col gap-3 border-t pt-6"
       onSubmit={(event) => {
         event.preventDefault()
         add.mutate()
@@ -384,7 +384,7 @@ function SlackOffer({ agent, onOpen }: { agent: AgentSummary; onOpen: () => void
         </CardTitle>
         <CardDescription>
           {app === null
-            ? `Put ${name} in Slack as a bot of its own. Mention it in a channel or message it, and it answers there.`
+            ? `Chat with ${name} in channels and direct messages.`
             : `${name} is in ${app.team} as @${app.bot}.`}
         </CardDescription>
         {app === null ? null : (

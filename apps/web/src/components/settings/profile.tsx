@@ -683,7 +683,8 @@ export function ProfileSettings({
   const typed = section === "profile" || section === "memory" || section === "model"
   const name = state.agent.name ?? "this Dood"
   return (
-    <form hidden={section === undefined} className="flex flex-col gap-6" onSubmit={submit}>
+    <form hidden={section === undefined} className="flex h-full min-h-0 flex-col" onSubmit={submit}>
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-1 pb-8 sm:px-9 sm:pt-7">
       <div hidden={section !== "profile"} className="flex flex-col gap-6">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Profile</h2>
@@ -863,15 +864,16 @@ export function ProfileSettings({
         <Computers agentId={agentId} />
       </div>
       {section === "usage" ? <Usage agentId={agentId} /> : null}
+      </div>
       {typed || dirty ? (
-        <div className="sticky bottom-0 z-10 -mx-6 -mb-8 flex min-h-16 items-center justify-end gap-3 border-t bg-popover px-6 py-3 sm:-mx-9 sm:px-9">
+        <div className="flex min-h-16 shrink-0 items-center justify-end gap-3 border-t bg-popover px-6 py-3 sm:px-9">
           {save.isError ? (
             <p role="alert" className="text-sm text-destructive">
               {save.error.message}
             </p>
           ) : null}
           {save.isSuccess && !dirty ? <p className="text-sm text-muted-foreground">Saved</p> : null}
-          <Button type="submit" disabled={!dirty || over || save.isPending} className="h-9 rounded-lg">
+          <Button type="submit" disabled={!dirty || over || save.isPending} className="h-9 rounded-lg disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100">
             {save.isPending ? "Saving…" : "Save changes"}
           </Button>
         </div>

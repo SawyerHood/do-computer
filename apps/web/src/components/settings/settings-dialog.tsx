@@ -38,6 +38,7 @@ export function SettingsDialog<Id extends string>({
   onSection,
   onList,
   children,
+  contained = false,
 }: {
   onClose: () => void
   /** The list this was chosen from, inside an agent or a workspace. */
@@ -56,6 +57,8 @@ export function SettingsDialog<Id extends string>({
   /** Back from a section to the list, on a narrow screen. */
   onList: () => void
   children: ReactNode
+  /** A form with its own scrolling body and fixed action footer. */
+  contained?: boolean
 }) {
   const popup = useRef<HTMLDivElement>(null)
   return (
@@ -124,8 +127,8 @@ export function SettingsDialog<Id extends string>({
             </div>
           ))}
         </nav>
-        <div className={cn("min-h-0 min-w-0 flex-1 overflow-y-auto sm:block", listing && "hidden")}>
-          <div className="sticky top-0 z-10 flex h-14 items-center bg-popover px-2 pr-14 sm:hidden">
+        <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", contained ? "overflow-hidden" : "overflow-y-auto", listing && "hidden sm:flex")}>
+          <div className="sticky top-0 z-10 flex h-14 shrink-0 items-center bg-popover px-2 pr-14 sm:hidden">
             <Button
               variant="ghost"
               size="sm"
@@ -137,7 +140,7 @@ export function SettingsDialog<Id extends string>({
               <span className="truncate">{name}</span>
             </Button>
           </div>
-          <div className="px-6 pt-1 pb-8 sm:px-9 sm:pt-7">{children}</div>
+          <div className={contained ? "min-h-0 flex-1" : "px-6 pt-1 pb-8 sm:px-9 sm:pt-7"}>{children}</div>
         </div>
       </DialogContent>
     </Dialog>

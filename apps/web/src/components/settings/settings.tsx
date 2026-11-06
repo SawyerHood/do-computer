@@ -213,6 +213,7 @@ function OfAgent({
       name={agent.name ?? "New Dood"}
       kind={workspace?.kind === "team" ? `Dood in ${workspace.name}` : "Your Dood"}
       groups={[{ sections: AGENT }]}
+      contained={PROFILE.has(section)}
       // Slack is set up from the connectors, and is one of them in the list.
       section={section === "slack" ? "connectors" : section}
       listing={asked === undefined}
