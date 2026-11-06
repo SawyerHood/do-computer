@@ -605,7 +605,7 @@ function AgentRow({
         // The one that is open is a shade off the frame, and so is one that is being moved,
         // over the rest. The others darken under the pointer.
         active || sortable.isDragging
-          ? "bg-[color-mix(in_oklab,var(--foreground)_7%,var(--frame))] [--face-ring:color-mix(in_oklab,var(--foreground)_7%,var(--frame))]"
+          ? "bg-[color-mix(in_oklab,var(--foreground)_7%,var(--frame))] [--face-ring:color-mix(in_oklab,var(--foreground)_7%,var(--frame))] dark:bg-[color-mix(in_oklab,var(--foreground)_11%,var(--frame))] dark:[--face-ring:color-mix(in_oklab,var(--foreground)_11%,var(--frame))]"
           : "[--face-ring:var(--frame)] hover:bg-foreground/6",
         sortable.isDragging && "z-10",
       )}
@@ -630,7 +630,8 @@ function AgentRow({
       >
         {/* Alone, it is all the row is as tall as: no line of words is kept room for under it. */}
         <span className={cn("relative shrink-0", rail && "flex")}>
-          <AgentFace agent={agent} className="size-10" quiet />
+          {/* Its sparkles stay in its own box at this size: a list is no place for them. */}
+          <AgentFace agent={agent} className="size-10 overflow-hidden" quiet />
           {asking ? (
             <span
               role="img"
@@ -816,17 +817,18 @@ export function DoodsButton({
   return (
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       aria-label={wanted ? "Show your Doods: something new" : "Show your Doods"}
       title="Your Doods"
-      className="relative shrink-0 text-muted-foreground"
+      // A pill like the name beside it, floating over the page as the name does.
+      className="relative size-9 shrink-0 rounded-full bg-popover text-muted-foreground shadow-raised hover:bg-accent [&_svg]:size-[1.125rem]"
       onClick={onClick}
     >
       <SidebarSimpleIcon />
       {wanted ? (
         <span
           aria-hidden
-          className="absolute top-0.5 right-0.5 size-2 rounded-full bg-notice ring-2 ring-background"
+          className="absolute top-0 right-0 size-2.5 rounded-full bg-notice ring-2 ring-background"
         />
       ) : null}
     </Button>
