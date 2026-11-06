@@ -460,7 +460,7 @@ test("the layout works at phone width", async ({ page }) => {
   await expect(agents.locator("[data-latest]")).toBeVisible()
   expect(await pageWidth()).toBe(400)
   const face = async () => (await juniper.locator("> span").first().boundingBox())!
-  expect(await face()).toMatchObject({ x: 10, width: 40 })
+  expect(await face()).toMatchObject({ x: 16, width: 40 })
   await page.screenshot({ path: "test-results/phone-doods.png" })
   // Choosing the agent there is talking to it: its main chat. The list is gone again.
   await juniper.click()

@@ -135,7 +135,8 @@ export function AgentList({
       className={cn(
         "flex h-full min-h-0 flex-col gap-0.5 overflow-y-auto pb-3",
         // A face is as far from the edge of a narrow screen as it is from the page beside it.
-        narrow === undefined ? "px-2" : "px-1 [scrollbar-width:none]",
+        // Open, its rows, its heading and its faces share one left edge, 16px in.
+        narrow === "rail" ? "px-1 [scrollbar-width:none]" : narrow === "open" ? "px-2 [scrollbar-width:none]" : "px-2",
       )}
     >
       {loading ? (
@@ -516,7 +517,7 @@ function Section({
  * edge whether its words are beside it or not, and as far from its top, so the row of a face alone
  * is a square around it.
  */
-const ROW = { wide: "px-2.5 py-2", open: "py-1.5 pr-2.5 pl-1.5", rail: "p-1.5" }
+const ROW = { wide: "px-2.5 py-2", open: "py-1.5 pr-2.5 pl-2", rail: "p-1.5" }
 
 /**
  * An agent that is being made, in the list from the moment it is asked for: the row it will have,

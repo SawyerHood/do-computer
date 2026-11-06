@@ -445,7 +445,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
                                 <Hatchling
                                   agent={agent}
                                   hatch={hatch}
-                                  className="size-[clamp(6rem,calc(100dvh-34.5rem),18rem)]"
+                                  className="size-[clamp(6rem,calc(100dvh-34.5rem),14rem)]"
                                 />
                               </span>
                             )
