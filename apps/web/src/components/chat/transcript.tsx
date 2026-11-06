@@ -791,7 +791,7 @@ export function Transcript({
           <MessageScroller>
             <MessageScrollerViewport>
               {/* A short chat sits at the bottom, next to the box the next message is typed in. */}
-              <MessageScrollerContent className="mx-auto w-full max-w-[45rem] justify-end gap-6 px-4 pt-[var(--chat-top,6rem)] pb-6">
+              <MessageScrollerContent className="mx-auto w-full max-w-[45rem] gap-6 px-4 pt-[var(--chat-top,6rem)] pb-6">
                 {untouched && !state.busy ? empty : null}
                 {before}
                 {shown.map(({ message, failures }, index) => (

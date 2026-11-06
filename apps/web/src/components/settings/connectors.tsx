@@ -357,7 +357,12 @@ export function ConnectorsSettings({
         />
       </Loads>
       <SlackOffer agent={agent} onOpen={onSlack} />
-      <AddForm agentId={agentId} />
+      <Collapsible>
+        <CollapsibleTrigger className="flex h-10 w-full items-center gap-2 rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-muted">
+          <CaretRightIcon className="size-4" /> Add a connector
+        </CollapsibleTrigger>
+        <CollapsibleContent><AddForm agentId={agentId} /></CollapsibleContent>
+      </Collapsible>
     </div>
   )
 }
@@ -457,7 +462,7 @@ function AppsOffer({ agentId }: { agentId: string }) {
       <CardContent>
         <p className="text-muted-foreground">
           Your Dood asks before acting in your accounts.{" "}
-          <AppsGuide>What you get and how to set it up</AppsGuide>
+          <AppsGuide>Setup guide</AppsGuide>
         </p>
       </CardContent>
       <CardFooter className="flex-wrap gap-2">

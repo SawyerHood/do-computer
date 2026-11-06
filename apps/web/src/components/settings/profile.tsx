@@ -684,7 +684,7 @@ export function ProfileSettings({
   const name = state.agent.name ?? "this Dood"
   return (
     <form hidden={section === undefined} className="flex h-full min-h-0 flex-col" onSubmit={submit}>
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-1 pb-8 sm:px-9 sm:pt-7">
+      <div data-settings-body="" className="min-h-0 flex-1 overflow-y-auto px-6 pt-1 pb-20 sm:px-9 sm:pt-7">
       <div hidden={section !== "profile"} className="flex flex-col gap-6">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Profile</h2>
@@ -694,7 +694,7 @@ export function ProfileSettings({
           <AgentAvatar
             avatar={form.avatar}
             seed={agentId}
-            className="size-24"
+            className="size-20"
             hatched={state.agent.hatched}
           />
           <div className="flex min-w-0 flex-1 flex-col gap-3">
@@ -741,10 +741,10 @@ export function ProfileSettings({
                 value={color.id}
                 aria-label={color.label}
                 title={color.label}
-                className="size-auto min-w-0 rounded-full border-2 border-transparent p-0.5 hover:bg-transparent aria-pressed:border-primary aria-pressed:bg-transparent"
+                className="size-auto min-w-0 rounded-full border-2 border-transparent p-1 hover:bg-transparent aria-pressed:border-primary aria-pressed:bg-transparent"
               >
                 <span
-                  className="block size-7 rounded-full"
+                  className="block size-7 rounded-full border-2 border-popover"
                   style={{ backgroundColor: color.hex }}
                 />
               </ToggleGroupItem>

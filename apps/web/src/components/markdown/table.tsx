@@ -1,5 +1,5 @@
 import { ArrowsHorizontalIcon, CheckIcon, CopyIcon } from "@phosphor-icons/react"
-import { type ComponentProps, useRef, useState } from "react"
+import { type ComponentProps, useLayoutEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { type ColumnAlign, tableCsv, tableMarkdown } from "./table-text.ts"
+import { numericColumns } from "./numeric-columns.ts"
 import { useCopied } from "./use-copied.ts"
 
 /** What a table on the page says, row by row, and how each of its columns is set. */
@@ -29,6 +30,17 @@ function readTable(table: HTMLTableElement): { rows: string[][]; aligns: ColumnA
  */
 export function MarkdownTable({ children, ...props }: ComponentProps<"table">) {
   const table = useRef<HTMLTableElement>(null)
+  useLayoutEffect(() => {
+    const node = table.current
+    if (node === null) return
+    const rows = [...node.rows]
+    const numeric = new Set(numericColumns(rows.slice(1).map((row) => [...row.cells].map((cell) => cell.textContent ?? ""))))
+    for (const row of rows) for (const [column, cell] of [...row.cells].entries()) {
+      const authored = rows[0]?.cells[column]?.style.textAlign || rows[0]?.cells[column]?.getAttribute("align")
+      if (!authored && numeric.has(column)) cell.dataset.numeric = ""
+      else delete cell.dataset.numeric
+    }
+  }, [children])
   const [oneLine, setOneLine] = useState(false)
   const [copied, copy] = useCopied()
   const take = (as: "markdown" | "csv") => {

@@ -600,7 +600,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
           loading={!live.loaded && !refused}
           face={
             sub === undefined ? (
-              <Hatchling agent={agent} hatch={hatch} className="size-52 -mb-12" />
+              <Hatchling agent={agent} hatch={hatch} className="size-44 -mb-8" />
             ) : (
               <SubagentHero agentId={agent.id} chatId={chatId} className="size-44" />
             )

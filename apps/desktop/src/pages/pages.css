@@ -426,3 +426,7 @@ button { min-height: 36px; }
 .metadata > .row > .quiet:first-child { flex: 0 0 86px; }
 .card:has(#toggle) { flex-flow: row wrap; align-items: center; justify-content: space-between; }
 .card:has(#toggle) > .row { flex: 1 1 auto; }
+
+.card:has(#toggle) > :is(#pairing, #detail, #read-only-row) { flex-basis: 100%; }
+.card > .switch-row + .switch-row { border-top: 1px solid var(--line); padding-top: 16px; }
+.card > #reach-row { border-top: 1px solid var(--line); padding-top: 16px; }
