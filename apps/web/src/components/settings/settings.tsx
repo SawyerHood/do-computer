@@ -66,7 +66,7 @@ const SERVER: readonly SettingsSection<TopSection>[] = [
 const AGENT: readonly SettingsSection<AgentSection>[] = [
   { id: "profile", label: "Profile", icon: <UserCircleIcon /> },
   { id: "memory", label: "Memory", icon: <BookOpenIcon /> },
-  { id: "model", label: "Model and computers", icon: <CpuIcon /> },
+  { id: "model", label: "Model & computers", icon: <CpuIcon /> },
   { id: "skills", label: "Skills", icon: <LightningIcon /> },
   { id: "connectors", label: "Connectors", icon: <PlugsIcon /> },
   { id: "permissions", label: "Permissions", icon: <ShieldCheckIcon /> },

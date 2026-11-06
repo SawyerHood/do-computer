@@ -327,7 +327,7 @@ main.scrolls > * {
 /* A log in such a page fills what room is left, and keeps some for itself where there is none:
    it scrolls by itself, and the page past it. */
 main.scrolls > ol.log {
-  flex: 1 0 160px;
+  flex: 0 0 auto;
 }
 
 /* Where Do Computer runs: one of two, each with what it means under its name. */
@@ -431,14 +431,17 @@ button { min-height: 36px; }
 .card:has(#toggle) > .row { flex: 1 1 auto; }
 
 .card:has(#toggle) > :is(#pairing, #detail, #read-only-row) { flex-basis: 100%; }
-.card > .switch-row + .switch-row { border-top: 1px solid var(--line); padding-top: 16px; }
+.card > .switch-row ~ .switch-row { border-top: 1px solid var(--line); padding-top: 16px; }
 .card > #reach-row { border-top: 1px solid var(--line); padding-top: 16px; }
 
 .card:has(#toggle), .card:has(#reach) { background: color-mix(in oklch, var(--teal) 3%, var(--canvas)); border-color: color-mix(in oklch, var(--teal) 20%, var(--line)); }
 .caption { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 2px; line-height: 1.5; }
 .switch { width: 40px; height: 24px; padding: 2px; }
-.switch::before { width: 18px; height: 18px; }
-.switch:checked::before { transform: translateX(16px); }
+.switch::after { width: 18px; height: 18px; }
+.switch:checked::after { translate: 16px 0; background: var(--teal-ink); }
+.switch-row { min-height: 44px; align-items: center; }
+.switch { margin: 0; border-radius: 12px; border: 1px solid var(--control-line); }
+.switch:checked { border-color: var(--teal); }
 
 .metadata { font-size: 14px; line-height: 21px; }
 #log { font-size: 13px; line-height: 19px; }

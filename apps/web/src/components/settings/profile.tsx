@@ -426,16 +426,12 @@ function Workspace({ agentId, name }: { agentId: string; name: string }) {
       hint={
         workspace.kind === "team"
           ? `${name} is in ${workspace.name}: everyone there can use it and read its chats.`
-          : `${name} is yours alone. Move it to a team to share it.`
+          : elsewhere.length === 0 ? "Private to you. Create a team in the sidebar to share." : "Private to you. Move it to a team to share it."
       }
     >
       {!may ? (
         <p className="text-sm text-muted-foreground">Only an admin of the team can move it.</p>
-      ) : elsewhere.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          Start a team with New team, at the foot of the sidebar, to have somewhere to move it.
-        </p>
-      ) : (
+      ) : elsewhere.length === 0 ? null : (
         <div className="flex flex-wrap items-center gap-2">
           <Select
             items={elsewhere.map((entry) => ({ value: entry.id, label: entry.name }))}

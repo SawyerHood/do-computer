@@ -119,8 +119,8 @@ export function SettingsDialog<Id extends string>({
                   // is marked as open there.
                   className="h-11 justify-start gap-2.5 px-2.5 text-[0.9375rem] font-normal hover:bg-foreground/6 sm:h-9 sm:text-sm sm:text-muted-foreground sm:aria-[current=page]:bg-primary/10 sm:aria-[current=page]:text-foreground "
                 >
-                  {entry.icon}
-                  {entry.label}
+                  <span className="flex size-5 shrink-0 items-center justify-center [&_svg]:size-4">{entry.icon}</span>
+                  <span className="truncate">{entry.label}</span>
                   <CaretRightIcon className="ml-auto size-3.5 text-muted-foreground sm:hidden" />
                 </Button>
               ))}

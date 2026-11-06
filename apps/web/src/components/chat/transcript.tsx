@@ -813,7 +813,7 @@ export function Transcript({
                 ))}
                 {activity === null || stepping || signingIn ? null : (
                   // The moving shine says it is working; a spinner beside it would say it twice.
-                  <Marker role="status" aria-live="polite" className="mb-2 min-h-8 w-fit gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-[0.8125rem] font-medium text-primary">
+                  <Marker role="status" aria-live="polite" className="mb-2 min-h-9 w-fit gap-2.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-[0.8125rem] font-medium text-primary">
                     {working === undefined ? null : (
                       <AgentFace agent={working} className="size-5 shrink-0" still />
                     )}

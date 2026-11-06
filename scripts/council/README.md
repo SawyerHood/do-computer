@@ -34,3 +34,14 @@ Native mobile/Expo is not changed: phone-width captures cover the responsive web
 
 After app changes rebuild the server and restart `serve.sh` against the same data before capture.
 See `references.md` for source provenance and limitations.
+
+## Record audit and archive
+
+`python3 scripts/council/integrity.py .council/rounds` verifies identical view filenames and
+reference SHA-256 bytes in every round, valid nonzero all-app/category score objects, eight
+issues per response and recorded start/end times. `timing.py` prints the per-round clocks.
+
+After the last round, run `scripts/council/archive.sh r12 /absolute/archive/directory`.
+It preserves every round (including raw judge output and failed experiments), plus convenient
+`final/`, `refs/`, `table.md`, `timing.md` and validation-log entry points. Screenshots and large
+raw records stay out of git; the scoring report can be committed separately.

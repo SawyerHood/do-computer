@@ -872,7 +872,7 @@
 .dark [data-mood] > img { filter: brightness(1.16); }
 
 @layer components {
-  .prose-chat .md-table { width: 100%; max-width: 30rem; }
+  .prose-chat .md-table { width: 100%; max-width: 35rem; }
   .prose-chat table { width: 100%; font-size: 14px; line-height: 22px; }
   .prose-chat :is(th, td) { padding-top: 9px; padding-bottom: 9px; }
   .message-box:focus-within { box-shadow: 0 0 0 2px color-mix(in oklch, var(--primary) 32%, transparent); }
