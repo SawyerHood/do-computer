@@ -33,7 +33,7 @@ const OPEN =
  * card is its name alone, and they come out beside it while it is pointed at.
  */
 const ACTIONS =
-  "flex shrink-0 items-center gap-0.5 pr-1.5 transition-opacity [@media(hover:hover)]:absolute [@media(hover:hover)]:top-1/2 [@media(hover:hover)]:left-full [@media(hover:hover)]:-translate-y-1/2 [@media(hover:hover)]:pl-1 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-focus-within/file:opacity-100 [@media(hover:hover)]:group-hover/file:opacity-100 [@media(hover:hover)]:has-[[aria-pressed=true]]:opacity-100 [@media(hover:not(hover))]:-ml-2"
+  "flex shrink-0 items-center gap-0.5 pr-1.5 transition-opacity [@media(hover:hover)]:absolute [@media(hover:hover)]:top-1/2 [@media(hover:hover)]:left-full [@media(hover:hover)]:-translate-y-1/2 [@media(hover:hover)]:pl-1 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-focus-within/file:opacity-100 [@media(hover:hover)]:group-hover/file:opacity-100 [@media(hover:hover)]:has-[[aria-pressed=true]]:opacity-100 [@media(hover:none)]:-ml-2"
 /** One of them: a quiet button, with no lines between. */
 const ACTION =
   "flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
