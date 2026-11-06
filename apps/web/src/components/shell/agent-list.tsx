@@ -390,7 +390,7 @@ function Section({
             </button>
           ) : (
             <h2
-              className={cn("truncate text-[0.8125rem] font-medium text-muted-foreground", LEVEL)}
+              className={cn("truncate text-[0.8125rem] font-semibold text-muted-foreground", LEVEL)}
             >
               Doods
             </h2>
@@ -605,7 +605,7 @@ function AgentRow({
         // The one that is open is a shade off the frame, and so is one that is being moved,
         // over the rest. The others darken under the pointer.
         active || sortable.isDragging
-          ? "bg-primary/10 [--face-ring:var(--frame)]"
+          ? "bg-primary/14 [--face-ring:var(--frame)]"
           : "[--face-ring:var(--frame)] hover:bg-foreground/6",
         sortable.isDragging && "z-10",
       )}

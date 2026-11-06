@@ -52,11 +52,11 @@ run() {
       if [ -n "$host" ]; then
         ssh "$host" "rm -rf '$remote' && mkdir -p '$remote'" && scp -q -r "$images" "$host:$remote/"
         printf '%s' "$prompt" | sed "s#$images#$remote/images#" | ssh "$host" "cat > '$remote/prompt.md'"
-        ssh "$host" "cd '$remote/images' && nice -n 19 $codex_bin exec -s read-only --skip-git-repo-check --ephemeral -o '$remote/last.txt' \"\$(cat '$remote/prompt.md')\" $(printf "%q " "${args[@]}") </dev/null; cat '$remote/last.txt'" >"$raw" 2>&1
+        ssh "$host" "cd '$remote/images' && nice -n 19 $codex_bin exec --model gpt-6.1-sol -s read-only --skip-git-repo-check --ephemeral -o '$remote/last.txt' \"\$(cat '$remote/prompt.md')\" $(printf "%q " "${args[@]}") </dev/null; cat '$remote/last.txt'" >"$raw" 2>&1
       else
         local local_args=()
         for f in "${files[@]}"; do local_args+=(-i "$f"); done
-        (cd "$images" && nice -n 19 codex exec -s read-only --skip-git-repo-check --ephemeral \
+        (cd "$images" && nice -n 19 codex exec --model gpt-6.1-sol -s read-only --skip-git-repo-check --ephemeral \
           -o "$round/codex.last.txt" "$prompt" "${local_args[@]}" </dev/null >"$raw" 2>&1)
         cat "$round/codex.last.txt" >>"$raw" 2>/dev/null
       fi

@@ -9,6 +9,7 @@ import {
   randomId,
   type ThinkingLevel,
 } from "@do-computer/protocol"
+import { DiceFiveIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { useNavigate, useParams } from "@tanstack/react-router"
 import { useEffect, useId, useState } from "react"
@@ -758,7 +759,7 @@ export function ProfileSettings({
             // Shown at once, above. It is only kept once the changes are saved.
             onClick={() => set("avatar", { ...form.avatar, seed: randomId().slice(0, 12) })}
           >
-            Roll a new look
+            <DiceFiveIcon className="size-4" /> Roll a new look
           </Button>
         </Section>
 

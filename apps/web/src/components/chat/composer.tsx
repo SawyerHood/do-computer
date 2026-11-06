@@ -333,7 +333,7 @@ export function Composer({
                 type="button"
                 size="icon"
                 variant="secondary"
-                className="rounded-full bg-foreground/8 text-foreground hover:bg-foreground/12"
+                className="size-11 rounded-full bg-foreground/8 text-foreground hover:bg-foreground/12 sm:size-9"
                 onClick={() => picker.current?.click()}
                 aria-label="Attach a file"
               >
@@ -442,7 +442,7 @@ function Dictating({
           type="button"
           size="icon"
           variant="secondary"
-          className="disabled:opacity-100 sm:size-9"
+          className="disabled:opacity-100"
           disabled={transcribing}
           onClick={() => stop("draft")}
           aria-label="Stop dictating"
@@ -457,7 +457,7 @@ function Dictating({
         <Button
           type="button"
           size="icon"
-          className="disabled:opacity-100 sm:size-9"
+          className="disabled:opacity-100"
           disabled={transcribing}
           onClick={() => stop("send")}
           aria-label="Send what you said"

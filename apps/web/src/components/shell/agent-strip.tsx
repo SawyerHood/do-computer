@@ -137,7 +137,7 @@ function AgentPill({
   return (
     <div
       // It floats over every page, as a thing of its own.
-      className="flex max-w-full min-w-0 items-center rounded-full bg-popover p-0.5 shadow-raised [--pill:var(--popover)]"
+      className="flex max-w-full min-w-0 items-center rounded-full bg-popover p-0.5 shadow-raised sm:bg-transparent sm:shadow-none [--pill:var(--popover)]"
     >
       <DropdownMenu open={shown} onOpenChange={setShown}>
         {/* Its picture is the way to its panel, where it is looked after. A narrow screen has no

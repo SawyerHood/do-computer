@@ -380,8 +380,8 @@ function SlackOffer({ agent, onOpen }: { agent: AgentSummary; onOpen: () => void
   const name = agent.name ?? "your Dood"
   const app = state?.app ?? null
   return (
-    <Card>
-      <CardHeader>
+    <Card className="sm:flex-row sm:items-center">
+      <CardHeader className="min-w-0 flex-1">
         <CardTitle>
           <h2 className="flex items-center gap-2">
             <SlackLogoIcon className="size-4.5" /> Slack
@@ -398,7 +398,7 @@ function SlackOffer({ agent, onOpen }: { agent: AgentSummary; onOpen: () => void
           </CardAction>
         )}
       </CardHeader>
-      <CardFooter>
+      <CardFooter className="shrink-0">
         <Button
           size="sm"
           variant="outline"
@@ -450,8 +450,8 @@ function AppsOffer({ agentId }: { agentId: string }) {
     onSettled: () => queryClient.invalidateQueries({ queryKey: connectorsKey(agentId) }),
   })
   return (
-    <Card>
-      <CardHeader>
+    <Card className="sm:grid sm:grid-cols-[1fr_auto] sm:gap-y-2">
+      <CardHeader className="min-w-0">
         <CardTitle>
           <h2>Your apps</h2>
         </CardTitle>
@@ -465,7 +465,7 @@ function AppsOffer({ agentId }: { agentId: string }) {
           <AppsGuide>Setup guide</AppsGuide>
         </p>
       </CardContent>
-      <CardFooter className="flex-wrap gap-2">
+      <CardFooter className="flex-wrap gap-2 sm:col-start-2 sm:row-span-2 sm:row-start-1">
         <Button size="sm" disabled={connect.isPending} onClick={() => connect.mutate()}>
           {connect.isPending ? "Connecting…" : "Connect apps"}
         </Button>
