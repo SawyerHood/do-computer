@@ -1,0 +1,20 @@
+# What `bun setup.mjs` and the builds add, for this machine only
+/.cargo/
+/.exact/
+/.vscode/
+/AGENTS.md
+/CLAUDE.md
+/Cargo.lock
+/Cargo.toml
+/app.contract.d.ts
+/apple/
+/dist*
+/exact.mjs
+/linux/
+/node_modules/
+/package.json
+/rust-toolchain.toml
+/target/
+/web/
+/windows/
+/.env.local

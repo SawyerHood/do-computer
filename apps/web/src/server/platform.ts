@@ -13,6 +13,14 @@ export type Config = {
    */
   readonly alsoAt: readonly string[]
   /**
+   * Origins of client apps that are served from somewhere else and talk to this server across
+   * origins: the Exact app's web build while it is developed, for one. They are answered with
+   * the headers a browser asks for before it lets a page read a reply, and may sign in. Such an
+   * app carries its session in an `Authorization` header and not in a cookie, so nothing here
+   * is done on the say-so of a cookie the browser sent by itself.
+   */
+  readonly clientOrigins: readonly string[]
+  /**
    * Set where the Do Computer desktop app runs this server itself, for one person, on their
    * own computer: a secret only the app has. Whoever sends it is signed in as the owner, with
    * no password. Undefined everywhere else.
@@ -293,6 +301,7 @@ export function readConfig(env: Record<string, string | undefined>): Config {
   return {
     baseUrl: optional("DC_BASE_URL"),
     alsoAt: listed("DC_ALSO_AT").flatMap((address) => originOf(address) ?? []),
+    clientOrigins: listed("DC_CLIENT_ORIGINS").flatMap((address) => originOf(address) ?? []),
     ownerKey: optional("DC_OWNER_KEY"),
     authSecret: optional("DC_AUTH_SECRET"),
     openrouterApiKey: optional("OPENROUTER_API_KEY"),

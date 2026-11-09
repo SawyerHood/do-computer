@@ -39,6 +39,7 @@ import {
 } from "./server/computers.ts"
 import { type Env, getPlatform } from "./server/platform.cloudflare.ts"
 import { admitToPresence, presenceWorkspace } from "./server/presence.ts"
+import { answerClientOrigin } from "./server/client-origins.ts"
 import { tellPeopleOfAgent, typingIn } from "./server/feed.ts"
 import { createLiveActor } from "./server/presence-actor.ts"
 import { readConfig } from "./server/platform.ts"
@@ -216,6 +217,8 @@ export default createServerEntry({
         ? libraries.get(admitted.workspaceId).fetch(admitted.request)
         : agents.get(followed.agentId).fetch(admitted.request)
     }
-    return handler.fetch(request)
+    return answerClientOrigin(request, getPlatform().config.clientOrigins, (asked) =>
+      handler.fetch(asked),
+    )
   },
 })

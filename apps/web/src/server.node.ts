@@ -2,11 +2,15 @@ import { getPlatform } from "#platform"
 import type { SocketLike } from "@do-computer/runtime/node"
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry"
 import { admitToAgent, agentSocket } from "./server/agent-socket.ts"
+import { answerClientOrigin } from "./server/client-origins.ts"
 import { authenticateDaemon, computerActorName, CONNECT_PATH } from "./server/computers.ts"
 import { admitToPresence, PRESENCE_PATH, presenceWorkspace } from "./server/presence.ts"
 
 export default createServerEntry({
-  fetch: (request) => handler.fetch(request),
+  fetch: (request) =>
+    answerClientOrigin(request, getPlatform().config.clientOrigins, (asked) =>
+      handler.fetch(asked),
+    ),
 })
 
 export { CONNECT_PATH, PRESENCE_PATH }

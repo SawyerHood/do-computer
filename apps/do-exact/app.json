@@ -1,0 +1,35 @@
+{
+  "name": "Do Computer",
+  "short_name": "Do Computer",
+  "id": "computer.do.exact",
+  "start_url": "/",
+  "display": "standalone",
+  "app": {
+    "id": "computer.do.exact",
+    "name": "Do Computer"
+  },
+  "host": {
+    "web": {},
+    "linux": {}
+  },
+  "commands": {
+    "server": [
+      "bun",
+      "server.ts"
+    ]
+  },
+  "server": {
+    "database": false
+  },
+  "typescript": {
+    "sources": {
+      "protocol": "../../packages/protocol/src"
+    }
+  },
+  "deploy": {
+    "store": {
+      "web": "0",
+      "linux": "0"
+    }
+  }
+}

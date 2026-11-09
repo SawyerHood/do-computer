@@ -2,6 +2,7 @@ import { getPlatform } from "#platform"
 import { expo } from "@better-auth/expo"
 import { betterAuth, type BetterAuthOptions } from "better-auth"
 import { getMigrations } from "better-auth/db/migration"
+import { bearer } from "better-auth/plugins"
 import { tanstackStartCookies } from "better-auth/tanstack-start"
 import { askTwice, NO_SHARED_SCHEMA_CHECK, seedAuthStores } from "./auth-guard.ts"
 import { desktopHandoff } from "./desktop-handoff.ts"
@@ -104,10 +105,18 @@ function authOptions(platform: Platform) {
     advanced: NO_SHARED_SCHEMA_CHECK,
     // The mobile app signs in from its own URL scheme and keeps the session cookie itself. The
     // same server by its other names is the app as well.
-    trustedOrigins: [`${MOBILE_SCHEME}://`, ...config.alsoAt],
-    // tanstackStartCookies must stay last: it turns the Set-Cookie headers of server-side calls
-    // into response cookies.
-    plugins: [expo(), desktopHandoff(), localOwner(config.ownerKey), tanstackStartCookies()],
+    trustedOrigins: [`${MOBILE_SCHEME}://`, ...config.alsoAt, ...config.clientOrigins],
+    // `bearer` is for a client with no cookie jar this server can reach: it is handed its
+    // session in the `set-auth-token` header of the reply that signs it in, and sends it back
+    // as `Authorization: Bearer`. tanstackStartCookies must stay last: it turns the Set-Cookie
+    // headers of server-side calls into response cookies.
+    plugins: [
+      expo(),
+      bearer(),
+      desktopHandoff(),
+      localOwner(config.ownerKey),
+      tanstackStartCookies(),
+    ],
   } satisfies BetterAuthOptions
 }
 
