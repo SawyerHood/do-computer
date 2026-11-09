@@ -82,7 +82,7 @@ Rebuild the server (`build:node`) after changing anything under `apps/web` or `p
 - **Git.** Work only in your own worktree and branch. Commit as you go with messages in the
   repository's style (a sentence saying what is now true). Never push, never open a pull
   request, never touch `main`.
-- **Feedback to Expo is off** (`./x feedback status` should say never). Leave it off.
+- **Feedback to Expo is off**: `./x` sets `EXACT_FEEDBACK=0`. Leave it off, and run Exact only through `./x`.
 
 ## Reporting back
 
