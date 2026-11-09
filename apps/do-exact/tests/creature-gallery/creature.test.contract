@@ -1,0 +1,49 @@
+test "creatures mount, emit a pet, accept new props and hatch on the test clock"
+  clock data
+  clock +100
+  expect tree has "hero"
+  expect tree has "state-thinking"
+  expect tree has "state-asking"
+  expect tree has "small-32"
+  expect tree has "many-40"
+  tap "hero"
+  clock +100
+  expect text "presses" == "1"
+  expect text "last" == "pet"
+  tap "change"
+  clock +500
+  tap "reduce"
+  tap "hatch"
+  clock +1000
+  expect text "egg-last" == "hatched"
+  tap "remove"
+  expect tree missing "hero"
+  tap "remove"
+  clock +100
+  expect tree has "hero"
+
+
+test "the gift and the sky finish on Exact time, without real-time waits"
+  clock data
+  clock +10000
+  expect text "scene-last" == "land"
+  tap "sky-hatch"
+  clock +6000
+  expect text "scene-last" == "hatched"
+  tap "shake"
+  clock +500
+  tap "open"
+  clock +6000
+  expect text "gift-last" == "shown"
+  expect tree has "portrait"
+  expect tree has "wear-wizard"
+
+test "the scenes also finish with reduced motion"
+  clock data
+  tap "reduce"
+  clock +100
+  tap "sky-hatch"
+  tap "open"
+  clock +1200
+  expect text "scene-last" == "hatched"
+  expect text "gift-last" == "shown"
