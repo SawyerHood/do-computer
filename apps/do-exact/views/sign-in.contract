@@ -1,0 +1,84 @@
+// Signing in to the deployment, making an account on it, and signing out: the session area.
+// data/session.ts answers it; the session is kept in the platform's secret store.
+use Session, Reply from "./shapes.contract"
+use Field, FieldLabel, PrimaryButton from "./styles.contract"
+
+members App
+  // --- session ---
+  resource session = loadSession() as shape Session else empty()
+  mutation signed as shape Reply refreshes session then afterSign
+  mutation left as shape Reply refreshes session
+  state email = ""
+  state password = ""
+  state name = ""
+  // Making an account instead of signing in to one.
+  state joining = false
+  derive signError = pending(signed) ? "" : match signed { case some(r) => r.error, case none => "" }
+  derive canSign = email.trim() != "" and password != "" and (not joining or name.trim() != "") and not pending(signed)
+
+  action editEmail(v: string)
+    email = v
+  action editPassword(v: string)
+    password = v
+  action editName(v: string)
+    name = v
+  action toggleJoining
+    joining = not joining
+  action sign
+    if canSign
+      send signed = signIn(email.trim(), password, name.trim(), joining)
+  action afterSign
+    if signError == ""
+      password = ""
+  action signOut
+    send left = signOut()
+    nav = go(nav, "/")
+
+// The React app's auth form (apps/web/src/components/auth-form.tsx): a card on the frame.
+component SignIn
+  props
+    email: string
+    password: string
+    name: string
+    joining: bool
+    error: string
+    busy: bool
+    canSign: bool
+    editEmail: action
+    editPassword: action
+    editName: action
+    toggleJoining: action
+    sign: action
+  view
+    column position="absolute" inset=0 align-items="center" justify-content="center" overflow="auto"
+      background-color="frame" font-family="Geist" color="ink" padding=16 testId="sign-in"
+      column width="100%" box-sizing="border-box" max-width="26rem" padding=32 gap=24 border-radius=16
+        background-color="canvas" box-shadow="0 0 0 1px var(--hairline), 0 1px 2px rgb(0 0 0 / 0.04), 0 10px 28px -14px rgb(0 0 0 / 0.12)"
+        column gap=6
+          image "assets/icon-192.png" width=44 height=44 border-radius=12 margin-bottom=12 alt=""
+          text (joining ? "Create your account" : "Welcome back") role="heading" aria-level=1
+            font-size="1.5rem" font-weight=600 letter-spacing="-0.02em" testId="sign-title"
+          text (joining ? "Then meet your Dood: it gets its own name and memory, and a computer to work on." : "Sign in to pick up where you and your Dood left off.")
+            font-size="0.875rem" color="ink.muted"
+        column gap=16
+          if joining
+            column gap=6
+              text "Name" class=FieldLabel
+              input value=name input=editName aria-label="Name" autocomplete="name" enterkeyhint="next" class=Field testId="sign-name"
+          column gap=6
+            text "Email" class=FieldLabel
+            input value=email input=editEmail type="email" aria-label="Email" autocomplete="email" autocapitalize="none"
+              enterkeyhint="next" class=Field testId="sign-email"
+          column gap=6
+            text "Password" class=FieldLabel
+            input value=password input=editPassword submit=sign type="password" aria-label="Password"
+              autocomplete=(joining ? "new-password" : "current-password") enterkeyhint="go" class=Field testId="sign-password"
+          if error != ""
+            text error role="alert" font-size="0.875rem" color="danger" testId="sign-error"
+          button press=sign disabled=(not canSign) class=PrimaryButton testId="sign-submit"
+            text (busy ? "One moment…" : (joining ? "Create account" : "Sign in"))
+        row gap=4 flex-wrap="wrap" align-items="baseline"
+          text (joining ? "Already have an account?" : "New here?") font-size="0.875rem" color="ink.muted"
+          button press=toggleJoining appearance="none" background-color="transparent" border="none" padding=0
+            font-size="0.875rem" color="ink" text-decoration="underline" testId="sign-toggle"
+            text (joining ? "Sign in" : "Create an account")

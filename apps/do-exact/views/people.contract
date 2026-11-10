@@ -1,0 +1,14 @@
+// A workspace's people page: a PLACEHOLDER until its area is built. It will hold the members and their roles, the invitations, asking someone in.
+// The React app's is apps/web/src/components/settings/team.tsx. To build it: give this file a `members App` block for its
+// resources, mutations and actions (listed in app.contract beside the others), and its data
+// sources in data/people.ts (gathered in app.ts); then pass what the screen reads as props where
+// app.contract draws it. Keep the WorkspaceScreen frame: it is the header, the title and the lead.
+use Page from "./shapes.contract"
+use WorkspaceScreen from "./shell.contract"
+
+component PeopleScreen
+  props
+    page: Page
+  view
+    WorkspaceScreen(page=page, route="people", lead="Who is in this team, and who has been asked to join it.")
+      text "Not in this app yet." font-size="0.875rem" color="ink.muted" testId="placeholder-people"

@@ -1,0 +1,177 @@
+// A Dood's chat: the transcript, opened at its newest message and following it, the reply
+// arriving as it is written over the chat's event stream, and the composer. Beside it on a wide
+// window, the Dood's panel. data/chat.ts answers it, applying events with the protocol's
+// `reduceChat`.
+use Reply, Dood, Page from "./shapes.contract"
+use Screen, UserBubble, Composer, SendButton from "./styles.contract"
+use DoodHeader, doodOf, nameOf, stateOf from "./shell.contract"
+use DoodFace from "./creature.contract"
+use EmptyState from "exact:content"
+
+// One piece of a message: "text" (Markdown), "thinking", "tool" (`name` is the tool, `status`
+// how the call stands), "notice" or "image".
+shape Block
+  id: string
+  kind: string
+  text: string
+  name: string
+  status: string
+
+shape Message
+  id: string
+  role: string
+  status: string
+  error: string
+  blocks: Block[]
+
+shape Chat
+  owner: string
+  // Whose chat this answer is, so a retained one is never shown under another Dood.
+  agentId: string
+  chatId: string
+  busy: bool
+  // The stream ended or skipped events: what is shown may be behind until it is followed again.
+  lost: bool
+  messages: Message[]
+
+// Which chat is a Dood's main one: what `/a/:agentId` opens.
+shape Opened
+  owner: string
+  agentId: string
+  chatId: string
+
+members App
+  // --- chat ---
+  state draft = ""
+  resource opened = openChat(session.owner, openAgentId) as shape Opened else empty()
+  // The chat on screen: the one a `/c/:chatId` page names, else the open Dood's main chat.
+  derive openChatId = chatEntryId != "" ? chatEntryId : (opened.agentId == openAgentId and opened.owner == session.owner ? opened.chatId : "")
+  resource chat = followChat(session.owner, openAgentId, openChatId) as shape Chat else empty()
+  mutation said as shape Reply then afterSay
+  derive sayError = pending(said) ? "" : match said { case some(r) => r.error, case none => "" }
+  derive ours = chat.owner == session.owner and chat.agentId == openAgentId and chat.chatId == openChatId and openChatId != ""
+  derive lastId = match chat.messages.at(-1) { case some(m) => m.id, case none => "" }
+
+  // A chat whose stream was lost is followed again. When it starts or stops working, the
+  // sidebar's line for it is asked for again.
+  task mend mount
+    every(1000, heal)
+  task turn key=`${chat.agentId}:${chat.busy}`
+    after(300, pull)
+
+  action heal
+    if ours and chat.lost
+      refresh chat
+  action editDraft(v: string)
+    draft = v
+  // The id a send goes under, which the server takes once however often it arrives: the chat's
+  // newest message and the time, which no two sends share.
+  action say
+    if draft.trim() != "" and ours and not pending(said)
+      send said = sendMessage(chat.agentId, chat.chatId, draft.trim(), `x-${lastId}-${time.epochAtZero + performanceNow()}`)
+    focus("composer")
+  action afterSay
+    if sayError == ""
+      draft = ""
+    toEnd()
+  action toEnd
+    if lastId != ""
+      scrollIntoView("transcript", lastId, block="end")
+
+// A Dood's chat page: `/a/:agentId` (its main chat) and `/a/:agentId/c/:chatId`.
+component ChatScreen
+  props
+    page: Page
+    route: string
+    chat: Chat
+    // Whether `chat` is this page's chat, and not one kept from another.
+    ours: bool
+    loading: bool
+    draft: string
+    sayError: string
+    sending: bool
+    editDraft: action
+    say: action
+    heal: action
+  inject
+    doodList: Dood[]
+    wide: bool
+    panelOpen: bool
+  derive dood = doodOf(doodList, page.agentId)
+  view
+    column navigationKey=page.key navigationScroll="transcript" position="absolute" inset=0 display="flex" flex-direction="column"
+      class=Screen testId=`screen-${route}`
+      DoodHeader(page=page, route=route)
+      row flex=1 min-height=0
+        column flex=1 min-width=0 display="flex" flex-direction="column"
+          if not ours
+            if loading
+              column flex=1 justify-content="center" align-items="center"
+                progress aria-label="Loading" testId="chat-loading"
+            else
+              EmptyState(symbol="symbol:alert", title="Can’t Open This Chat", message="The server didn’t answer. Check your connection and try again.")
+                button press=heal testId="chat-retry"
+                  text "Try Again"
+          else
+            list id="transcript" appearance="none" virtualized=true scroll-start="end" scrollFollowEnd=true flex=1 min-height=0
+              aria-label="Messages" testId="transcript"
+              for m in chat.messages key=m.id
+                MessageRow(message=m)
+            if sayError != ""
+              text sayError font-size="0.8125rem" color="danger" padding="0 16px" max-width="45rem" margin="0 auto" testId="say-error"
+          column width="100%" max-width="45rem" margin="0 auto" padding="4px 16px 16px" box-sizing="border-box" flex-shrink=0
+            row class=Composer
+              textarea id="composer" value=draft input=editDraft rows=1 field-sizing="content" max-height=200
+                placeholder=`Message ${nameOf(dood)}` aria-label="Message" flex=1 min-width=0 padding="7px 6px 7px 12px"
+                border="none" background-color="transparent" color="ink" font-family="Geist" font-size="1rem" line-height=1.5
+                testId="composer"
+              button press=say disabled=(draft.trim() == "" or sending or not ours) retainFocus=true aria-label="Send" class=SendButton testId="send"
+                image "symbol:icon.arrow-up"
+        if wide and panelOpen
+          DoodPanel(dood=dood, busy=(ours and chat.busy))
+
+// One message: yours in a bubble on the right, the Dood's as what it wrote, thought and did.
+component MessageRow
+  props
+    message: Message
+  view
+    column width="100%" align-items="center"
+      column width="100%" max-width="45rem" padding="12px 16px" box-sizing="border-box"
+        if message.role == "user"
+          row justify-content="flex-end"
+            column max-width="80%" gap=4
+              for b in message.blocks key=b.id
+                text b.text class=UserBubble overflow-wrap="break-word" white-space="pre-wrap" testId=`message-${message.id}`
+        else if message.role == "notice"
+          column align-items="center" padding="0 24px"
+            for b in message.blocks key=b.id
+              text (b.name != "" ? `${b.name}: ${b.text}` : b.text) font-size="0.8125rem" color="ink.muted" text-align="center"
+        else
+          column gap=8 align-items="flex-start"
+            for b in message.blocks key=b.id
+              if b.kind == "text"
+                text b.text markup="markdown" overflow-wrap="break-word" max-width="100%" font-size="1rem" line-height=1.6 testId=`message-${message.id}`
+              else if b.kind == "thinking"
+                text b.text font-size="0.8125rem" color="ink.muted" line-clamp=3
+              else if b.kind == "tool"
+                row gap=6 align-items="center" padding="4px 10px" border-radius=8 background-color="surface" border="1px solid var(--hairline)"
+                  text b.name font-size="0.8125rem" font-family="Geist Mono"
+                  text b.status font-size="0.8125rem" color=(b.status == "error" ? "danger" : "ink.muted")
+              else
+                text b.text font-size="0.8125rem" color="ink.muted"
+            if message.error != ""
+              text message.error font-size="0.8125rem" color="danger"
+
+// The Dood's panel, beside its chat on a wide window: where it is looked after. The React app
+// draws its creature here, with its things; this is the entry point, with the face a placeholder
+// until the creature lands (creature.contract).
+component DoodPanel
+  props
+    dood: Dood
+    busy: bool
+  view
+    column width="20rem" flex-shrink=0 border-left="1px solid var(--hairline)" align-items="center" padding="40px 24px" gap=10
+      testId="dood-panel"
+      DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=96)
+      text nameOf(dood) font-size="1.0625rem" font-weight=500 margin-top=8 testId="panel-name"
+      text (dood.asking ? "Waiting on you" : (busy or dood.working) ? "Working" : "Ready") font-size="0.875rem" color="ink.muted" testId="panel-status"

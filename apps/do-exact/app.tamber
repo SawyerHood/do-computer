@@ -1,0 +1,56 @@
+// Do Computer's colours, from the React app's apps/web/src/theme-tokens.css (written from
+// packages/protocol/src/theme.ts). Every token there is ink mixed into canvas in OKLCH, and both
+// share a hue, so each mix is written out here as the colour it comes to. Change them together
+// with theme.ts.
+tamber do-computer
+
+theme
+  // The page, its words, and the frame the sidebar sits on.
+  canvas = light-dark(oklch(0.997 0.001 212), oklch(0.212 0.004 212))
+  ink = light-dark(oklch(0.27 0.008 212), oklch(0.9 0.006 212))
+  frame = light-dark(oklch(0.9643 0.0013 212), oklch(0.168 0.004 212))
+  hairline = light-dark(oklch(0.27 0.008 212 / 0.1), oklch(0.9 0.006 212 / 0.11))
+  // `muted-foreground`: secondary words.
+  ink.muted = light-dark(oklch(0.5172 0.0056 212), oklch(0.7211 0.0055 212))
+  // `accent`: a chosen row, a hover.
+  wash = light-dark(oklch(0.9388 0.0016 212), oklch(0.2877 0.0042 212))
+  muted = light-dark(oklch(0.9534 0.0014 212), oklch(0.267 0.0042 212))
+  secondary = light-dark(oklch(0.9461 0.0015 212), oklch(0.2739 0.0042 212))
+  surface = light-dark(oklch(0.9679 0.0013 212), oklch(0.2464 0.0041 212))
+  popover = light-dark(oklch(0.997 0.001 212), oklch(0.2464 0.0041 212))
+  border = light-dark(oklch(0.9025 0.0019 212), oklch(0.3014 0.0043 212))
+  input = light-dark(oklch(0.8371 0.0025 212), oklch(0.3496 0.0044 212))
+  // What a person said: ink at 11% over the page.
+  bubble = light-dark(oklch(0.27 0.008 212 / 0.11), oklch(0.9 0.006 212 / 0.11))
+  notice = light-dark(oklch(0.5 0.08 195), oklch(0.52 0.08 195))
+  danger = light-dark(oklch(0.5 0.19 26), oklch(0.7 0.17 24))
+  // `primary` with no Dood open: the default agent colour, oklch(0.5 0.08 195), deepened.
+  primary = light-dark(oklch(0.5 0.104 195), oklch(0.52 0.104 195))
+  primary.ink = light-dark(oklch(0.985 0.01 195), oklch(0.97 0.012 195))
+  // A Dood that asks for someone: amber, under white.
+  asking = #f59e0b  scheme=fixed
+  ink.on-asking = #ffffff  scheme=fixed
+  // Words on a Dood's or a workspace's own colour.
+  ink.on-color = #ffffff  scheme=fixed
+
+  // The platform's roles, so its own controls are in the same colours.
+  AccentColor = primary
+  -exact-label = ink
+  -exact-secondary-label = ink.muted
+  -exact-background = canvas
+  -exact-separator = border
+  -exact-secondary-background = surface
+
+// The React app's Phosphor icons (tools/phosphor-icons.mjs writes the SVGs), with what Apple
+// draws in their place.
+icons
+  icon.arrow-up = icon(sf "arrow.up", svg "icons/arrow-up.svg")
+  icon.caret-down = icon(sf "chevron.down", svg "icons/caret-down.svg")
+  icon.caret-up-down = icon(sf "chevron.up.chevron.down", svg "icons/caret-up-down.svg")
+  icon.plus = icon(sf "plus", svg "icons/plus.svg")
+  icon.dots = icon(sf "ellipsis", svg "icons/dots-three.svg")
+  icon.sidebar = icon(sf "sidebar.left", svg "icons/sidebar.svg")
+  icon.sign-out = icon(sf "rectangle.portrait.and.arrow.right", svg "icons/sign-out.svg")
+  icon.gear = icon(sf "gearshape", svg "icons/gear.svg")
+  icon.users = icon(sf "person.2", svg "icons/users.svg")
+  icon.check = icon(sf "checkmark", svg "icons/check.svg")

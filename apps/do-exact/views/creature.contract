@@ -1,0 +1,22 @@
+// PLACEHOLDER for the creature. Another piece of work draws it as the `do-creature` native view
+// (modules/web/); when it lands, DoodFace's view becomes that view, taking the same props, and
+// nothing that uses DoodFace changes. Until then a Dood is a disc in its colour with its
+// initial, as the React app's AgentFace is before its picture has loaded.
+
+fn initialOf(name: string): string = name.trim() == "" ? "?" : name.trim().slice(0, 1).toUpperCase()
+
+component DoodFace
+  props
+    // What its features grow from, and its colour (a hex): AgentSummary's avatar, resolved.
+    seed: string
+    color: string
+    // "idle", "working" or "asking": how it looks while it works or waits on someone.
+    state: string
+    // Its name, which a reader hears, and whose first letter the placeholder shows.
+    name: string
+    // Its width and height, in px.
+    size: number
+  view
+    column width=size height=size flex-shrink=0 border-radius=(size * 0.36) background-color=color
+      align-items="center" justify-content="center" role="img" aria-label=name
+      text initialOf(name) color="ink.on-color" font-weight=600 font-size=`${round(size * 0.42)}px` aria-hidden=true
