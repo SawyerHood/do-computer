@@ -25,7 +25,7 @@ export const computersSources: Pick<
   pairingCodeFromAddress: ([address]) => ({
     code: new URL(address, API).searchParams.get("code") ?? "",
   }),
-  loadComputers: async ([owner, workspaceId], store): Promise<Result<"loadComputers">> => {
+  loadComputers: async ([owner, workspaceId, withRequests], store): Promise<Result<"loadComputers">> => {
     if (!workspaceId || !current(owner, store))
       return {
         owner: NOBODY,
@@ -40,7 +40,7 @@ export const computersSources: Pick<
       }
     const [{ computers }, { requests }, kinds, options] = await Promise.all([
       get<{ computers: ComputerSummary[] }>(store, "/api/computers"),
-      get<{ requests: ComputerRequest[] }>(store, "/api/computers/requests"),
+      withRequests ? get<{ requests: ComputerRequest[] }>(store, "/api/computers/requests") : Promise.resolve({ requests: [] as ComputerRequest[] }),
       get<ComputerKinds>(store, "/api/computer-kinds"),
       get<{ showBrowser: boolean; canChange: boolean }>(
         store,

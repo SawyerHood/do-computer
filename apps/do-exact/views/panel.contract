@@ -4,8 +4,7 @@
 // its hatch, watched once (chat-view.tsx `useHatch`). What its creature is doing everywhere it is
 // drawn is panel-mood.contract's.
 use Reply, Dood from "./shapes.contract"
-use Computer, ComputerRequest from "./computers.contract"
-use ComposerJob from "./composer-jobs.contract"
+use Computer from "./computers.contract"
 use PinsShelf from "./pins.contract"
 use nameOf from "./shell.contract"
 use Face, Hatchling from "./creature.contract"
@@ -71,16 +70,10 @@ component DoodPanel
     busy: bool
   inject
     computerItems: Computer[]
-    computerRequests: ComputerRequest[]
     computersLoading: bool
     computersFailed: bool
-    computersBusy: bool
     computersError: string
-    changeComputer: action
     retryComputers: action
-    composerRunning: ComposerJob[]
-    composerStopJob: action
-    composerJobError: string
     liveFaces: Face[]
     care: Creature
     careFeed: string
@@ -92,7 +85,6 @@ component DoodPanel
   derive name = nameOf(dood)
   derive doing = moodWords(face)
   derive connected = computerItems.filter(c => c.agentIds.includes(dood.id))
-  derive asking = computerRequests.filter(r => r.agentId == dood.id)
   view
     aside aria-label=`About ${name}` width="20rem" flex-shrink=0 position="relative" display="flex" flex-direction="column" overflow="hidden"
       border-left="1px solid var(--hairline)" background-color="panel" testId="dood-panel"
@@ -117,7 +109,7 @@ component DoodPanel
         // --- pinned --- (the library shelf scrolls with the creature, not over other sections)
         PinsShelf()
         // --- computers --- (the workspace's directory is shared with Computers, not fetched twice)
-        PanelSection(id="computers", title="Computers", count=connected.length, said=(asking.length > 0 ? "Permission requested" : ""), startsFolded=false)
+        PanelSection(id="computers", title="Computers", count=connected.length, said="", startsFolded=false)
           column gap=10 padding="0 16px 16px" testId="panel-computers"
             if computersLoading
               progress aria-label="Loading computers"
@@ -132,33 +124,12 @@ component DoodPanel
                 text c.name font-size="0.8125rem" font-weight=500 hyphens="auto"
                 text (c.online ? "Online" : "Offline") font-size="0.75rem" color="ink.muted"
                 text c.folders.filter(f => f.agentId == dood.id).map(f => f.path).join(", ") font-family="Geist Mono" font-size="0.75rem" hyphens="auto"
-            for r in asking key=r.id
-              column gap=8 padding=10 border="1px solid var(--hairline)" border-radius=10 testId=`panel-request-${r.id}`
-                text `Use ${r.computer}?` font-size="0.8125rem" font-weight=500 hyphens="auto"
-                text r.reason font-size="0.8125rem" color="ink.muted"
-                row gap=8 flex-wrap="wrap"
-                  button press=changeComputer(r.id, "answer", "", true) disabled=computersBusy testId=`panel-computer-allow-${r.id}`
-                    text "Allow"
-                  button press=changeComputer(r.id, "answer", "", false) disabled=computersBusy testId=`panel-computer-deny-${r.id}`
-                    text "Not now"
             if computersError != ""
               text computersError role="alert" color="danger" font-size="0.8125rem"
             link href=`/w/${dood.workspaceId}/computers` font-size="0.8125rem" color="ink" testId="panel-manage-computers"
               text "Manage computers"
         // --- screen --- (the screen it last used here: UseNow)
-        // --- running --- (the command list and Stop action are the composer's, reused here)
-        if composerRunning.length > 0
-          PanelSection(id="running", title="Running in the background", count=composerRunning.length, said="", startsFolded=false)
-            column gap=12 padding="0 16px 16px"
-              for j in composerRunning key=j.id
-                column gap=6 testId=`panel-job-${j.id}`
-                  text j.command font-family="Geist Mono" font-size="0.8125rem" hyphens="auto"
-                  text j.computer font-size="0.75rem" color="ink.muted"
-                  text (j.output == "" ? "It has printed nothing yet." : j.output) font-family="Geist Mono" font-size="0.75rem" white-space="pre-wrap" max-height="12rem" overflow-y="auto" hyphens="auto"
-                  button press=composerStopJob(j.id) align-self="start" testId=`panel-stop-job-${j.id}`
-                    text "Stop"
-              if composerJobError != ""
-                text composerJobError role="alert" color="danger" font-size="0.8125rem"
+        // Running commands and computer asks use their one canonical chat/composer UI.
         // --- subagents --- PanelSection(id="subagents", title="Sub-agents at work", …)
         // --- doods --- PanelSection(id="doods", title="From other Doods", startsFolded=true, …)
         // --- slack --- PanelSection(id="slack", title="From Slack", startsFolded=true, …)

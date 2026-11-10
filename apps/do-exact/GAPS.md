@@ -53,6 +53,75 @@ and its deploy anchors locations at `/`. A build served under `/x/` loads its fi
 sets a cookie that picks the Exact app and sends the browser to the page's own address, which the
 server then answers with the Exact app (apps/web/src/server/exact-app.ts) until `/x/off`.
 
+## Chat transcript
+
+**Visuals run in Exact's `iframe`, which speaks only in strings.** The React app's frame
+(`components/chat/visual.tsx`) and this one have the same sandbox, `allow-scripts allow-popups
+allow-forms allow-modals` without `allow-same-origin`, and load the same address, the library's
+session-free view (`/d/<agent>/<view>/<path>`), with its colours in the fragment. What Exact's
+frame cannot do: `postMessage(text, id)` posts a string, and a visual's page (and an MCP app's)
+reads objects, so nothing can be told to the page after it loads: not a change between light and
+dark (it follows the device's own, which the app follows too), not being shown large
+(fullscreen), and no answer to what it asks (opening a link, putting words in the composer,
+saving a file), so those requests are left unanswered. What the page says arrives as its JSON's
+text (`message=`), read in `chat-frames.contract` by searching the text: its height, which the
+frame follows, and a script's failure, which offers "Tell …" as the React app does. The React app
+also checks that a request came from the person's own press in the frame (`lib/pressed.ts`), keeps
+the height a page took per width so it opens at it next time (`lib/visual-heights.ts`), loads a
+frame far up the chat only when it is scrolled near (`loading="lazy"`), and offers sharing the page
+from its corner; none of these are here. "Open beside the chat" is the library page's link.
+
+**MCP apps are not shown.** A connector's page for one of its tools (`mcp-app.tsx`) is served
+under `/api`, which needs the session, and is driven by a JSON-RPC host
+(`lib/mcp-app-host.ts`: initialize, tool calls with the person's consent, resource reads) over
+object messages. Exact's frame can send neither a bearer header nor an object, so the chat says
+whose page it is and that the web app shows it. A web native view that builds its own frame
+would do it.
+
+**Pictures that need the session are not shown.** An `image` here cannot send the bearer token (served by the deployment itself, the app has the cookie, but the tests and `./x` run it from its own origin).
+A file the Dood sends is shown, and downloaded, from the session-free view address; but the
+pictures kept of each step on a screen or in a browser (`shots/<id>`), and the live view of a
+screen while the Dood uses it (`uses.tsx`, `lib/use-live-view.ts`), are behind the session. A
+use is a line, "Juniper used MacBook's screen · 4 steps", that unfolds to its steps in words; while
+it goes, it is the step under way. Pausing and stopping a use from its window are not here.
+
+**What changed on the Dood is counted for the chat on the shell's socket.** The React app
+refetches what an agent event names (`refreshAgent` in `lib/collections.ts`). Here the shell's
+`followDood` counts each kind (`data/chat-asks.ts`), and the chat's resources, the approvals of
+permissions.contract, the composer's jobs, the threads and the library's listing, pins and sites
+on a chat page are asked again `with` their count. A socket of the chat's own for these would be a
+third to the same Dood. (The library page still follows its own, `followLibrary`.)
+
+**The transcript keeps to its end itself.** A `list`'s `scrollFollowEnd` follows rows as they
+arrive, but rich message text (markdown.contract's `do-markdown`) takes its height a moment after
+its row is laid out, which the list does not see. So the chat keeps to the end too: after each
+change it scrolls to the last row, while it is `following`, which only the reader's wheel, drag or
+keys turn off (a list that moves by itself as rows are measured is not the reader). The React app's
+MessageScroller watches the content's size for the same reason.
+
+**A picture opens in the library's viewer, one at a time.** A picture in a message, a file's
+preview and a figure in Markdown (`image:`) open in `LibraryPictureViewer`, mounted once at the
+root (its dialog has a fixed id), with that picture alone; the React app's transcript does not
+open pictures large at all, and its composer's viewer steps through every attached one.
+
+**Hover reveals nothing.** Exact's `:hover` paints a box itself and cannot show a child, so a
+file card's download and a visual's corner button are always shown, as the React app shows them
+under a finger.
+
+**The working line does not shine.** The React app sweeps a highlight across "Thinking…"
+(`animate-shine`); here it is still, beside the Dood's working face. "Delivered" leaves after
+three seconds without fading.
+
+**Who else is here, and typing.** A team's presence and "Ada is typing…" come over the person's
+own socket in the React app (`useHere`, `noteTyping`), which cannot carry this app's session
+(The shell, above). A call held in the chat (`CallInChat`) and the starters a Dood offers when it
+is first met (`meetingWith`, kept in the first run's browser storage) are not here either.
+
+**Earlier messages** ("Show earlier messages") are loaded a page at a time from
+`/chats/:id/history`, after the chat was started fresh from the Dood's Memory settings
+(`chat-transcript.test.contract` does so). `tools/chat-earlier.sh` drives the same against a
+server it fills over the API.
+
 ## Type and colour
 
 **Fonts are TTF, from Geist's own release.** Exact's `font` takes TTF or OTF and refuses WOFF2
@@ -96,10 +165,6 @@ own picture there on Exact's clock (modules/web/README.md). The page's picture i
 after four quiet minutes and wakes it on any pointer move, key, wheel or press on the window.
 Exact hands a view no window-wide pointer, so here the quiet is broken by what the app itself
 sees change: the draft, the chat's messages and work, the end of a run, another Dood opened.
-
-**What a chat's last `send` was is not in the view's chat.** `chatMood`'s rule that a Dood that
-has said its last word and only finishes up is idle reads the `send` tool, which data/chat.ts
-leaves out of the blocks it hands the view; here such a Dood shows the work it is finishing.
 
 **A pat reaches the creature petted, not every drawing of it.** The React app's `petMascot`
 leans every moving picture of the agent (panel, pill, sidebar) into a hand on any one of them.
@@ -159,15 +224,13 @@ section list, so a phone's back link opens navigation instead of looping back in
 remains a Dood page, as in React, not a settings section. Filled buttons still use the app's
 default accent, not the Dood's (see Type and colour).
 
-**The tools pages use the common ticketed socket.** `data/tools-live.ts` follows the Dood's
-socket with `data/api.ts`'s `follow`, and counts skills, connector, schedule, computer and
-approval changes. Every open and `ready` refreshes the data, including after reconnects;
-`views/transport.contract` replenishes tickets when this socket opens or is lost. Slack state
-is refreshed by the same changes. Computers watches a Dood in the workspace, and also keeps
-React's five-second directory refresh: there is no workspace computer-directory socket for
-daemon liveness, preferences, or requests made by a different Dood. An empty workspace can
-still list, pair and manage computers without inventing a Dood to watch. The interval is not
-an SSE replacement; it covers information the agent's stream does not promise to publish.
+**Tools and the transcript share one Dood socket.** `data/shell.ts`'s `followDood` carries
+`AskCounts.tools` alongside the transcript's asks, jobs and library counters. The previous
+`data/tools-live.ts` and its extra resource/socket were removed. Counters persist across
+reconnects for the current owner/Dood; open, ready and resumed refresh the data. Slack also uses this counter. The workspace-only Computers route has no open Dood
+and uses React's five-second directory refresh instead of adding another stream: no workspace
+socket publishes every daemon-liveness, preference or other-Dood request change. Empty
+workspaces still list, pair and manage computers without inventing a Dood to follow.
 
 **Connector sign-in is an explicit same-window step.** React starts a popup automatically
 (`components/settings/connectors.tsx`). “Continue sign-in” navigates in this window; the
@@ -188,14 +251,15 @@ start/stop/configure Electron's local daemon. Install/read-only commands, pairin
 removal and adapter diagnostics work through the remote API. A daemon fixture confirms
 receipt of the update command; installing a daemon on a real host was not exercised.
 
-**Requests are answered in Computers and the wide Dood panel, not above the composer yet.**
-The panel reuses the Computers directory resource for connected machines, folders, permission
-requests and Allow/Not now; its running-command section reuses the composer's jobs and Stop
-action. No duplicate directory/job source is added. The merged composer has its own computer
-picker, but not React's above-composer `computer-requests.tsx` card. On a phone requests remain
-in Computers: this is still a placement gap, not silently represented by the picker. The merged
-Model and computers page now supplies the Dood's default and connected-computer controls;
-those are no longer a missing settings integration.
+**Computer asks and running jobs are unified with the transcript/composer.** The incoming
+chat cards now answer computer requests above the composer, including on a phone. Computers
+keeps its workspace request list. The panel keeps connected computers/folders and Manage
+computers, but its duplicate request cards and running-command UI were removed. One canonical
+composer job resource powers the running-command control and transcript chips. The directory
+does not request `/api/computers/requests` while used only by the panel, and the chat's request
+resource is inactive on tools pages, so the two placements do not duplicate that fetch.
+Model/default-computer settings are integrated as well. This closes the former phone request
+placement gap; it is no longer a pending composer seam.
 
 **Schedule creation/editing is in chat, as in React.** The page receives live schedule
 changes, shows checks, outcomes, counts and the run-chat link, and supports pause/resume,

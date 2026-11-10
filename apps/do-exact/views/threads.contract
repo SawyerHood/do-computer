@@ -15,16 +15,25 @@ shape ThreadRow
   parentId: string
   peerId: string
   updated: number
+  // --- chat transcript --- what the chat's bar says of it: the other Dood's name and its own
+  // chat, where in Slack it is, and when it was started (sub-agents are listed in that order).
+  peerName: string
+  peerChatId: string
+  slackWhere: string
+  createdAt: number
 
 shape ThreadListing
   owner: string
   agentId: string
+  // The Dood's own name and line, for the greeting of an empty chat ("" for none yet).
+  name: string
+  tagline: string
   chats: ThreadRow[]
 
 members App
   // --- threads ---
-  resource threads = loadThreads(session.owner, onRoute == "dood" or onRoute == "chat" ? openAgentId : "") with `${pulse.changes}:${lastId}:${chat.busy}` as shape ThreadListing else empty()
-  derive threadsListing = threads.owner == session.owner and threads.agentId == openAgentId ? threads : ThreadListing(owner="", agentId="", chats=[])
+  resource threads = loadThreads(session.owner, onRoute == "dood" or onRoute == "chat" ? openAgentId : "") with `${pulse.changes}:${pulse.asks.chats}:${lastId}:${chat.busy}` as shape ThreadListing else empty()
+  derive threadsListing = threads.owner == session.owner and threads.agentId == openAgentId ? threads : ThreadListing(owner="", agentId="", name="", tagline="", chats=[])
   derive threadsReadOnly = chatEntryId != "" and (opened.owner != session.owner or opened.agentId != openAgentId or chatEntryId != opened.chatId)
   action threadsRefresh
     refresh threads
@@ -74,36 +83,3 @@ component ThreadsMenu
           hr
           link href=path("dood", agentId) class=MenuItem testId="threads-main"
             text "Main chat"
-
-component ThreadFoot
-  props
-    agentId: string
-    chatId: string
-    listing: ThreadListing
-    busy: bool
-    stop: action
-  derive selected = match first(listing.chats.filter(c => c.id == chatId)) { case some(c) => c, case none => ThreadRow(id="", title="", kind="", main=false, status="", detail="", url="", parentId="", peerId="", updated=0) }
-  view
-    column gap=10 padding="8px 12px" color="ink.muted" testId="thread-foot"
-      row gap=8 align-items="center" flex-wrap="wrap"
-        link href=path("dood", agentId) class=MenuItem testId="main-chat-link"
-          text "Main chat"
-        text selected.title flex="1 1 12rem" min-width=0 font-size="0.875rem" font-weight=500 testId="thread-title"
-        if busy or selected.status == "working" or selected.status == "waiting"
-          button press=stop class=MenuItem testId="thread-stop"
-            text "Stop"
-      if selected.kind == "slack"
-        row gap=8 align-items="center" padding=12 border="1px dashed var(--input)" border-radius=16
-          text "This conversation is in Slack. Reply there to carry it on." font-size="0.875rem" flex=1
-          if selected.url != ""
-            link href=selected.url target="_blank" class=MenuItem testId="open-slack"
-              text "Open in Slack"
-      else if selected.kind == "agent"
-        text `A conversation with ${selected.detail}. It is read here, and written by the Doods.` font-size="0.875rem" testId="thread-read-only"
-      else if selected.kind == "subagent"
-        text "A sub-agent’s conversation, kept here to read." font-size="0.875rem" testId="thread-read-only"
-        if selected.parentId != ""
-          link href=path("chat", agentId, selected.parentId) class=MenuItem testId="thread-parent"
-            text "Back to its parent chat"
-      else
-        text "An old side chat, kept to read. Everything with your Dood now happens in its main chat." font-size="0.875rem" testId="thread-read-only"

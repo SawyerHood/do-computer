@@ -44,8 +44,8 @@ shape ConnectorReturn
   url: string
 members App
   resource connectorReturn = connectorReturnAddress(openAgentId) as shape ConnectorReturn else empty()
-  resource connectors = loadConnectors(session.owner, onRoute == "connectors" ? openAgentId : "", top(nav).url) with toolsPulse.changes as shape Connectors else empty()
-  resource slack = loadSlack(session.owner, onRoute == "connectors" ? openAgentId : "") with toolsPulse.changes as shape Slack else empty()
+  resource connectors = loadConnectors(session.owner, onRoute == "connectors" ? openAgentId : "", top(nav).url) with pulse.asks.tools as shape Connectors else empty()
+  resource slack = loadSlack(session.owner, onRoute == "connectors" ? openAgentId : "") with pulse.asks.tools as shape Slack else empty()
   mutation connectorChanged as shape ConnectorReply refreshes connectors then afterConnector
   mutation connectorAdded as shape ConnectorReply refreshes connectors then afterConnectorAdd
   mutation slackSaved as shape ConnectorReply refreshes slack then afterSlack

@@ -48,7 +48,7 @@ export const librarySources: Pick<Sources, 'followLibrary' | 'locateLibrary' | '
   },
   locateLibrary: ([url]) => { const q = new URL(url, 'http://local').searchParams; return { file: q.get('file') ?? '', path: q.get('path') ?? '', mode: q.get('mode') ?? 'read' }; },
   loadLibrary: async ([owner, agentId], store): Promise<Result<'loadLibrary'>> => {
-    if (!current(owner, store) || agentId === '') return { owner: NOBODY, agentId: '', files: [], rows: [], deleted: [], total: '0 B' };
+    if (!current(owner, store) || agentId === '') return { owner: NOBODY, agentId: '', base: '', files: [], rows: [], deleted: [], total: '0 B' };
     const listing = await get<LibraryListing>(store, base(agentId));
     const agents = await get<{ agent: AgentSummary }>(store, `/api/agents/${seg(agentId)}`).catch(() => ({ agent: { name: 'A Dood' } }));
     const convert = (f: LibraryFile): File => ({ id: f.id, path: f.path, name: f.name, size: f.size, rev: f.rev, kind: kindOf(f), url: `${viewUrl(agentId, listing.view, f.path)}?v=${kindOf(f) === 'page' ? pageShownAt(listing.files, f) : f.rev}`, href: `/a/${seg(agentId)}/library?path=${seg(f.path)}`, bytes: bytes(f.size), when: when(f.updatedAt), by: f.updatedBy === 'agent' ? (agents.agent.name || 'A Dood') : 'You', preview: '', depth: f.path.split('/').length - 1 });
@@ -64,7 +64,7 @@ export const librarySources: Pick<Sources, 'followLibrary' | 'locateLibrary' | '
     for (const path of folders) rows.push({ id: `dir:${path}`, path, name: path.split('/').pop()!, folder: true, depth: path.split('/').length - 1, fileId: '' });
     for (const f of files) rows.push({ id: f.id, path: f.path, name: f.name, folder: false, depth: f.depth, fileId: f.id });
     const children = (dir: string): typeof rows => rows.filter(r => dirOf(r.path) === dir).sort((a, b) => Number(b.folder) - Number(a.folder) || a.name.localeCompare(b.name)).flatMap(r => r.folder ? [r, ...children(r.path)] : [r]);
-    return { owner, agentId, files, rows: children(''), deleted: listing.deleted.map(f => ({ ...convert(f), when: when(f.deletedAt), by: f.deletedBy === 'agent' ? 'by a Dood' : 'by you' })), total: bytes(files.reduce((n, f) => n + f.size, 0)) };
+    return { owner, agentId, base: `${API}/d/${seg(agentId)}/${seg(listing.view)}/`, files, rows: children(''), deleted: listing.deleted.map(f => ({ ...convert(f), when: when(f.deletedAt), by: f.deletedBy === 'agent' ? 'by a Dood' : 'by you' })), total: bytes(files.reduce((n, f) => n + f.size, 0)) };
   },
   readLibrary: async ([owner, agentId, fileId, rev, kind, path, size], store): Promise<Result<'readLibrary'>> => {
     const empty = { owner: NOBODY, fileId: '', rev: 0, text: '', rendered: '', rows: [], cut: false };

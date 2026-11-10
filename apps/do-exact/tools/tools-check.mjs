@@ -256,10 +256,9 @@ try {
     )
     assert(asked, "the Dood made a request")
     if (approve) {
-      await id("panel-toggle-dood").click()
-      await id(`panel-request-${asked.id}`).waitFor()
-      await shot("exact-wide-light-panel-request")
-      await id(`panel-computer-allow-${asked.id}`).click()
+      await id("computer-ask-0").waitFor()
+      await shot("exact-wide-light-chat-request")
+      await id("computer-allow-0").click()
     } else {
       await route("computers")
       await id(`computer-deny-${asked.id}`).click()

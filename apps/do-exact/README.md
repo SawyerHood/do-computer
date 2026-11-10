@@ -37,7 +37,9 @@ what Exact cannot do yet.
   troubled, waiting for an OK, asleep.
 - A Dood's main chat: the transcript, opened at its newest message and following it, with the
   reply arriving as it is written, every piece of it, over the Dood's WebSocket. Text is drawn as Markdown;
-  thinking, tool calls and notices each have a plain row. Sending a message. Its panel beside
+  thinking, tool calls, approvals, secrets, connector/computer asks, files, pins and sites use
+  the rich transcript. Earlier messages, retry, delivery, activity and read-only chat bars are
+  included. Sending a message. Its panel beside
   the chat, from its face in the pill.
 - Skills: install from a URL, read all the files, enable/disable and delete, in the shared
   settings frame. Automations: schedule/check/run metadata, pause/resume, run now, delete and
@@ -137,10 +139,9 @@ React app (`apps/web/src/server/exact-app.ts`). Node only for now. `tools/same-o
 
 ## What is not
 
-- **Transcript and teams integration.** Their area branches are being joined separately.
-  This merge contains the composer, settings, library, Markdown and transport from `exact-client`,
-  not those other workers' pending transcript/team changes. The workspace home and people
-  pages are still placeholders here; see GAPS.md and COMPOSER.md for the chat seams.
+- **Teams integration.** The transcript from `3d3af6f` is included, with settings, composer,
+  library, Markdown, creature and transport. The teams worker's branch is not included: workspace
+  home and people pages remain placeholders. See GAPS.md and COMPOSER.md for other chat seams.
 - **Creature entry points.** Claiming a Dood hatched in a post, the waiting-list first run and
   public `/dood/:id` and `/hatch` pages are not part of the signed-in port.
 - **Shell parity.** Calls, drag ordering and the collapsing rail are not all implemented. The creature native views exist; their presence does not claim the whole React shell.
@@ -194,3 +195,55 @@ the settings layout, typography, cards and dark colours are recognisable against
 Exact keeps a route rather than the dimmed-chat overlay, a fixed sidebar rather than React's
 rail, a default rather than per-Dood accent, and slightly roomier computer rows. On a phone
 Slack's picture explanation/download wraps rather than squeezing its text into a narrow column.
+
+## Merged client validation (2026-11-10)
+
+This branch joins `35595f7`, `687f84a` and `3d3af6f`: the final settings kit, library,
+composer, Markdown, creature/first-run/care/wardrobe and complete rich chat transcript.
+The teams-worker branch is not included; workspace home and people remain placeholders.
+The incoming transcript and thread UI were retained rather than the former basic message row.
+
+There is one shell Dood socket for the transcript **and** tools. Its shared counters include
+skills, connectors, schedules and computers and are retained over reconnects. The workspace
+Computers route uses the existing directory refresh without selecting a Dood from that list:
+`doods` itself refreshes from `pulse`, so selecting `pulse` from `doodList` would be cyclic.
+The real panel contains the shared connected-computer directory and pinned shelf. Computer
+requests have one canonical above-composer chat card (including on a phone); jobs retain the
+composer controls and transcript chips, not a duplicate panel UI. The panel-only directory
+does not fetch computer requests. Chat-specific requests/threads are inactive on tools routes.
+
+Validation and evidence:
+
+- The final `./x test web` run passed **65/65 tests in all 23 files**, including all 14 new
+  rich-transcript tests. The eight focused settings/shell navigation tests also pass after
+  removing the cyclic workspace-stream selection.
+- The previous server build's **22 tests** (OAuth returns, socket tickets and Exact serving)
+  and the web TypeScript check passed. This transcript merge changes no server/package code.
+- The browser tools checks passed on both the development origin and the app served by the
+  server at `/x/`: real fixture OAuth redirect/return, MCP tools, live changes from another
+  client, pairing, daemon update receipt, ownership transfer, chat-card denial/approval,
+  revocation, Slack PNG and absence of bearer secrets in localStorage.
+- Fresh comparison evidence for each origin is in `.exact/shots/tools-merged/` and
+  `.exact/shots/tools-same-origin/`: 40 Exact/React section images in each, wide/phone and
+  light/dark, four `compare-*.jpg` sheets, panel images, `exact-wide-light-chat-request.png`,
+  `pico-slack.png` and `result.txt`. Both sets of sheets and the new chat/panel placement were
+  opened for inspection. These are real browser renders, not mock-ups or a pixel-parity claim.
+
+**Verifier status is not green.** The latest completed full verifier is from before the
+transcript merge: 51 tests passed, then **9 problems** (1 driver failure, 8 findings). Its
+first-screen drive collided with slot 6's occupied fixed Exact port 8772. Seven findings were
+aggressive `overflow-wrap="anywhere"` declarations; these now use emergency `break-word`
+wrapping instead (the affected settings/shell source has zero aggressive-word-breaking
+findings). The remaining finding was an inactive threads query caught by the automations
+fault test; that query is now chat-route-only. That verifier's largest-text tour reported
+nothing spilling. There is no completed post-transcript full verifier result, no font
+shrinking and no accessibility waiver. The requested final merge is not held for another
+verifier/port-collision cycle. Lean is unavailable here; seeded model walks are not a
+full real-host proof.
+
+External Slack/Composio credentials, paid/shared cloud provisioning and a real daemon install
+were not exercised. The local fixtures drive the real server/browser paths but are not those
+external services. Browser-native OAuth uses an explicit same-window Continue step rather
+than React's popup; Electron-only local daemon controls/native OAuth presentation remain
+unwired. Automation creation/editing remains chat-based. See GAPS.md and the incoming port
+documents for the remaining native, deployment and other-area limitations.

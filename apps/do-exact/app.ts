@@ -1,4 +1,3 @@
-import { toolsLiveSources } from './data/tools-live.ts';
 import { computersSources } from './data/computers.ts';
 import { connectorsSources } from './data/connectors.ts';
 import { skillsSources } from './data/skills.ts';
@@ -44,7 +43,6 @@ const sources: Sources = {
   ...skillsSources,
   ...connectorsSources,
   ...computersSources,
-  ...toolsLiveSources,
   ...transportSources,
   ...composerSources,
   ...composerJobSources,

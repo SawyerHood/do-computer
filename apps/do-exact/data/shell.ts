@@ -7,6 +7,7 @@ import { inOrder, type DoodOrder } from '../protocol/order.ts';
 import type { AgentSocketMessage } from '../protocol/socket.ts';
 import { isPersonalWorkspace, personalWorkspaceId, workspaceColor, type FeedEvent, type WorkspacesState } from '../protocol/workspace.ts';
 import { current, follow, get, NOBODY, post, put, reply, seg } from './api.ts';
+import { countAsk, NO_ASKS } from './chat-asks.ts';
 
 type Dood = Result<'loadDoods'>['doods'][number];
 
@@ -47,7 +48,8 @@ function doodOf(agent: AgentSummary, me: string): Dood {
   };
 }
 
-const NO_PULSE: Result<'followDood'> = { agentId: '', changes: 0, lost: false };
+let followed = { owner: '', agentId: '', changes: 0, asks: NO_ASKS };
+const NO_PULSE: Result<'followDood'> = { agentId: '', changes: 0, lost: false, asks: NO_ASKS };
 const NO_FEED: Result<'followFeed'> = { owner: NOBODY, changes: 0, lost: false };
 /** What the feed has said for whoever is signed in, kept across its sockets so the count only goes up. */
 let feed = { owner: NOBODY, changes: 0, opened: false };
@@ -78,15 +80,19 @@ export const shellSources: Pick<Sources, 'loadWorkspaces' | 'loadDoods' | 'follo
   // asked before it may be behind) and a change to what the sidebar shows of it.
   followDood: ([owner, agentId], store): Result<'followDood'> | Promise<Result<'followDood'>> => {
     if (agentId === '' || !current(owner, store)) return NO_PULSE;
-    let changes = 0;
+    if (followed.owner !== owner || followed.agentId !== agentId) followed = { owner, agentId, changes: 0, asks: NO_ASKS };
+    const mine = followed;
     let lost = false;
-    const now = () => ({ agentId, changes, lost });
+    // What the chat shows of the Dood, counted on the same socket (data/chat-asks.ts).
+    const now = () => ({ agentId, changes: mine.changes, lost, asks: mine.asks });
     return follow<Result<'followDood'>, AgentSocketMessage>(store, `/api/agents/${seg(agentId)}/socket`, {
-      open: now,
+      open: () => { lost = false; mine.changes++; mine.asks = countAsk(mine.asks, { type: 'ready' }); return now(); },
       each: (message) => {
         const event = message.type === 'agent' ? message.event : undefined;
         // Back from being put away, it may have changed meanwhile.
-        if (message.type === 'resumed' || event?.type === 'ready' || event?.what === 'identity' || event?.what === 'creature') changes++;
+        if (message.type === 'resumed' || event?.type === 'ready' || event?.what === 'identity' || event?.what === 'creature') mine.changes++;
+        if (message.type === 'resumed') mine.asks = countAsk(mine.asks, { type: 'ready' });
+        else if (event !== undefined) mine.asks = countAsk(mine.asks, event);
         return now();
       },
       lost: () => {

@@ -21,9 +21,11 @@ shape LibraryPins
 
 members App
   // --- library pins ---
-  resource libraryPins = loadLibraryPins(session.owner, onRoute == "library" or libraryPanelId != "" or panelOpen ? openAgentId : "") with libraryPulse.changes, libraryFiles as shape LibraryPins else empty()
+  resource libraryPins = loadLibraryPins(session.owner, libraryWanted ? openAgentId : "") with libraryPulse.changes, pulse.asks.pins, libraryFiles as shape LibraryPins else empty()
   mutation libraryPinnedReply as shape Reply refreshes libraryPins
   derive libraryPinList = libraryPins.owner == session.owner and libraryPins.agentId == openAgentId ? libraryPins.pins : []
+  // The files pinned, by id now and as pinned, so a card in a long chat looks itself up without a search.
+  derive libraryPinnedIds = libraryPinList.map(p => p.currentId).concat(libraryPinList.map(p => p.fileId))
   derive libraryPinned = libraryPinList.map(p => p.currentId == librarySelected.id).includes(true)
   derive libraryPinError = pending(libraryPinnedReply) ? "" : match libraryPinnedReply { case some(r) => r.error, case none => "" }
   action libraryPin

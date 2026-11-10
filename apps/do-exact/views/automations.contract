@@ -28,7 +28,7 @@ shape Automations
   items: Automation[]
 
 members App
-  resource automations = loadAutomations(session.owner, onRoute == "automations" ? openAgentId : "") with toolsPulse.changes as shape Automations else empty()
+  resource automations = loadAutomations(session.owner, onRoute == "automations" ? openAgentId : "") with pulse.asks.tools as shape Automations else empty()
   mutation automationChanged as shape AutomationReply refreshes automations
   derive automationItems = automations.owner == session.owner and automations.agentId == openAgentId ? automations.items : []
   derive automationsLoading = pending(automations)
