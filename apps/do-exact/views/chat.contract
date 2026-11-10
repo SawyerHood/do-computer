@@ -10,7 +10,7 @@ use DoodHeader, doodOf, nameOf, stateOf from "./shell.contract"
 use DoodFace from "./creature.contract"
 use MessageRow, Working, TranscriptPlaceholder, Welcome from "./chat-rows.contract"
 use Asks from "./chat-asks.contract"
-use Block, Message, Chat, Opened, Earlier, ChatInfo, ChatContext, ApprovalAsk, Approvals, SecretField, SecretAsk, SecretAsks, SignInAsk, SignIns, SignInReply, LibraryView, Job, Jobs, Standing from "./chat-shapes.contract"
+use Block, Message, Chat, Opened, Earlier, ChatInfo, ChatContext, ApprovalAsk, Approvals, SecretField, SecretAsk, SecretAsks, SignInAsk, SignIns, SignInReply, LibraryView, Job, Jobs, Standing, ComputerAsk, ComputerAsks from "./chat-shapes.contract"
 use EmptyState from "exact:content"
 
 members App
@@ -37,6 +37,8 @@ members App
   resource secretAsks = loadSecretAsks(session.owner, openAgentId) with asks.secrets as shape SecretAsks else empty()
   resource signIns = loadSignIns(session.owner, openAgentId) with asks.connectors as shape SignIns else empty()
   resource libraryView = loadLibraryView(session.owner, openAgentId) with asks.library as shape LibraryView else empty()
+  resource computerAsks = loadComputerAsks(session.owner, openAgentId) with asks.approvals as shape ComputerAsks else empty()
+  mutation computerAnswered as shape Reply refreshes computerAsks
   resource standing = loadStanding(session.owner, openAgentId) with asks.pins as shape Standing else empty()
   mutation pinChanged as shape Reply refreshes standing
   resource chatJobs = loadJobs(session.owner, openAgentId) with asks.jobs as shape Jobs else empty()
@@ -70,6 +72,8 @@ members App
   derive transcriptRows = (hasEarlier ? [markerRow("earlier")] : []).concat(earlierRows).concat(ours ? liveRows : []).concat(ours and chat.activity != "" ? [markerRow("working")] : [])
   derive subagentStatuses = chatContext.chats.filter(c => c.kind == "subagent").map(c => `${c.id}=${c.status}`)
   derive chatTeam = match first(workspaceList.filter(w => w.id == openDood.workspaceId and w.kind == "team")) { case some(w) => w.name, case none => "" }
+  derive pendingComputers = computerAsks.owner == session.owner and computerAsks.agentId == openAgentId ? computerAsks.asks : []
+  derive computerError = pending(computerAnswered) ? "" : match computerAnswered { case some(r) => r.error, case none => "" }
   derive standingHere = standing.owner == session.owner and standing.agentId == openAgentId
   derive pinWords = standingHere ? standing.pins : []
   derive siteWords = standingHere ? standing.sites : []
@@ -82,6 +86,9 @@ members App
     every(1000, heal)
   task turn key=`${chat.agentId}:${chat.busy}`
     after(300, pull)
+  // Someone else's Dood may ask for a computer of the person's, and nothing tells this page.
+  task computerPoll mount
+    every(15000, pullComputerAsks)
   task delivered key=chat.justDelivered
     after(3000, deliveredLeaves)
 
@@ -121,6 +128,12 @@ members App
     let key = `${openChatId}:${chat.firstId}`
     earlierPages = earlierOf == key ? earlierPages + 1 : 1
     earlierOf = key
+  action pullComputerAsks
+    if openAgentId != "" and session.signedIn
+      refresh computerAsks
+  action answerComputer(requestId: string, approve: bool)
+    if not pending(computerAnswered)
+      send computerAnswered = answerComputerAsk(requestId, approve)
   action deliveredLeaves
     deliveredGone = chat.justDelivered
   action scrolled(x: number, y: number, e: ScrollEvent)

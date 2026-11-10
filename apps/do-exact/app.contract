@@ -112,6 +112,11 @@ component App
     shareSiteAgain
     standingBusy = pending(pinChanged)
     standingKnown = standingHere
+    pendingComputers
+    answerComputer
+    computerBusy = pending(computerAnswered)
+    computerError
+    chatWorkspaceId = openDood.workspaceId
 
   // The Dood whose page is open (the deepest one in the stack), and the chat a `/c/` page names.
   derive openAgentId = match stack(nav).filter(e => e.params.agentId != "").at(-1) { case some(e) => e.params.agentId, case none => "" }

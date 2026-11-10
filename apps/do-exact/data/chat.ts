@@ -12,6 +12,7 @@ import { jobOutcome, type JobSummary } from '../protocol/jobs.ts';
 import { API, current, del, follow, get, NOBODY, post, put, reply, seg } from './api.ts';
 import type { Pin } from '../protocol/pins.ts';
 import type { SiteSummary } from '../protocol/sites.ts';
+import type { ComputerRequest } from '../protocol/daemon.ts';
 import { activityOf, rowsOf, startsMidway, waitingRows } from './chat-rows.ts';
 
 type Chat = Result<'followChat'>;
@@ -69,7 +70,7 @@ function chatInfo(chat: ChatSummary): ChatInfo {
 export const chatSources: Pick<Sources,
   'openChat' | 'followChat' | 'sendMessage' | 'stopChat' | 'loadEarlier' | 'loadChatContext' | 'loadApprovals' | 'answerApproval' |
   'loadSecretAsks' | 'answerSecret' | 'answerLogin' | 'declineSecret' | 'loadSignIns' | 'signInConnector' | 'dismissConnector' | 'loadLibraryView' | 'loadJobs' |
-  'loadStanding' | 'pinFile' | 'unpinFile' | 'shareAgain'
+  'loadStanding' | 'pinFile' | 'unpinFile' | 'shareAgain' | 'loadComputerAsks' | 'answerComputerAsk'
 > = {
   // The Dood's main chat, which it is given the first time it is opened.
   openChat: async ([owner, agentId], store): Promise<Result<'openChat'>> => {
@@ -254,6 +255,20 @@ export const chatSources: Pick<Sources,
   unpinFile: ([agentId, fileId], store) => reply(() => del(store, `/api/agents/${seg(agentId)}/pins/${seg(fileId)}`)),
   // The same place shared again after it was stopped is a site with another address.
   shareAgain: ([agentId, path, title], store) => reply(() => post(store, `/api/agents/${seg(agentId)}/sites`, { path, title })),
+
+  // The computers the Dood asked to use, which the person's own list of asks holds.
+  loadComputerAsks: async ([owner, agentId], store): Promise<Result<'loadComputerAsks'>> => {
+    if (agentId === '' || !current(owner, store)) return { owner: NOBODY, agentId: '', asks: [] };
+    const { requests } = await get<{ requests: ComputerRequest[] }>(store, '/api/computers/requests');
+    return {
+      owner, agentId,
+      asks: requests.filter((request) => request.agentId === agentId).map((request) => ({
+        id: request.id, computer: request.computer.name, workspaceId: request.computer.workspaceId, pairedBy: request.computer.pairedBy.name,
+        readOnly: request.computer.readOnly, reason: request.reason, canAnswer: request.canAnswer,
+      })),
+    };
+  },
+  answerComputerAsk: ([requestId, approve], store) => reply(() => post(store, `/api/computers/requests/${seg(requestId)}`, { approve })),
 };
 
 const lower = (words: string) => words.charAt(0).toLowerCase() + words.slice(1);

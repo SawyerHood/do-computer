@@ -3,7 +3,7 @@
 // something, secrets or a login to type, a connector to sign in to. What is typed is held in the
 // card until it is sent, and goes nowhere else.
 use Card, OutlineButton, QuietButton, PrimaryButton, Field, FieldLabel from "./styles.contract"
-use ApprovalAsk, SecretAsk, SecretField, SignInAsk from "./chat-shapes.contract"
+use ApprovalAsk, SecretAsk, SecretField, SignInAsk, ComputerAsk from "./chat-shapes.contract"
 
 component Asks
   props
@@ -16,6 +16,7 @@ component Asks
     pendingApprovals: ApprovalAsk[]
     pendingSecrets: SecretAsk[]
     pendingSignIns: SignInAsk[]
+    pendingComputers: ComputerAsk[]
     // In a team, anyone in it can answer.
     chatTeam: string
   derive team = chatTeam
@@ -25,6 +26,11 @@ component Asks
         role="list" aria-label="Waiting for your OK" testId="approvals"
         for r, i in pendingApprovals key=r.id
           ApprovalCard(request=r, at=i, agentId=agentId, name=name, here=(r.chatId == chatId), team=team)
+    if pendingComputers.length > 0
+      column width="100%" max-width="48rem" margin="0 auto" padding="0 16px 8px" box-sizing="border-box" gap=8 flex-shrink=0
+        role="list" aria-label="Computers it asked to use" testId="computer-asks"
+        for c, i in pendingComputers key=c.id
+          ComputerCard(ask=c, at=i, name=name)
     if pendingSignIns.length > 0
       column width="100%" max-width="48rem" margin="0 auto" padding="0 16px 8px" box-sizing="border-box" gap=8 flex-shrink=0
         role="list" aria-label="Connectors to sign in to" testId="sign-ins"
@@ -300,3 +306,41 @@ component SignInCard
           text "Sign in"
         button press=notNowSignIn(connector.id) disabled=signInBusy class=QuietButton min-height="2.125rem"
           text "Not now"
+
+// A computer the Dood asks to use, with the answer for whoever it belongs to.
+component ComputerCard
+  props
+    ask: ComputerAsk
+    at: number
+    name: string
+  inject
+    answerComputer: action
+    computerBusy: bool
+    computerError: string
+    // The open Dood's workspace and its team's name: a computer of that team is anyone's in it to answer for.
+    chatWorkspaceId: string
+    chatTeam: string
+  derive team = ask.workspaceId == chatWorkspaceId ? chatTeam : ""
+  view
+    column gap=10 padding=14 border-radius=16 class=Card role="listitem" testId=`computer-ask-${at}`
+      row gap=10 align-items="flex-start"
+        image "symbol:icon.desktop" color="ink.muted" aria-hidden=true margin-top=2 flex-shrink=0
+        column flex=1 min-width=0 gap=2
+          text font-size="0.875rem"
+            text name font-weight=500
+            text " asks to use the computer "
+            text ask.computer font-family="Geist Mono" font-weight=500
+          if ask.reason != ""
+            text `“${ask.reason}”` font-size="0.875rem" color="ink.muted"
+      if computerError != ""
+        text computerError role="alert" font-size="0.875rem" color="danger"
+      if ask.canAnswer
+        row gap=8 flex-wrap="wrap" align-items="center"
+          button press=answerComputer(ask.id, true) disabled=computerBusy class=PrimaryButton testId=`computer-allow-${at}`
+            text "Allow"
+          button press=answerComputer(ask.id, false) disabled=computerBusy class=QuietButton min-height="2.125rem"
+            text "Don’t allow"
+          text (team != "" ? `Anyone in ${team} can answer` : ask.readOnly ? "It will be able to read files there" : "It will be able to run commands and change files there")
+            margin-left="auto" font-size="0.75rem" color="ink.muted"
+      else
+        text `Waiting for ${team != "" ? team : ask.pairedBy} to answer.` font-size="0.75rem" color="ink.muted"

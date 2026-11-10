@@ -217,3 +217,19 @@ shape Standing
   agentId: string
   pins: string[]
   sites: string[]
+
+// A computer the Dood asked to use, for whoever it belongs to to answer.
+shape ComputerAsk
+  id: string
+  computer: string
+  workspaceId: string
+  // Who paired it, for "Waiting for … to answer".
+  pairedBy: string
+  readOnly: bool
+  reason: string
+  canAnswer: bool
+
+shape ComputerAsks
+  owner: string
+  agentId: string
+  asks: ComputerAsk[]
