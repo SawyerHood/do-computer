@@ -10,34 +10,31 @@ export let API = '';
 let SOCKETS = '';
 export const setApi = (address: string, sockets: string) => { API = address; SOCKETS = sockets; };
 
-/**
- * Whether the session is the browser's own cookie: the app is served by the deployment itself
- * (`DC_EXACT_APP`, apps/web/src/server/exact-app.ts), which sets it at sign-in, as for the React
- * app, and the browser sends it with every request and socket there. Signing in to either app is
- * then signing in to both. Anywhere else (another origin, a native host) the session is the
- * bearer token a sign-in hands over, kept in the platform's secret store.
- */
-export const byCookie = (): boolean => (globalThis as { location?: { origin?: string } }).location?.origin === API;
-
 /** The name the session is kept under: what a sign-in's `set-auth-token` header handed over. */
 const SESSION = 'session';
 
+/**
+ * Whether the session is the browser's own cookie. That is so where the app is served by the
+ * deployment itself (`DC_EXACT_APP`, apps/web/src/server/exact-app.ts): the browser sends it with
+ * every request and socket there, as for the React app, so signing in to either app is signing in
+ * to both, and the session is never where a script can read it. Anywhere else (another origin, a
+ * native host) the session is the bearer token a sign-in hands over, kept in the secret store.
+ * A data source cannot see the page's address, so it is found out by asking with no token
+ * (`byCookie`), where the browser sends a cookie only to its own origin.
+ */
+let cookie = false;
 /** The session, read from the store once. `undefined`: not read yet; `null`: signed out. */
 let token: string | null | undefined;
-/** Sign-ins and outs in this page, where the session is a cookie the app cannot read. */
+/** Sign-ins and outs in this page, which tag answers where the session is a cookie the app cannot read. */
 let turns = 0;
 export const session = (store: Store): string | null => {
-  // Who it is is the server's to say (`/api/me`); what tags their answers is which turn this is.
-  if (byCookie()) return `cookie ${turns}`;
+  if (cookie) return `cookie ${turns}`;
   if (token === undefined) token = store.get(SESSION) || null;
   return token;
 };
 export const keep = (store: Store, value: string | null): void => {
-  // The browser keeps the cookie the reply set or cleared: nothing of it is kept here.
-  if (byCookie()) {
-    turns++;
-    return;
-  }
+  turns++;
+  cookie = false;
   token = value;
   if (value === null) store.forget(SESSION);
   else store.set(SESSION, value);
@@ -45,8 +42,21 @@ export const keep = (store: Store, value: string | null): void => {
 /** What says who is asking, where the browser does not. */
 const authorization = (store: Store): Record<string, string> => {
   const bearer = session(store);
-  return bearer === null || byCookie() ? {} : { authorization: `Bearer ${bearer}` };
+  return bearer === null || cookie ? {} : { authorization: `Bearer ${bearer}` };
 };
+
+/**
+ * Whether the browser's cookie signs this page in (see `cookie`): asked with no token, so only a
+ * cookie the browser sends by itself can. Where it does, that is the session from now on, and a
+ * token kept from before is let go of.
+ */
+export async function byCookie(store: Store): Promise<boolean> {
+  const response = await fetch(`${API}/api/me`, { exactTimeout: 20000 });
+  if (!response.ok) return false;
+  if (session(store) !== null) keep(store, null);
+  cookie = true;
+  return true;
+}
 
 /**
  * Which sign-in an answer belongs to: the user's id and a tag of the session it was asked under,
@@ -146,7 +156,7 @@ const good = (store: Store) => {
 /** How many tickets are ready in round `now`, after asking for more where fewer than `READY` are. */
 export async function stockTickets(store: Store, now: number): Promise<number> {
   round = Math.max(round, now);
-  if (byCookie() || session(store) === null) return 0;
+  if (cookie || session(store) === null) return 0;
   const have = good(store).length;
   if (have >= READY) return have;
   const asked = session(store);
@@ -194,7 +204,7 @@ export function follow<A, M>(store: Store, path: string, at: {
   now: () => A;
 }): A | Promise<A> {
   let url = `${SOCKETS}${path}`;
-  if (!byCookie()) {
+  if (!cookie) {
     if (session(store) === null) return at.lost();
     const ticket = good(store).shift();
     if (ticket === undefined) return at.lost();
