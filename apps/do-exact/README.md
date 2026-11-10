@@ -18,9 +18,9 @@ what Exact cannot do yet.
   the account menu at the foot of the sidebar. The session is kept in the platform's secret
   store and survives a reload.
 - The sidebar: your Doods under each workspace (one list when you are in no team), in the order
-  you put them in, each with its face (a placeholder until the creature lands), the last thing
-  said and when, whether it is working or waiting on you, and a mark for something new. A
-  workspace's menu leads to its settings and people. Hatching a Dood opens it.
+  you put them in, each with its creature (the React app's mascot, as a web native view), the
+  last thing said and when, whether it is working or waiting on you, and a mark for something
+  new. A workspace's menu leads to its settings and people. Hatching a Dood opens it.
 - A wide window has the sidebar beside the page; a phone has the list, then a Dood's chat over
   it. Every page has its address (`/a/:agentId`, `/a/:agentId/c/:chatId`,
   `/a/:agentId/library`, `/w/:workspaceId/people`, …): deep links, reload, Back and Forward work.
@@ -74,7 +74,7 @@ above pin `EXACT_PORT`.
 In the order it would be built:
 
 1. **The pages' bodies.** Every page but the chat is a placeholder (PORTING.md says how to fill
-   one in), and so is the creature.
+   one in). The creature is drawn, but not petted, dressed or hatched in the shell yet.
 2. **The rest of a chat.** Approvals, queued messages and Stop, earlier history, attachments and
    pictures, side chats and sub-agents, code blocks with highlighting, tables.
 3. **The rest of the shell.** Naming and hatching with the egg, starting a team and answering
@@ -91,10 +91,10 @@ In the order it would be built:
    (`coalesced`), and a chat's events are deltas. The app notices and follows the chat again from
    a fresh snapshot (`heal`). The real fix is following over the WebSocket the server already
    has, which Exact delivers frame by frame, once a socket can carry a bearer session.
-7. **What Exact has no answer for yet.** The creature (three.js; here it would be a wgpu or
-   Canvas module written again), Mermaid and Shiki (npm packages with DOM or wasm needs), MCP app
-   and visual embeds beyond a plain `iframe`, remote push, and the desktop app's work: running
-   the daemon and driving the screen and browser. Windows is unfinished in Exact.
+7. **What Exact has no answer for yet.** Mermaid and Shiki (npm packages with DOM or wasm needs,
+   which would be web native views as the creature is), MCP app and visual embeds beyond a plain
+   `iframe`, remote push, and the desktop app's work: running the daemon and driving the screen
+   and browser. Windows is unfinished in Exact.
 
 ## Things learned about Exact, 2026-11-09
 

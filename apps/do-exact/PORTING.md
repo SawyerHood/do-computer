@@ -99,7 +99,8 @@ views/shell.contract      members: viewport, time, workspaces, Doods, the open D
                           (the pill and its pages menu), DoodScreen, WorkspaceScreen, NoDood
 views/sign-in.contract    members: the session, signing in and out. SignIn
 views/chat.contract       members: the open chat, sending. ChatScreen, MessageRow, DoodPanel
-views/creature.contract   DoodFace, the creature's placeholder (seed, colour, state, name, size)
+views/creature.contract   DoodFace: a Dood's creature, the `do-creature` native view (seed, colour,
+                          state, name, size)
 views/<area>.contract     each other page: a placeholder screen in DoodScreen or WorkspaceScreen
 data/api.ts               the session, ask/get/post/put/patch/del, reply, ownerOf/current, follow
 data/<area>.ts            an area's sources, exported as `<area>Sources`
@@ -318,7 +319,8 @@ full gallery); `at` is Exact time. These diagnostics do nothing in production.
   your report. Nothing may change what the React, mobile or desktop apps see.
 - **Foreign JavaScript** (three.js, Shiki, Mermaid) goes in `modules/web/` as a native view: a
   hyphenated tag (`native-views` recipe; `apps/native-fixture/modules/web/index.js` in Exact).
-  The creature replaces `DoodFace`'s view in `views/creature.contract`, keeping its props.
+  A Dood's face is `DoodFace` in `views/creature.contract`, which draws `do-creature`: add
+  what the creature does (petting, outfits, hatching) there.
 - **Tests.** Every feature gets tests in `<area>.test.contract` that drive it against the real
   server. Each starts signed out with empty storage, on a server the whole run shares, so it
   signs up first with the same six lines and an address no other test uses.
