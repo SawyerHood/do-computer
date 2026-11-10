@@ -1,5 +1,5 @@
 // A Dood's chat: the transcript, opened at its newest message and following it, the reply
-// arriving as it is written over the chat's event stream, and the composer. Beside it on a wide
+// arriving as it is written over the Dood's socket, and the composer. Beside it on a wide
 // window, the Dood's panel. data/chat.ts answers it, applying events with the protocol's
 // `reduceChat`.
 use Reply, Dood, Page from "./shapes.contract"
@@ -30,7 +30,7 @@ shape Chat
   agentId: string
   chatId: string
   busy: bool
-  // The stream ended or skipped events: what is shown may be behind until it is followed again.
+  // Its socket ended, or could not be opened: what is shown may be behind until it is followed again.
   lost: bool
   messages: Message[]
 
@@ -52,7 +52,7 @@ members App
   derive ours = chat.owner == session.owner and chat.agentId == openAgentId and chat.chatId == openChatId and openChatId != ""
   derive lastId = match chat.messages.at(-1) { case some(m) => m.id, case none => "" }
 
-  // A chat whose stream was lost is followed again. When it starts or stops working, the
+  // A chat whose socket ended is followed again. When it starts or stops working, the
   // sidebar's line for it is asked for again.
   task mend mount
     every(1000, heal)

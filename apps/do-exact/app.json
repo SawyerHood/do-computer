@@ -43,6 +43,7 @@
     "do-mermaid"
   ],
   "env": [
-    "API_BASE_URL"
+    "API_BASE_URL",
+    "API_SOCKET_URL"
   ]
 }

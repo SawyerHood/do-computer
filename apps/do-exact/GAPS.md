@@ -4,17 +4,6 @@ One paragraph each: what, where in the React app, what was done instead.
 
 ## The shell
 
-**The sidebar hears of other Doods by asking.** The React app's sidebar follows the person's
-feed, a WebSocket at `/api/presence/personal:<user>` that says when any Dood starts or stops
-work, what it last said, and when one was looked at elsewhere (`apps/web/src/lib/latest.ts`
-`useFeed`). The server takes the session on that socket from a cookie, and an Exact app's
-socket on the web is the browser's, which sends no cookie across origins and no
-`Authorization` header. So `loadDoods` is asked again every 10 s (`task poll` in
-`views/shell.contract`); the open Dood's own event stream (`/api/agents/:id/events`, SSE, which
-takes the bearer) asks again at once when it changes, and its chat asks again when it starts or
-stops working. Once a socket can carry the session (the chat's move to the WebSocket needs the
-same), the feed replaces the poll.
-
 **The sidebar is beside the page from 900 px, not 768.** Exact's web host splits a stack's
 first route from its detail at 900 px (`navigationSplit`); the React app puts the sidebar
 beside the page from `48rem` (`SIDEBAR_BESIDE` in `components/shell/app-shell.tsx`). Between
@@ -40,6 +29,36 @@ modal route (`navigationPresentation="modal"`) would be the dialog, if that is w
 **A pages menu opens from the pill's start, not its middle.** The React app centres the Dood's
 menu under its name (`align="center"`); an Exact popover is placed by the platform under the
 button that opens it.
+
+## Transport
+
+**A stream opens before its answer awaits anything, so socket tickets are kept ready.** On the
+web, Exact starts a stream only as its answer is asked, before the answer's first `await`
+(`host/web-js/ts-fetch.js`), so a source cannot ask for a ticket and then open the socket with
+it. The React app's browser has its cookie and needs none. Here a few tickets are kept ready
+(`stockTickets` in data/api.ts): asked for at sign-in and whenever a page opens sockets or one is
+lost, by `socketTickets` in views/transport.contract. A socket asked for when none is ready is
+`lost`, and its view follows it again a moment later.
+
+**A data source has no clock and cannot see the page's address.** `Date.now()` is refused and
+`location` is hidden from the data module. A ticket's age is counted in rounds of a one-minute
+task (`socketRound`), and a socket that answers no ping for two rounds of the 30 s ping task is
+closed, where the React client times both (`packages/client/src/follow.ts`). Whether the app is
+served by the deployment itself is found out by asking `/api/me` with no token, which only the
+browser's own cookie can answer (`byCookie`).
+
+**An ended socket is followed again on a timer, with no backoff.** Exact does not ask a stream's
+resource again when it ends. The chat (`task mend`, every second) and the Dood and the feed
+(`healPulse`, every 5 s) ask again while theirs is `lost`; the React client backs off
+(`reconnectDelay`) and shares one socket per Dood between its chat and its events, where here the
+chat and the Dood's changes are a socket each.
+
+**Exact knows no path prefix, so the app served at `/x/` runs at the React app's addresses.**
+Exact's router matches a route against the whole `location.pathname` (`host/web-js/router.js`),
+and its deploy anchors locations at `/`. A build served under `/x/` loads its files there
+(`<base href="/x/">`), but its pages have to be at `/a/…`, the React app's addresses. So `/x/`
+sets a cookie that picks the Exact app and sends the browser to the page's own address, which the
+server then answers with the Exact app (apps/web/src/server/exact-app.ts) until `/x/off`.
 
 ## Type and colour
 

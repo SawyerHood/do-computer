@@ -13,10 +13,16 @@ shape Hatched
   error: string
   agentId: string
 
-// The open Dood's own event stream (`/api/agents/:id/events`), counted: `changes` goes up when
+// The open Dood's own socket (`/api/agents/:id/socket`), counted: `changes` goes up when
 // something the sidebar shows changed, which asks for the Doods again.
 shape DoodPulse
   agentId: string
+  changes: number
+  lost: bool
+
+// The person's own feed (`/api/presence/personal:<user>`), counted the same way, for every Dood.
+shape Feed
+  owner: string
   changes: number
   lost: bool
 
@@ -30,7 +36,8 @@ members App
   state panelOpen = false persist
   resource workspaces = loadWorkspaces(session.owner) as shape Workspaces else empty()
   resource pulse = followDood(session.owner, openAgentId) as shape DoodPulse else empty()
-  resource doods = loadDoods(session.owner) with pulse.changes as shape Doods else empty()
+  resource feed = followFeed(session.owner, session.userId) as shape Feed else empty()
+  resource doods = loadDoods(session.owner) with pulse.changes, feed.changes as shape Doods else empty()
   mutation hatched as shape Hatched refreshes doods then afterHatch
   mutation seen as shape Reply refreshes doods
   // The sidebar beside the page: Exact's web host splits a list from its detail from 900 px.
@@ -43,11 +50,9 @@ members App
   derive hatchError = pending(hatched) ? "" : match hatched { case some(r) => r.error, case none => "" }
   derive seenKey = `${openAgentId}:${openDood.latestAt}`
 
-  // The other Doods' rows are asked for again now and then: the React app hears of them on a
-  // socket of the person's own, which cannot carry this app's session (GAPS.md). The open
-  // Dood's own changes arrive on its event stream, and its chat says when it starts and stops.
-  task poll mount
-    every(10000, pull)
+  // Every Dood's row is asked for again when the person's feed says it changed, as the React
+  // app's are; the open Dood's name and creature when its own socket does. A socket that ended
+  // is followed again.
   task clock mount
     every(30000, look)
   task mendPulse mount
@@ -63,6 +68,8 @@ members App
   action healPulse
     if pulse.lost and openAgentId != ""
       refresh pulse
+    if feed.lost and session.signedIn
+      refresh feed
   // The Dood on screen is being looked at, so nothing of its is new.
   action see
     if openDood.unread and not pending(seen)
