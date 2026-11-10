@@ -240,7 +240,7 @@ component SettingsHeading
   view
     // Clear of the card's cross, which a phone has in its bar instead.
     column gap=4 padding-right=(wide ? 32 : 0)
-      text title role="heading" aria-level=2 class=SettingsTitle hyphens="auto" testId=`heading-${route}`
+      text title role="heading" aria-level=2 class=SettingsTitle testId=`heading-${route}`
       if lead != ""
         text lead class=SettingsLead
 
@@ -292,7 +292,7 @@ component SettingsNav
           :hover
             background-color="wash"
           image e.icon aria-hidden=true font-size="1rem" flex-shrink=0
-          text e.label flex=1 min-width=0 hyphens="auto"
+          text e.label flex=1 min-width=0
           if phone
             image "symbol:icon.caret-right" aria-hidden=true color="ink.muted" font-size="0.875rem" flex-shrink=0
 
