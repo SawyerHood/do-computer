@@ -109,10 +109,13 @@ views/care*.contract      members: the creature, treats, the box. CreatureCare, 
 views/wardrobe.contract   members: dressing. WardrobeWindow, CreatureWindows (drawn at the root)
 views/welcome.contract    members: the first run. WelcomeScene over everything, FirstHello in a chat
 views/<area>.contract     each other page: a placeholder screen in DoodScreen or WorkspaceScreen
+views/transport.contract  members: tickets kept ready for the sockets, and their pings (no screen)
 data/api.ts               the session, ask/get/post/put/patch/del, reply, ownerOf/current, follow
 data/<area>.ts            an area's sources, exported as `<area>Sources`
 <area>.test.contract      an area's tests
-tools/                    shots.sh, react-shots.mjs, phosphor-icons.mjs
+tools/                    shots.sh, react-shots.mjs, phosphor-icons.mjs; stream-check.mjs (a long
+                          reply arrives whole); same-origin.sh (the app served by the server)
+tests/same-origin.test.contract  the app at the server's own origin, run by tools/same-origin.sh
 ```
 
 The root's view has a marked arm per route (`// --- library ---`) and its body a `members`
@@ -143,9 +146,14 @@ parallel merges.
     from the user and a tag of the session), the source is asked with `session.owner` and
     answers `NOBODY`'s nothing when `current(owner, store)` is false, and the view shows it only
     while `x.owner == session.owner` (`doodList`, `workspaceList` in shell.contract);
-  - a stream is `follow(store, path, { each, lost, now })`; events that Exact coalesced arrive
-    with `skipped`, after which a delta stream marks itself `lost` and the view refreshes it
-    (`heal` in chat.contract, `healPulse` in shell.contract);
+  - something that keeps coming is one of the server's WebSockets:
+    `follow(store, path, { open, each, lost, now })` (`/api/agents/:id/socket`, a feed). Exact
+    gives its mapper every frame in order; `open` may `say` what the socket should send (a
+    chat's `follow`). Where the session is a bearer token the socket opens with a ticket kept
+    ready (data/api.ts, views/transport.contract); with none ready, or when the socket ends, it
+    is `lost`, and the view follows it again (`heal` in chat.contract, `healPulse` in
+    shell.contract). Served by the deployment itself the session is the browser's cookie and no
+    ticket is needed (`byCookie`);
   - types and pure functions come from `../protocol/` (`reduceChat`, `inOrder`, `avatarLook`).
 - **Looks.** Colours are `app.tamber`'s tokens (`canvas`, `ink`, `ink.muted`, `frame`,
   `hairline`, `wash`, `bubble`, `primary`…), never a literal; sizes in `rem` where text grows
@@ -290,6 +298,23 @@ and Open actions scroll their view into sight before starting it. `state` includ
 frame's mascot counts under `hatches.scopes.module.published.mascot` (64 orbs, 46 held in the
 full gallery); `at` is Exact time. These diagnostics do nothing in production.
 
+Content views can take **natural height** on the web: a `:host{display:block}` with an ordinary
+shadow DOM child participates in browser layout. `do-markdown`, `do-code` and `do-mermaid`
+leave height unset and use `align-self="stretch" min-width=0 max-width="100%"`. No intrinsic-size
+callback, estimated line count or message/resize feedback loop is needed. The gallery's
+browser check compares host and child heights, checks an 80-line block, and confirms that
+highlighting does not change a code block's height. This is a web result, not a native-host
+promise. Diagram completion and picture loading can still change their content's real height.
+
+Keep lazy dependencies lazy at the **dispatch** boundary too. `content-views.js` loads the
+rich implementation only when its tag is created, so a creature-only page does not load a
+Markdown parser (or require its chunk directory). A gallery using rich views must copy the
+whole module tree, not just top-level JS. Await a labelled `load=` state with
+`clock until state ready == true within 3000` before asserting its rendering; `clock data`
+waits for the page module, not every library's later dynamic import. Shadow DOM's internal
+controls and text need a browser probe while an official `./x agent` drive owns the host;
+`tests/markdown-gallery/run-browser.mjs` is the example. It never starts another server.
+
 ## Known problems in Exact, and what this app does about them
 
 - **`exactTime()` and Markdown.** An app that draws `markup="markdown"` is run once at build, in
@@ -300,9 +325,10 @@ full gallery); `at` is Exact time. These diagnostics do nothing in production.
   pattern draws no Markdown, so it never meets it. `app.ts` answers a source it does not have
   with a zero time, which only that build-time render ever asks for; in the browser the runtime
   answers `exactTime` itself.
-- **Server-sent events** that arrive faster than Exact commits them are coalesced, and a chat's
-  events are deltas: `follow` passes `skipped`, the chat marks itself `lost`, and `heal`
-  follows it again from a fresh snapshot.
+- **A stream opens before its answer awaits anything** on the web, and a data source sees
+  neither the page's address nor a clock. So the tickets a socket opens with are kept ready
+  (`stockTickets`) and aged in rounds of a task, and served by the deployment the app finds its
+  cookie session by asking (`byCookie`). GAPS.md, "Transport".
 - **History after a reload.** A deep link opens with its parents put under it
   (`/a/x/library` is the list, the chat, the library). Those were never in the browser's
   history, so the app's Back from such a page adds an entry instead of going back. Within a

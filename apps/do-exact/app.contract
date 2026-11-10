@@ -55,6 +55,7 @@ component App
   members "./views/sign-in.contract"
   members "./views/shell.contract"
   members "./views/chat.contract"
+  members "./views/transport.contract"
   members "./views/panel.contract"
   members "./views/panel-mood.contract"
   members "./views/care.contract"

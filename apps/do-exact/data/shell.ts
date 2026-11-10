@@ -1,10 +1,11 @@
 // The shell's data: the workspaces, the Doods in each one's order with what each last said, a
-// new Dood, that one was looked at, and the open Dood's own event stream.
+// new Dood, that one was looked at, the open Dood's own socket and the person's feed.
 import type { Result, Sources } from '../app.contract.d.ts';
-import type { AgentEvent, AgentLatest, AgentSummary } from '../protocol/agent.ts';
+import type { AgentLatest, AgentSummary } from '../protocol/agent.ts';
 import { avatarLook } from '../protocol/avatars.ts';
 import { inOrder, type DoodOrder } from '../protocol/order.ts';
-import { isPersonalWorkspace, workspaceColor, type WorkspacesState } from '../protocol/workspace.ts';
+import type { AgentSocketMessage } from '../protocol/socket.ts';
+import { isPersonalWorkspace, personalWorkspaceId, workspaceColor, type FeedEvent, type WorkspacesState } from '../protocol/workspace.ts';
 import { current, follow, get, NOBODY, post, put, reply, seg } from './api.ts';
 
 type Dood = Result<'loadDoods'>['doods'][number];
@@ -47,8 +48,11 @@ function doodOf(agent: AgentSummary, me: string): Dood {
 }
 
 const NO_PULSE: Result<'followDood'> = { agentId: '', changes: 0, lost: false };
+const NO_FEED: Result<'followFeed'> = { owner: NOBODY, changes: 0, lost: false };
+/** What the feed has said for whoever is signed in, kept across its sockets so the count only goes up. */
+let feed = { owner: NOBODY, changes: 0, opened: false };
 
-export const shellSources: Pick<Sources, 'loadWorkspaces' | 'loadDoods' | 'followDood' | 'hatchDood' | 'markSeen'> = {
+export const shellSources: Pick<Sources, 'loadWorkspaces' | 'loadDoods' | 'followDood' | 'followFeed' | 'hatchDood' | 'markSeen'> = {
   loadWorkspaces: async ([owner], store): Promise<Result<'loadWorkspaces'>> => {
     if (!current(owner, store)) return { owner: NOBODY, workspaces: [] };
     const state = await get<WorkspacesState>(store, '/api/workspaces');
@@ -70,16 +74,46 @@ export const shellSources: Pick<Sources, 'loadWorkspaces' | 'loadDoods' | 'follo
     const ordered = workspaces.flatMap((id) => inOrder(agents.filter((agent) => (agent.workspaceId ?? '') === id), order[id]));
     return { owner, doods: ordered.map((agent) => doodOf(agent, me)) };
   },
-  // What changes on the open Dood, as its event stream says: `ready` on each connection (what
-  // was asked before it may be behind) and a change to what the sidebar shows of it.
+  // What changes on the open Dood, as its socket says: `ready` on each connection (what was
+  // asked before it may be behind) and a change to what the sidebar shows of it.
   followDood: ([owner, agentId], store): Result<'followDood'> | Promise<Result<'followDood'>> => {
     if (agentId === '' || !current(owner, store)) return NO_PULSE;
     let changes = 0;
     let lost = false;
     const now = () => ({ agentId, changes, lost });
-    return follow<Result<'followDood'>, AgentEvent>(store, `/api/agents/${seg(agentId)}/events`, {
+    return follow<Result<'followDood'>, AgentSocketMessage>(store, `/api/agents/${seg(agentId)}/socket`, {
+      open: now,
+      each: (message) => {
+        const event = message.type === 'agent' ? message.event : undefined;
+        // Back from being put away, it may have changed meanwhile.
+        if (message.type === 'resumed' || event?.type === 'ready' || event?.what === 'identity' || event?.what === 'creature') changes++;
+        return now();
+      },
+      lost: () => {
+        lost = true;
+        return now();
+      },
+      now,
+    });
+  },
+  // Everything the person's Doods are up to, on the person's own feed (the React app's
+  // `useFeed`): a Dood starting or stopping work or saying something, one looked at elsewhere,
+  // Doods put in another order. Each is counted, and the list asked for again; so is a feed
+  // connected again, since what was said while it was down was said to nobody.
+  followFeed: ([owner, userId], store): Result<'followFeed'> | Promise<Result<'followFeed'>> => {
+    if (userId === '' || !current(owner, store)) return NO_FEED;
+    if (feed.owner !== owner) feed = { owner, changes: 0, opened: false };
+    const mine = feed;
+    let lost = false;
+    const now = () => ({ owner, changes: mine.changes, lost });
+    return follow<Result<'followFeed'>, FeedEvent>(store, `/api/presence/${seg(personalWorkspaceId(userId))}`, {
+      open: () => {
+        if (mine.opened) mine.changes++;
+        mine.opened = true;
+        return now();
+      },
       each: (event) => {
-        if (event.type === 'ready' || event.what === 'identity' || event.what === 'creature') changes++;
+        if (event.type === 'agent' || event.type === 'seen' || event.type === 'order') mine.changes++;
         return now();
       },
       lost: () => {

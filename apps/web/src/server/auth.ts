@@ -9,6 +9,7 @@ import { desktopHandoff } from "./desktop-handoff.ts"
 import { LOCAL_OWNER_METHOD, localOwner } from "./local-owner.ts"
 import { LOCAL_OWNER_EMAIL, type Platform } from "./platform.ts"
 import { migrateAppDatabase, readMeta, writeMeta } from "./schema.ts"
+import { socketTickets, TICKET_PARAM, TICKET_SHAPE } from "./socket-tickets.ts"
 import { isInvited } from "./teams.ts"
 import { isWaiting, waitlistSince } from "./waitlist.ts"
 
@@ -108,11 +109,13 @@ function authOptions(platform: Platform) {
     trustedOrigins: [`${MOBILE_SCHEME}://`, ...config.alsoAt, ...config.clientOrigins],
     // `bearer` is for a client with no cookie jar this server can reach: it is handed its
     // session in the `set-auth-token` header of the reply that signs it in, and sends it back
-    // as `Authorization: Bearer`. tanstackStartCookies must stay last: it turns the Set-Cookie
-    // headers of server-side calls into response cookies.
+    // as `Authorization: Bearer`. Its sockets it opens with tickets (socket-tickets.ts).
+    // tanstackStartCookies must stay last: it turns the Set-Cookie headers of server-side calls
+    // into response cookies.
     plugins: [
       expo(),
       bearer(),
+      socketTickets(),
       desktopHandoff(),
       localOwner(config.ownerKey),
       tanstackStartCookies(),
@@ -244,6 +247,26 @@ export function fromApp(request: Request): boolean {
     origin === new URL(request.url).origin ||
     config.alsoAt.includes(origin)
   )
+}
+
+/**
+ * Who opens a live connection: the holder of the ticket it names, or else whoever its cookie
+ * says, where it comes from the app itself (`fromApp`). Undefined for nobody, and for someone
+ * on the waiting list.
+ *
+ * A ticket is not sent by the browser on its own as a cookie is, so a page elsewhere has none to
+ * send. It is still only taken from the app, a client app `DC_CLIENT_ORIGINS` names, or a client
+ * that names no origin, which no page is.
+ */
+export async function socketUser(request: Request): Promise<SessionUser | undefined> {
+  const ticket = new URL(request.url).searchParams.get(TICKET_PARAM)
+  if (ticket === null) return fromApp(request) ? getUser(request) : undefined
+  const origin = request.headers.get("origin") ?? ""
+  if (!fromApp(request) && !getPlatform().config.clientOrigins.includes(origin)) return undefined
+  // Before the database is asked: anyone can knock with something.
+  if (!TICKET_SHAPE.test(ticket)) return undefined
+  const { user } = await (await getAuth()).api.redeemSocketTicket({ body: { ticket } })
+  return user === null || (await isWaiting(user)) ? undefined : user
 }
 
 /** Whether anyone has an account here yet. Once someone has, someone always does. */

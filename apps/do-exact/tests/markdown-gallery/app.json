@@ -1,0 +1,24 @@
+{
+  "name": "Markdown gallery",
+  "app": {
+    "id": "computer.do.exact.markdown",
+    "name": "Markdown gallery"
+  },
+  "host": {
+    "web": {}
+  },
+  "modules": [
+    "do-markdown",
+    "do-code",
+    "do-mermaid"
+  ],
+  "before_build": [
+    "bun",
+    "prepare.mjs"
+  ],
+  "deploy": {
+    "store": {
+      "web": "0"
+    }
+  }
+}

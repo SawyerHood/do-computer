@@ -4,17 +4,6 @@ One paragraph each: what, where in the React app, what was done instead.
 
 ## The shell
 
-**The sidebar hears of other Doods by asking.** The React app's sidebar follows the person's
-feed, a WebSocket at `/api/presence/personal:<user>` that says when any Dood starts or stops
-work, what it last said, and when one was looked at elsewhere (`apps/web/src/lib/latest.ts`
-`useFeed`). The server takes the session on that socket from a cookie, and an Exact app's
-socket on the web is the browser's, which sends no cookie across origins and no
-`Authorization` header. So `loadDoods` is asked again every 10 s (`task poll` in
-`views/shell.contract`); the open Dood's own event stream (`/api/agents/:id/events`, SSE, which
-takes the bearer) asks again at once when it changes, and its chat asks again when it starts or
-stops working. Once a socket can carry the session (the chat's move to the WebSocket needs the
-same), the feed replaces the poll.
-
 **The sidebar is beside the page from 900 px, not 768.** Exact's web host splits a stack's
 first route from its detail at 900 px (`navigationSplit`); the React app puts the sidebar
 beside the page from `48rem` (`SIDEBAR_BESIDE` in `components/shell/app-shell.tsx`). Between
@@ -40,6 +29,36 @@ modal route (`navigationPresentation="modal"`) would be the dialog, if that is w
 **A pages menu opens from the pill's start, not its middle.** The React app centres the Dood's
 menu under its name (`align="center"`); an Exact popover is placed by the platform under the
 button that opens it.
+
+## Transport
+
+**A stream opens before its answer awaits anything, so socket tickets are kept ready.** On the
+web, Exact starts a stream only as its answer is asked, before the answer's first `await`
+(`host/web-js/ts-fetch.js`), so a source cannot ask for a ticket and then open the socket with
+it. The React app's browser has its cookie and needs none. Here a few tickets are kept ready
+(`stockTickets` in data/api.ts): asked for at sign-in and whenever a page opens sockets or one is
+lost, by `socketTickets` in views/transport.contract. A socket asked for when none is ready is
+`lost`, and its view follows it again a moment later.
+
+**A data source has no clock and cannot see the page's address.** `Date.now()` is refused and
+`location` is hidden from the data module. A ticket's age is counted in rounds of a one-minute
+task (`socketRound`), and a socket that answers no ping for two rounds of the 30 s ping task is
+closed, where the React client times both (`packages/client/src/follow.ts`). Whether the app is
+served by the deployment itself is found out by asking `/api/me` with no token, which only the
+browser's own cookie can answer (`byCookie`).
+
+**An ended socket is followed again on a timer, with no backoff.** Exact does not ask a stream's
+resource again when it ends. The chat (`task mend`, every second) and the Dood and the feed
+(`healPulse`, every 5 s) ask again while theirs is `lost`; the React client backs off
+(`reconnectDelay`) and shares one socket per Dood between its chat and its events, where here the
+chat and the Dood's changes are a socket each.
+
+**Exact knows no path prefix, so the app served at `/x/` runs at the React app's addresses.**
+Exact's router matches a route against the whole `location.pathname` (`host/web-js/router.js`),
+and its deploy anchors locations at `/`. A build served under `/x/` loads its files there
+(`<base href="/x/">`), but its pages have to be at `/a/…`, the React app's addresses. So `/x/`
+sets a cookie that picks the Exact app and sends the browser to the page's own address, which the
+server then answers with the Exact app (apps/web/src/server/exact-app.ts) until `/x/off`.
 
 ## Type and colour
 
@@ -122,9 +141,8 @@ hatch from `components/welcome/stage.ts`, and the flight from island to chat (`f
 under "A Dood as a creature"). Petting emits `message="pet"`;
 the Contract caller must apply server care limits and mutations, as React's creature care
 does. If WebGL is unavailable, `do-creature` uses the protocol's plain SVG; it has no clothes,
-seed-specific silhouette or egg, like React's stand-in. Syntax highlighting, Mermaid and other
-foreign views are not implemented by this piece; PORTING.md's Native views section gives the
-worked integration recipe.
+seed-specific silhouette or egg, like React's stand-in. Rich message content is now implemented
+separately below; PORTING.md's Native views section gives the integration recipe.
 
 ## Data-free gallery verification
 
@@ -135,3 +153,36 @@ or after the command. The gallery is checked sequentially with `./x test web --s
 `./x agent web … "check both"` instead; the machine-wide lock and port policy are unchanged.
 The root app's own verify is not affected: it has a server, and runs clean. No Exact patch was
 made.
+
+
+## Rich message content
+
+`views/markdown.contract` and the web-only `do-markdown`, `do-code` and `do-mermaid` tags
+render the React app's sanitized GFM, highlighted code, scrolling/copyable tables, GitHub
+alerts, folding HTML and diagrams. Exact's `text markup="markdown"` reader leaves tables as
+text and does not supply these controls; it is retained for simple prose. Rich messages stay
+in one shadow DOM tree so selection crosses prose and code. The native content has natural
+web layout height; no Apple/Linux implementation or native intrinsic sizing was added. The
+Exact agent sees tags/props, not their text or buttons; the separate gallery's Playwright
+probe tests those. A simple reply can change renderer once richer syntax arrives, which may
+lose a selection over that change. The real chat has not been wired while another branch
+rewrites it; the exact `MessageText` call is in `modules/web/README.md`.
+
+React's `components/chat/markdown.tsx` resolves library links and images using the chat's
+library query, previews local CSV/TSV, opens files beside the chat, refreshes expired view
+URLs, and uses the full multi-picture viewer with download. This presentation-only piece
+accepts a caller-resolved `files` prop and emits `file:<id-or-path>`, renders known image
+URLs and browser video/audio controls, and otherwise shows alt text. It does not fetch the
+library, preview CSV/TSV, refresh authorization, open a side panel, or provide the picture
+viewer. A figure opens in a new tab and emits `image:<url>`. The chat/library owner must
+supply browser-loadable URLs and consume file events; no bearer secret belongs in props.
+Attachments that are separate message blocks remain that screen's responsibility.
+
+Remote pictures/media wait for Show, as in React, but there is no persistent Always from
+this host permission yet. Responsive raw-HTML `<source srcset>` is skipped because it could
+make a request around that gate. Failed pictures show their words. Raw HTML uses the exact
+React sanitizer, not unrestricted innerHTML; only strict Mermaid's own sanitized SVG is
+inserted as markup. Alerts have their kind/title/color but not the React icon set, and fonts
+inherit the host rather than shipping React's Geist fonts. Code over 80,000 characters and
+unknown languages remain plain, as in React. There is no math renderer or custom mention
+widget in the React reference either: math delimiters and @names remain text.
