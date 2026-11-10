@@ -127,7 +127,11 @@ function toolBlock(part: ToolPart, id: string, uses: Map<string, Use>): Block | 
   return undefined;
 }
 
-/** A notice message: a line with its mark, what it says, a way to the chat it is about, and more folded under it. */
+/**
+ * A notice message: a line with its mark, what it says, a way to the chat it is about, and more
+ * folded under it. The line is `text`, `name` in bold, then `after`, which the view puts a space
+ * before unless it starts with a comma or a colon.
+ */
 function noticeBlock(part: NoticePart | undefined, id: string): Block {
   if (part === undefined) return block(id, 'notice', { status: 'reset', text: 'New context' });
   const kind = part.kind;
@@ -164,7 +168,7 @@ function noticeBlock(part: NoticePart | undefined, id: string): Block {
     case 'secret': {
       // Which secrets, and where they went. Never what. A login is told in words.
       const login = part.text === '' ? /^(a login for) (\S+)$/.exec(part.detail ?? '') : null;
-      const where = part.text === '' ? '' : part.approved ? `, saved to ${part.text}` : ` for ${part.text}`;
+      const where = part.text === '' ? '' : part.approved ? `, saved to ${part.text}` : `for ${part.text}`;
       return block(id, 'notice', {
         status: kind, mono: login === null,
         text: `${by} ${part.approved ? 'gave' : 'chose not to give'}${login === null ? '' : ` ${login[1]}`}`,

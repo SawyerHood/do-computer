@@ -125,7 +125,7 @@ style OutlineButton
 // A button with nothing round it but a wash on hover (`variant="ghost"`).
 style QuietButton
   display="flex" align-items="center" gap=6 min-height="1.75rem" padding="0 10px" border-radius=8
-  font-size="0.8125rem" color="ink.muted" background-color="transparent" border="none" text-decoration="none"
+  font-size="0.8125rem" color="ink" background-color="transparent" border="none" text-decoration="none"
   :hover
     background-color="wash"
   :disabled

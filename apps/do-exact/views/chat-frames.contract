@@ -21,22 +21,22 @@ component VisualFrame
   derive gone = base != "" and not libraryFiles.includes(block.fileId)
   view
     if gone
-      text `“${block.name}” is no longer in the library, so it cannot be shown here.` font-size="0.875rem" color="ink.muted" padding="0 4px" testId=`visual-gone-${block.fileId}`
+      text `“${block.name}” is no longer in the library, so it cannot be shown here.` font-size="0.875rem" color="ink.muted" padding="0 4px" testId=`visual-gone-${block.name}`
     else
-      column gap=6 width="100%" testId=`visual-${block.fileId}`
+      column gap=6 width="100%" testId=`visual-${block.name}`
         column position="relative" width="100%" height=frameHeight(height) role="figure" aria-label=`Visual: ${block.name}`
           if base != ""
             // No `allow-same-origin`: the page must not be the app, though the app's server serves it.
             iframe id=`visual-frame-${block.id}` src=`${base}${block.path}` title=block.name sandbox="allow-scripts allow-popups allow-forms allow-modals"
-              message=heard width="100%" height="100%" border="none" background-color="transparent" testId=`visual-frame-${block.fileId}`
+              message=heard width="100%" height="100%" border="none" background-color="transparent" testId=`visual-frame-${block.name}`
           row position="absolute" top=0 right=0 gap=4
-            link href=`${path("library", agentId)}?file=${block.fileId}` aria-label="Open in the library" title="Open in the library"
+            link href=`${path("library", agentId)}?file=${block.name}` aria-label="Open in the library" title="Open in the library"
               display="flex" align-items="center" justify-content="center" width=30 height=30 border-radius=8 color="ink.muted"
-              background-color="canvas" border="1px solid var(--border)" testId=`visual-open-${block.fileId}`
+              background-color="canvas" border="1px solid var(--border)" testId=`visual-open-${block.name}`
               image "symbol:icon.arrows-out" aria-hidden=true font-size="1rem"
         if failure != ""
           // A script of the page's failed, so what is above may be half of what was meant.
-          row gap=8 align-items="center" flex-wrap="wrap" padding="0 4px" font-size="0.875rem" color="ink.muted" role="status" testId=`visual-failed-${block.fileId}`
+          row gap=8 align-items="center" flex-wrap="wrap" padding="0 4px" font-size="0.875rem" color="ink.muted" role="status" testId=`visual-failed-${block.name}`
             image "symbol:icon.warning-circle" aria-hidden=true
             text "Something in this page did not work."
             button press=tell font-weight=500 color="ink" text-decoration="underline" background-color="transparent" border="none" padding=0
@@ -70,7 +70,7 @@ component McpAppFrame
   props
     block: Block
   view
-    column gap=6 width="100%" testId=`mcp-app-${block.fileId}`
+    column gap=6 width="100%" testId=`mcp-app-${block.name}`
       row gap=6 align-items="center" padding="0 4px" font-size="0.75rem" color="ink.muted"
         image "symbol:icon.plugs-connected" aria-hidden=true font-size="0.875rem"
         text

@@ -113,7 +113,7 @@ component Delivery
     id: string
   view
     row gap=6 align-items="center" padding="0 4px" font-size="0.75rem" color="ink.muted" min-height=20
-      role="img" aria-label=(delivered ? "Delivered" : "Sending") title=(delivered ? "" : "Sent. It is read after the step under way.") testId=`delivery-${id}`
+      role="img" aria-label=(delivered ? "Delivered" : "Sending") title=(delivered ? "" : "Sent. It is read after the step under way.") testId=(delivered ? "delivered" : "sending")
       text (delivered ? "Delivered" : "Sending")
       if delivered
         image "symbol:icon.check-circle" font-size="0.875rem" aria-hidden=true
@@ -213,7 +213,7 @@ component ReplyError
                 image "symbol:icon.arrow-clockwise" aria-hidden=true
                 text "Try again"
             if hasDetails
-              button press=toggleDetails aria-expanded=details class=QuietButton testId=`details-${message.id}`
+              button press=toggleDetails aria-expanded=details class=QuietButton color="ink.muted" testId=`details-${message.id}`
                 image (details ? "symbol:icon.caret-down" : "symbol:icon.caret-right") aria-hidden=true font-size="0.75rem"
                 text "Details"
         if details
@@ -281,7 +281,7 @@ component Fold
   derive open = startOpen != flipped
   view
     column margin-top=4 align-items="flex-start" width="100%"
-      button press=flip aria-expanded=open class=QuietButton margin-left=-8 testId=`fold-${label}`
+      button press=flip aria-expanded=open class=QuietButton color="ink.muted" margin-left=-8 testId=`fold-${label}`
         image (open ? "symbol:icon.caret-down" : "symbol:icon.caret-right") aria-hidden=true font-size="0.75rem"
         text label
       if open
@@ -333,17 +333,17 @@ component FileCard
     agentId: string
     base: string
   view
-    column gap=8 max-width="100%" testId=`file-${block.fileId}`
+    column gap=8 max-width="100%" testId=`file-${block.name}`
       if block.outcome == "picture" and base != ""
         image `${base}${block.path}` alt=block.name max-height=320 border-radius=16 border="1px solid var(--border)"
       row align-items="center" height=40 max-width="100%" border-radius=12 class=Card font-size="0.875rem"
         link href=`${path("library", agentId)}?file=${block.fileId}` title="Open in the library" display="flex" align-items="center" gap=10
-          padding="0 14px 0 12px" height="100%" min-width=0 color="ink" text-decoration="none" testId=`file-open-${block.fileId}`
+          padding="0 14px 0 12px" height="100%" min-width=0 color="ink" text-decoration="none" testId=`file-open-${block.name}`
           image "symbol:icon.file" color="primary" font-size="1.25rem" aria-hidden=true
           text block.name font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap" min-width=0 title=block.detail
         if base != ""
           link href=`${base}${block.path}` target="_blank" aria-label=`Download ${block.name}` title="Download" display="flex" align-items="center" justify-content="center"
-            width=32 height=32 margin-right=4 border-radius=8 color="ink.muted" testId=`file-download-${block.fileId}`
+            width=32 height=32 margin-right=4 border-radius=8 color="ink.muted" testId=`file-download-${block.name}`
             image "symbol:icon.download" font-size="1rem" aria-hidden=true
 
 // A site the Dood shared, where it shared it: its title, who can open it, its address, and the
@@ -353,7 +353,7 @@ component SiteCard
     block: Block
   view
     row flex-wrap="wrap" align-items="center" gap=12 padding="10px 10px 10px 12px" border-radius=16 class=Card font-size="0.875rem" max-width="100%"
-      role="group" aria-label=`Site: ${block.name}` testId=`site-${block.fileId}`
+      role="group" aria-label=`Site: ${block.name}` testId=`site-${block.name}`
       row gap=12 align-items="center" min-width=0
         column width=36 height=36 border-radius=8 background-color="wash" align-items="center" justify-content="center" flex-shrink=0
           image "symbol:icon.globe" color="ink.muted" font-size="1.25rem" aria-hidden=true
@@ -363,7 +363,7 @@ component SiteCard
             text (block.outcome == "public" ? "Public" : "Workspace") font-size="0.75rem" color="ink.muted" padding="0 8px" border-radius=999 border="1px solid var(--border)"
           text block.detail.replaceAll("https://", "").replaceAll("http://", "") font-family="Geist Mono" font-size="0.75rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
       row gap=6 flex-shrink=0
-        button press=copyLink class=OutlineButton testId=`site-copy-${block.fileId}`
+        button press=copyLink class=OutlineButton testId=`site-copy-${block.name}`
           text "Copy link"
         link href=block.detail target="_blank" class=OutlineButton
           text "Open"
@@ -379,7 +379,7 @@ component PinCard
     doodName: string
   view
     row flex-wrap="wrap" align-items="center" gap=12 padding="10px 10px 10px 12px" border-radius=16 class=Card font-size="0.875rem" max-width="100%"
-      role="group" aria-label=`Pinned: ${block.name}` testId=`pin-${block.fileId}`
+      role="group" aria-label=`Pinned: ${block.name}` testId=`pin-${block.name}`
       row gap=12 align-items="center" min-width=0
         column width=36 height=36 border-radius=8 background-color="wash" align-items="center" justify-content="center" flex-shrink=0
           image "symbol:icon.push-pin" color="ink.muted" font-size="1.25rem" aria-hidden=true
@@ -401,7 +401,7 @@ component SubagentChip
   derive status = subagentStatuses.includes(`${block.chatId}=working`) ? "working" : subagentStatuses.includes(`${block.chatId}=waiting`) ? "waiting" : subagentStatuses.includes(`${block.chatId}=stopped`) ? "stopped" : subagentStatuses.includes(`${block.chatId}=failed`) ? "failed" : ""
   view
     link href=path("chat", agentId, block.chatId) display="flex" align-items="center" gap=10 height=40 max-width="100%" padding="0 12px 0 10px"
-      border-radius=12 class=Card font-size="0.875rem" text-decoration="none" testId=`subagent-${block.chatId}`
+      border-radius=12 class=Card font-size="0.875rem" text-decoration="none" testId=`subagent-${block.name}`
       DoodFace(seed=`${agentId}/sub/${block.chatId}`, color=doodOf(doodList, agentId).color, state=(status == "working" ? "working" : status == "waiting" ? "asking" : status == "failed" ? "error" : "idle"), name=block.name, size=24)
       text block.name font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap" min-width=0
       StatusMark(status=status)
@@ -444,7 +444,7 @@ component AgentChip
   derive peer = doodOf(doodList, block.agentId)
   view
     link href=path("chat", block.agentId, block.chatId) display="flex" align-items="center" gap=8 max-width="100%" padding="6px 10px 6px 8px"
-      border-radius=16 class=Card font-size="0.875rem" text-decoration="none" testId=`agent-chip-${block.chatId}`
+      border-radius=16 class=Card font-size="0.875rem" text-decoration="none" testId=`agent-chip-${block.name}`
       DoodFace(seed=peer.seed, color=peer.color, state="idle", name=block.name, size=24)
       text "Asked" font-size="0.75rem" color="ink.muted"
       text (peer.name != "" ? peer.name : block.name) font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
@@ -469,7 +469,7 @@ component UseLine
           text block.name font-weight=500 color="ink"
           text (block.going ? ` · ${block.detail}` : block.after)
       if block.lines.length > 0
-        button press=toggle aria-expanded=open class=QuietButton margin-left=-8 margin-top=4
+        button press=toggle aria-expanded=open class=QuietButton color="ink.muted" margin-left=-8 margin-top=4
           image (open ? "symbol:icon.caret-down" : "symbol:icon.caret-right") aria-hidden=true font-size="0.75rem"
           text "What it did"
         if open
