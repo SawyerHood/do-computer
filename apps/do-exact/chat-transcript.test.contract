@@ -30,7 +30,7 @@ test "what the Dood does on its own is one line while it does it, and its answer
   expect state chat.messages.1 .blocks.0 .kind == "text"
   expect state chat.messages.1 .blocks.0 .text == "The tool returned:\n\nrested\n"
 
-test "a file the Dood sends is a card that opens it in the library"
+test "a file the Dood sends is the library's card, which opens it beside the chat"
   tap "sign-toggle"
   type "sign-name" "Ada"
   type "sign-email" "transcript-2@example.com"
@@ -50,11 +50,11 @@ test "a file the Dood sends is a card that opens it in the library"
   clock data
   clock +3000 real
   expect tree has "file-notes.md"
-  expect tree has "file-download-notes.md"
-  tap "file-open-notes.md"
+  tap "Open notes.md"
   clock data
   clock settle
-  expect state onRoute == "library"
+  clock data
+  expect tree has "library-document-panel"
 
 test "a visual the Dood draws is the page itself, in a frame of its own"
   tap "sign-toggle"
@@ -382,3 +382,48 @@ test "something the Dood pins is a card that can take the pin off, and put it ba
   clock +1000 real
   clock data
   expect tree has "unpin-Launch board"
+
+test "a chat started fresh keeps what came before within reach"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "transcript-15@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "The first thing I said"
+  tap "send"
+  clock data
+  clock +3000 real
+  tap "pages-dood"
+  tap "go-profile-dood"
+  clock data
+  clock settle
+  tap "settings-go-memory-profile"
+  clock data
+  clock settle
+  clock data
+  tap "memory-fresh-start"
+  clock settle
+  tap "memory-fresh-confirm-yes"
+  clock data
+  clock settle
+  expect text "memory-fresh-done" == "Started fresh"
+  tap "pages-memory"
+  tap "go-chat-memory"
+  clock data
+  clock settle
+  clock data
+  clock +1500 real
+  expect tree has "notice-reset"
+  expect tree has "show-earlier"
+  tap "show-earlier"
+  clock data
+  clock +1000 real
+  clock data
+  expect tree missing "show-earlier"
+  expect state transcriptRows.0 .blocks.0 .text == "The first thing I said"

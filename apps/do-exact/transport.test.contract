@@ -1,0 +1,57 @@
+// How the app hears from the server live: a chat, its Dood and the person's feed over the
+// server's WebSockets, which Exact hands over frame by frame. The page is served from another
+// origin here, so each socket opens with a ticket (data/api.ts). server.ts scripts the echo
+// model's answer to "Say something long": a thought of 120 words, written a few letters at a
+// time, ~60 pieces a second, then "That was long."
+// tools/stream-check.mjs looks at the thought many times as it arrives and checks that each is
+// the beginning of the whole, which no test line can say.
+
+test "a long reply arrives piece by piece over the socket, and nothing of it is lost"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "transport-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "Say something long"
+  tap "send"
+  clock data
+  clock +1500 real
+  // Part of the way: the thought is there, being written.
+  expect state chat.busy == true
+  expect state chat.lost == false
+  expect state chat.activity == "Thinking"
+  clock until state chat.busy == false within 20000
+  expect state chat.lost == false
+  expect state chat.thought == "Word1 Word2 Word3 Word4 Word5 Word6 Word7 Word8 Word9 Word10 Word11 Word12 Word13 Word14 Word15 Word16 Word17 Word18 Word19 Word20 Word21 Word22 Word23 Word24 Word25 Word26 Word27 Word28 Word29 Word30 Word31 Word32 Word33 Word34 Word35 Word36 Word37 Word38 Word39 Word40 Word41 Word42 Word43 Word44 Word45 Word46 Word47 Word48 Word49 Word50 Word51 Word52 Word53 Word54 Word55 Word56 Word57 Word58 Word59 Word60 Word61 Word62 Word63 Word64 Word65 Word66 Word67 Word68 Word69 Word70 Word71 Word72 Word73 Word74 Word75 Word76 Word77 Word78 Word79 Word80 Word81 Word82 Word83 Word84 Word85 Word86 Word87 Word88 Word89 Word90 Word91 Word92 Word93 Word94 Word95 Word96 Word97 Word98 Word99 Word100 Word101 Word102 Word103 Word104 Word105 Word106 Word107 Word108 Word109 Word110 Word111 Word112 Word113 Word114 Word115 Word116 Word117 Word118 Word119 Word120"
+
+test "the sidebar hears from the feed of a Dood that is not open"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "transport-2@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "Say something long"
+  tap "send"
+  clock data
+  clock +1000 real
+  // Another Dood is opened while the first is at work: the first's chat and its own socket close.
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  expect state doods.doods.length == 2
+  expect state doodList.1 .working == true
+  // Nothing asks for the list on a timer: only the feed can say the first is done.
+  clock until state doodList.1 .working == false within 20000
+  expect state doodList.0 .working == false

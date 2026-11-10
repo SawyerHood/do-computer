@@ -1,0 +1,164 @@
+test "Enter sends, Shift+Enter makes a line, and an empty message is disabled"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "composer-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  expect disabled "send"
+  type "composer" "first"
+  type "composer" key "Shift+Enter"
+  type "composer" "first\nsecond"
+  type "composer" key "Enter"
+  clock data
+  expect text "composer" == ""
+  clock +3000 real
+  expect state chat.messages.0 .blocks.0 .text == "first\nsecond"
+  expect tree missing "composer-model-button"
+
+test "files are picked, removed and named in the message"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "composer-2@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "attach"
+  pick "file-picker" "tests/composer/composer-note.txt"
+  clock data
+  expect state composerAttachments.length == 1
+  expect state composerAttachments.0 .name == "composer-note.txt"
+  expect enabled "send"
+  tap "Remove composer-note.txt"
+  expect state composerAttachments.length == 0
+  expect disabled "send"
+  tap "attach"
+  pick "file-picker" "tests/composer/composer-note.txt"
+  clock data
+  expect state composerAttachments.length == 1
+  tap "send"
+  clock data
+  clock +3000 real
+  expect state chat.messages.0 .files.0 == "composer-note-2.txt"
+  expect state composerAttachments.length == 0
+
+test "a picture is previewed, opens large, and is removed without sending"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "composer-3@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "attach"
+  pick "file-picker" "tests/composer/picture.png"
+  clock data
+  expect state composerAttachments.length == 1
+  expect state composerAttachments.0 .mime == "image/jpeg"
+  tap "Open picture.png large"
+  expect tree has "picture-close"
+  tap "picture-close"
+  tap "Remove picture.png"
+  expect disabled "send"
+
+test "a failed send keeps the draft and can be tried again"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "composer-4@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  fail fetch "/api/agents"
+  type "composer" "please keep this"
+  tap "send"
+  clock data
+  expect text "composer" == "please keep this"
+  expect tree has "say-error"
+  pass fetch "/api/agents"
+  tap "send"
+  clock data
+  expect text "composer" == ""
+  clock +3000 real
+  expect state chat.messages.0 .blocks.0 .text == "please keep this"
+
+test "an upload refusal is explained without losing the draft"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "composer-5@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "Keep the words"
+  fail fetch "/api/agents"
+  tap "attach"
+  pick "file-picker" "tests/composer/composer-note.txt"
+  clock data
+  expect tree has "attach-error"
+  expect state composerAttachments.length == 0
+  expect text "composer" == "Keep the words"
+  pass fetch "/api/agents"
+
+test "a message can steer a working Dood, and Stop aborts its work"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "composer-6@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "/tool bash {\"command\":\"sleep 30\"}"
+  tap "send"
+  clock data
+  clock +500 real
+  expect state chat.busy == true
+  expect tree has "stop"
+  type "composer" "Change direction"
+  expect enabled "send"
+  tap "send"
+  clock data
+  expect text "composer" == ""
+  tap "stop"
+  clock data
+  clock +2000 real
+  expect state chat.busy == false
+
+test "a lightweight computer refuses a background command without a phantom running job"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "composer-7@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "/tool bash {\"command\":\"sleep 30\",\"run_in_background\":true}"
+  tap "send"
+  clock data
+  clock +5000 real
+  // The refused call is not a job: no chip in the transcript, nothing running over the composer.
+  expect tree missing "command-chip"
+  expect state composerRunning.length == 0

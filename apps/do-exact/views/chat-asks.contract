@@ -3,7 +3,7 @@
 // something, secrets or a login to type, a connector to sign in to. What is typed is held in the
 // card until it is sent, and goes nowhere else.
 use Card, OutlineButton, QuietButton, PrimaryButton, Field, FieldLabel from "./styles.contract"
-use ApprovalAsk, SecretAsk, SecretField, SignInAsk, ComputerAsk from "./chat-shapes.contract"
+use ApprovalAsk, SecretAsk, SecretField, SignInAsk, ComputerAsk, chatHref from "./chat-shapes.contract"
 
 component Asks
   props
@@ -56,7 +56,7 @@ component AskedIn
   view
     row flex-wrap="wrap" font-size="0.75rem" color="ink.muted"
       text lead white-space="pre"
-      link href=path("chat", agentId, chatId) color="ink.muted" text-decoration="underline"
+      link href=chatHref(agentId, chatId) color="ink.muted" text-decoration="underline"
         text title
 
 // One thing the Dood asks leave for: what, the specifics, and the three answers.

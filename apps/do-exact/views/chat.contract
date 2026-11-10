@@ -1,48 +1,44 @@
 // A Dood's chat, as the React app's ChatView (apps/web/src/components/chat/chat-view.tsx): the
 // transcript, opened at its newest message and following it, the reply arriving as it is
-// written over the chat's event stream; what came before it; what the Dood waits on someone for;
+// written over the Dood's socket; what came before it; what the Dood waits on someone for;
 // the bar and foot of a chat that is read here and written in elsewhere (a sub-agent's, a
 // conversation with another Dood, a thread in Slack, an old side chat); and the composer. Beside
 // it on a wide window, the Dood's panel. data/chat.ts answers it, data/chat-rows.ts makes its rows.
 use Reply, Dood, Page, Workspace from "./shapes.contract"
-use Screen, UserBubble, Composer, SendButton, Card, OutlineButton, QuietButton, FloatPill, JumpButton from "./styles.contract"
+use Screen, Card, OutlineButton, QuietButton, FloatPill, JumpButton from "./styles.contract"
 use DoodHeader, doodOf, nameOf, stateOf from "./shell.contract"
 use DoodFace from "./creature.contract"
 use MessageRow, Working, TranscriptPlaceholder, Welcome from "./chat-rows.contract"
 use Asks from "./chat-asks.contract"
-use Block, Message, Chat, Opened, Earlier, ChatInfo, ChatContext, ApprovalAsk, Approvals, SecretField, SecretAsk, SecretAsks, SignInAsk, SignIns, SignInReply, LibraryView, Job, Jobs, Standing, ComputerAsk, ComputerAsks from "./chat-shapes.contract"
+use ComposerBox from "./composer.contract"
+use ComposerJob from "./composer-jobs.contract"
+use ThreadRow, ThreadListing from "./threads.contract"
+use PinsShelf from "./pins.contract"
+use LibraryPicture, LibraryPictureViewer from "./library-card.contract"
+use LibraryFile, Library from "./library-shapes.contract"
+use chatHref, Block, Message, Chat, Opened, Earlier, ApprovalAsk, SecretField, SecretAsk, SecretAsks, SignInAsk, SignIns, SignInReply, ComputerAsk, ComputerAsks from "./chat-shapes.contract"
 use EmptyState from "exact:content"
 
 members App
   // --- chat ---
-  state draft = ""
   resource opened = openChat(session.owner, openAgentId) as shape Opened else empty()
   // The chat on screen: the one a `/c/:chatId` page names, else the open Dood's main chat.
   derive openChatId = chatEntryId != "" ? chatEntryId : (opened.agentId == openAgentId and opened.owner == session.owner ? opened.chatId : "")
   resource chat = followChat(session.owner, openAgentId, openChatId) as shape Chat else empty()
-  mutation said as shape Reply then afterSay
-  derive sayError = pending(said) ? "" : match said { case some(r) => r.error, case none => "" }
   derive ours = chat.owner == session.owner and chat.agentId == openAgentId and chat.chatId == openChatId and openChatId != ""
   derive lastId = match chat.messages.at(-1) { case some(m) => m.id, case none => "" }
 
   // --- chat transcript ---
-  // What changed on the open Dood, counted on the shell's stream of it, asks each of these again.
+  // What changed on the open Dood, counted on the shell's socket of it, asks each of these again.
   derive asks = pulse.asks
-  resource chatContext = loadChatContext(session.owner, openAgentId) with asks.chats as shape ChatContext else empty()
   // Pages of what came before, asked for by "Show earlier messages", for the chat they were asked in.
   state earlierPages = 0
   state earlierOf = ""
   resource earlier = loadEarlier(session.owner, openAgentId, openChatId, (ours ? chat.firstId : ""), (earlierOf == `${openChatId}:${chat.firstId}` ? earlierPages : 0)) as shape Earlier else empty()
-  resource approvals = loadApprovals(session.owner, openAgentId) with asks.approvals as shape Approvals else empty()
   resource secretAsks = loadSecretAsks(session.owner, openAgentId) with asks.secrets as shape SecretAsks else empty()
   resource signIns = loadSignIns(session.owner, openAgentId) with asks.connectors as shape SignIns else empty()
-  resource libraryView = loadLibraryView(session.owner, openAgentId) with asks.library as shape LibraryView else empty()
   resource computerAsks = loadComputerAsks(session.owner, openAgentId) with asks.approvals as shape ComputerAsks else empty()
   mutation computerAnswered as shape Reply refreshes computerAsks
-  resource standing = loadStanding(session.owner, openAgentId) with asks.pins as shape Standing else empty()
-  mutation pinChanged as shape Reply refreshes standing
-  resource chatJobs = loadJobs(session.owner, openAgentId) with asks.jobs as shape Jobs else empty()
-  mutation stopped as shape Reply
   mutation retried as shape Reply then toEnd
   mutation allowed as shape Reply refreshes approvals
   mutation secretGiven as shape Reply refreshes secretAsks
@@ -52,33 +48,40 @@ members App
   state deliveredGone = ""
   // Whether the reader is at the newest message; away from it, a button brings them back.
   state atEnd = true
-  derive chatHere = ours and chat.agentId == chatContext.agentId and chatContext.owner == session.owner
-  derive chatInfo = chatInfoOf(chatContext.chats, openChatId)
-  derive mainChatId = match first(chatContext.chats.filter(c => c.main)) { case some(c) => c.id, case none => "" }
+  state latestAsked = 0
+  // The chat on screen among the Dood's chats (views/threads.contract): its kind, how it is getting on.
+  derive chatThread = threadOf(threadsListing.chats, openChatId)
+  derive mainChatId = match first(threadsListing.chats.filter(c => c.main)) { case some(c) => c.id, case none => "" }
   derive earlierRows = earlier.owner == session.owner and earlier.chatId == openChatId and earlier.anchor == chat.firstId ? earlier.messages : []
   derive hasEarlier = ours and (earlierRows.length > 0 ? earlier.more : chat.midway)
   derive pendingApprovals = approvals.owner == session.owner and approvals.agentId == openAgentId ? approvals.pending : []
   derive pendingSecrets = secretAsks.owner == session.owner and secretAsks.agentId == openAgentId ? secretAsks.asks : []
   derive pendingSignIns = signIns.owner == session.owner and signIns.agentId == openAgentId ? signIns.connectors : []
-  derive filesBase = libraryView.owner == session.owner and libraryView.agentId == openAgentId ? libraryView.base : ""
+  // The library's listing as the chat's pages read it (library.contract's loader): a file card's
+  // view address, a link in a message, whether a visual's file is still there.
+  resource chatLibrary = loadLibrary(session.owner, onRoute == "dood" or onRoute == "chat" ? openAgentId : "") with asks.library as shape Library else empty()
+  derive chatLibraryHere = chatLibrary.owner == session.owner and chatLibrary.agentId == openAgentId
+  derive chatLibraryFiles = chatLibraryHere ? chatLibrary.files : []
+  derive filesBase = chatLibraryHere ? chatLibrary.base : ""
   derive answerError = pending(allowed) ? "" : match allowed { case some(r) => r.error, case none => "" }
   derive secretError = pending(secretGiven) ? "" : match secretGiven { case some(r) => r.error, case none => "" }
   derive signInError = pending(signInAsked) ? "" : match signInAsked { case some(r) => r.error, case none => "" }
   // The transcript's rows, in one list as a virtualized list takes them: the way to what came
   // before, what came before, the chat, and the line that says what the Dood is doing.
-  derive jobList = chatJobs.owner == session.owner and chatJobs.agentId == openAgentId ? chatJobs.jobs : []
-  // A command's chip says how its job is getting on, joined here once rather than in each row.
-  derive liveRows = jobList.length == 0 ? chat.messages : chat.messages.map(m => m.blocks.filter(b => b.kind == "command").length == 0 ? m : Message(m, blocks=m.blocks.map(b => b.kind == "command" ? withJob(b, jobList) : b)))
+  // A command's chip says how its job is getting on (composer-jobs.contract has every job of the
+  // Dood), joined here once rather than in each row.
+  derive liveRows = composerJobList.length == 0 ? chat.messages : chat.messages.map(m => m.blocks.filter(b => b.kind == "command").length == 0 ? m : Message(m, blocks=m.blocks.map(b => b.kind == "command" ? withJob(b, composerJobList) : b)))
   derive transcriptRows = (hasEarlier ? [markerRow("earlier")] : []).concat(earlierRows).concat(ours ? liveRows : []).concat(ours and chat.activity != "" ? [markerRow("working")] : [])
-  derive subagentStatuses = chatContext.chats.filter(c => c.kind == "subagent").map(c => `${c.id}=${c.status}`)
+  derive subagentStatuses = threadsListing.chats.filter(c => c.kind == "subagent").map(c => `${c.id}=${c.status}`)
   derive chatTeam = match first(workspaceList.filter(w => w.id == openDood.workspaceId and w.kind == "team")) { case some(w) => w.name, case none => "" }
   derive pendingComputers = computerAsks.owner == session.owner and computerAsks.agentId == openAgentId ? computerAsks.asks : []
   derive computerError = pending(computerAnswered) ? "" : match computerAnswered { case some(r) => r.error, case none => "" }
-  derive standingHere = standing.owner == session.owner and standing.agentId == openAgentId
-  derive pinWords = standingHere ? standing.pins : []
-  derive siteWords = standingHere ? standing.sites : []
   derive deliveredNow = chat.justDelivered != deliveredGone ? chat.justDelivered : ""
-  derive libraryFiles = libraryView.owner == session.owner and libraryView.agentId == openAgentId ? libraryView.files : []
+  // The library's files by id, for a visual whose file is gone, and as Markdown's link targets.
+  derive chatLibraryIds = chatLibraryFiles.map(f => f.id)
+  derive chatLibraryLinks = libraryLinksOf(chatLibraryFiles)
+  // A picture opened from the chat, large (library-card.contract's viewer).
+  state chatPicture = LibraryPicture(id="", name="", url="")
 
   // A chat whose stream was lost is followed again. When it starts or stops working, the
   // sidebar's line for it is asked for again.
@@ -89,41 +92,26 @@ members App
   // Someone else's Dood may ask for a computer of the person's, and nothing tells this page.
   task computerPoll mount
     every(15000, pullComputerAsks)
+  task latest key=latestAsked
+    after(600, toEnd)
   task delivered key=chat.justDelivered
     after(3000, deliveredLeaves)
 
   action heal
     if ours and chat.lost
       refresh chat
-  action editDraft(v: string)
-    draft = v
-  // The id a send goes under, which the server takes once however often it arrives: the chat's
-  // newest message and the time, which no two sends share.
-  action say
-    if draft.trim() != "" and ours and not pending(said)
-      send said = sendMessage(chat.agentId, chat.chatId, draft.trim(), `x-${lastId}-${time.epochAtZero + performanceNow()}`)
-    focus("composer")
-  action afterSay
-    if sayError == ""
-      draft = ""
-    toEnd()
   action toEnd
     if lastId != ""
       scrollIntoView("transcript", lastId, block="end")
+  // Smoothly, and once more when that is done: rich text below may have grown meanwhile.
   action toLatest
     if lastId != ""
       scrollIntoView("transcript", lastId, block="end", behavior="smooth")
+      latestAsked = latestAsked + 1
   // There is no running a reply again as such: asking again is what works, so the button asks.
   action retry
     if ours and not pending(retried)
-      send retried = sendMessage(chat.agentId, chat.chatId, "Try again", `x-${lastId}-retry-${time.epochAtZero + performanceNow()}`)
-  // Stop the Dood in a chat: the one on screen, or a sub-agent's from its row.
-  action stopTurn
-    if ours and not pending(stopped)
-      send stopped = stopChat(chat.agentId, chat.chatId)
-  action stopChatOf(chatId: string)
-    if openAgentId != "" and not pending(stopped)
-      send stopped = stopChat(openAgentId, chatId)
+      send retried = sendComposer(chat.agentId, chat.chatId, "Try again", composerAttachments.filter(f => false), false, `x-${lastId}-retry-${time.epochAtZero + performanceNow()}`)
   action showEarlier
     let key = `${openChatId}:${chat.firstId}`
     earlierPages = earlierOf == key ? earlierPages + 1 : 1
@@ -140,8 +128,20 @@ members App
     atEnd = e.scrollHeight - y - e.clientHeight < 48
   // Words for the composer from something in the chat (a visual's "Tell …"), with the caret in it.
   action putInComposer(text: string)
-    draft = text
+    editDraft(text)
     focus("composer")
+  // What a message's Markdown says (views/markdown.contract): a library link opens its file
+  // beside the chat, a picture opens large.
+  action markdownSaid(said: string)
+    if said.startsWith("file:")
+      openChatFile(said.slice(5))
+    else if said.startsWith("image:")
+      showPicture(said.slice(6), "Picture")
+  action openChatFile(idOrPath: string)
+    openLibraryPanel(match first(chatLibraryFiles.filter(f => f.id == idOrPath or f.path == idOrPath)) { case some(f) => f.id, case none => idOrPath })
+  action showPicture(url: string, name: string)
+    chatPicture = LibraryPicture(id=url, name=name, url=url)
+    showModal("library-pictures")
   action answerApproval(requestId: string, decision: string, typed: string)
     if not pending(allowed)
       send allowed = answerApproval(openAgentId, requestId, decision, typed)
@@ -165,28 +165,23 @@ members App
           openURL(r.url)
       case none
         atEnd = atEnd
-  action pinAgain(fileId: string, title: string)
-    if not pending(pinChanged)
-      send pinChanged = pinFile(openAgentId, fileId, title)
-  action unpin(fileId: string)
-    if not pending(pinChanged)
-      send pinChanged = unpinFile(openAgentId, fileId)
-  action shareSiteAgain(path: string, title: string)
-    if not pending(pinChanged)
-      send pinChanged = shareAgain(openAgentId, path, title)
   action notNowSignIn(connectorId: string)
     if not pending(signInDismissed)
       send signInDismissed = dismissConnector(openAgentId, connectorId)
 
-fn chatInfoOf(chats: ChatInfo[], id: string): ChatInfo = match first(chats.filter(c => c.id == id)) {
+fn threadOf(chats: ThreadRow[], id: string): ThreadRow = match first(chats.filter(c => c.id == id)) {
   case some(c) => c,
-  case none => ChatInfo(id=id, title="", kind="chat", main=true, status="", parentId="", createdAt=0, peerAgentId="", peerName="", peerChatId="", slackWhere="", slackUrl="")
+  case none => ThreadRow(id=id, title="", kind="chat", main=true, status="", detail="", url="", parentId="", peerId="", updated=0, peerName="", peerChatId="", slackWhere="", createdAt=0)
 }
+// The library as Markdown takes it for links and pictures: `[{path, id, href}]`, the view address
+// a picture is had from (modules/web/README.md, do-markdown `files`).
+fn libraryLinksOf(files: LibraryFile[]): string = `[${files.map(f => `{"path":${jsonString(f.path)},"id":${jsonString(f.id)},"href":${jsonString(f.url)}}`).join(",")}]`
+fn jsonString(s: string): string = `"${s.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")}"`
 // A row of the transcript that is not a message: "earlier" (the way to what came before) or
 // "working" (what the Dood is doing).
 fn markerRow(role: string): Message = Message(id=`marker-${role}`, role=role, status="", error="", blocks=[], from="", author="", authorId="", time="", spoken=false, answered=false, delivery="", files=[], notSent="", failures=0, errorTitle="", errorHint="", errorDetail="", errorFacts=[], errorKind="", retryable=false, stopped=false)
 // A command's block, with how its job stands: `status`, the computer as `name`, how it ended as `after`.
-fn withJob(b: Block, jobs: Job[]): Block = match first(jobs.filter(j => j.id == b.detail and j.command.split("\n").at(0) == some(b.text))) {
+fn withJob(b: Block, jobs: ComposerJob[]): Block = match first(jobs.filter(j => j.id == b.detail and j.command.split("\n").at(0) == some(b.text))) {
   case some(j) => Block(b, status=j.status, name=j.computer, after=j.ended, going=(j.status == "running")),
   case none => b
 }
@@ -214,8 +209,9 @@ component ChatScreen
     doodList: Dood[]
     wide: bool
     panelOpen: bool
-    chatContext: ChatContext
-    chatInfo: ChatInfo
+    threadsListing: ThreadListing
+    threadsReadOnly: bool
+    chatThread: ThreadRow
     mainChatId: string
     transcriptRows: Message[]
     hasEarlier: bool
@@ -224,19 +220,21 @@ component ChatScreen
     atEnd: bool
     scrolled: action
     toLatest: action
-    stopTurn: action
-    stopChatOf: action
+    composerStop: action
+    chatPicture: LibraryPicture
   derive dood = doodOf(doodList, page.agentId)
-  derive name = chatContext.name != "" ? chatContext.name : nameOf(dood)
+  derive name = threadsListing.name != "" ? threadsListing.name : nameOf(dood)
   // Whether this chat is the person's to write in: the main chat, and nothing else.
-  derive sub = chatInfo.kind == "subagent"
-  derive thread = chatInfo.kind == "agent"
-  derive slack = chatInfo.kind == "slack"
-  derive aside = chatInfo.kind == "chat" and not chatInfo.main and mainChatId != ""
-  derive own = not sub and not thread and not slack and not aside
-  derive parentTitle = match first(chatContext.chats.filter(c => c.id == chatInfo.parentId)) { case some(c) => c.title, case none => name }
-  derive peer = doodOf(doodList, chatInfo.peerAgentId)
-  derive peerName = peer.name != "" ? peer.name : (chatInfo.peerName != "" ? chatInfo.peerName : "the other Dood")
+  // Whether this chat is the person's to write in: the main chat, and nothing else
+  // (threads.contract `threadsReadOnly`, which the composer goes by too).
+  derive own = not threadsReadOnly
+  derive sub = threadsReadOnly and chatThread.kind == "subagent"
+  derive thread = threadsReadOnly and chatThread.kind == "agent"
+  derive slack = threadsReadOnly and chatThread.kind == "slack"
+  derive aside = threadsReadOnly and not sub and not thread and not slack
+  derive parentTitle = match first(threadsListing.chats.filter(c => c.id == chatThread.parentId)) { case some(c) => c.title, case none => name }
+  derive peer = doodOf(doodList, chatThread.peerId)
+  derive peerName = peer.name != "" ? peer.name : (chatThread.peerName != "" ? chatThread.peerName : "the other Dood")
   // A chat that was never opened: the stream gave up before saying anything.
   derive refused = ours and chat.lost and not chat.loaded
   derive lastKey = match chat.messages.at(-1) { case some(m) => m.id, case none => "" }
@@ -246,16 +244,16 @@ component ChatScreen
       column flex=1 min-width=0 display="flex" flex-direction="column"
         DoodHeader(page=page, route=route)
         if sub
-          ChatBar(back=(chatInfo.parentId != "" ? path("chat", page.agentId, chatInfo.parentId) : path("dood", page.agentId)), backLabel=parentTitle, title=chatInfo.title, words=subagentWords(chatInfo.status), working=atWork(chatInfo.status), stop=stopTurn, testId=`subagent-bar-${route}`)
-            DoodFace(seed=`${page.agentId}/sub/${chatInfo.id}`, color=dood.color, state=(chatInfo.status == "working" ? "working" : chatInfo.status == "waiting" ? "asking" : "idle"), name=chatInfo.title, size=28)
+          ChatBar(back=chatHref(page.agentId, chatThread.parentId), backLabel=parentTitle, title=chatThread.title, words=subagentWords(chatThread.status), working=atWork(chatThread.status), stop=composerStop, testId=`subagent-bar-${route}`)
+            DoodFace(seed=`${page.agentId}/sub/${chatThread.id}`, color=dood.color, state=(chatThread.status == "working" ? "working" : chatThread.status == "waiting" ? "asking" : "idle"), name=chatThread.title, size=28)
         else if thread
-          ChatBar(back=path("chat", chatInfo.peerAgentId, chatInfo.peerChatId), backLabel=peerName, title=chatInfo.title, words=threadWords(chatInfo.status), working=atWork(chatInfo.status), stop=stopTurn, testId=`thread-bar-${route}`)
+          ChatBar(back=chatHref(chatThread.peerId, chatThread.peerChatId), backLabel=peerName, title=chatThread.title, words=threadWords(chatThread.status), working=atWork(chatThread.status), stop=composerStop, testId=`thread-bar-${route}`)
             DoodFace(seed=peer.seed, color=peer.color, state="idle", name=peerName, size=28)
         else if slack
-          SlackBar(info=chatInfo, mainHref=(mainChatId == "" ? "" : path("chat", page.agentId, mainChatId)), stop=stopTurn, route=route)
+          SlackBar(info=chatThread, mainHref=(mainChatId == "" ? "" : chatHref(page.agentId, mainChatId)), stop=composerStop, route=route)
         else if aside
           row justify-content="flex-start" padding="0 12px 4px" flex-shrink=0
-            link href=path("chat", page.agentId, mainChatId) class=FloatPill testId=`main-chat-link-${route}`
+            link href=chatHref(page.agentId, mainChatId) class=FloatPill testId=`main-chat-link-${route}`
               image "symbol:icon.caret-left" font-size="0.875rem" aria-hidden=true
               text "Main chat"
         if not ours
@@ -274,7 +272,7 @@ component ChatScreen
             column flex=1 justify-content="flex-end" overflow="hidden"
               TranscriptPlaceholder()
           else if own
-            Welcome(dood=dood, name=chatContext.name, tagline=chatContext.tagline, showFace=not (wide and panelOpen))
+            Welcome(dood=dood, name=threadsListing.name, tagline=threadsListing.tagline, showFace=not (wide and panelOpen))
           else
             column flex=1
         else
@@ -291,46 +289,26 @@ component ChatScreen
                   else if m.role == "working"
                     Working(dood=dood, activity=chat.activity)
                   else
-                    MessageRow(message=m, agentId=page.agentId, doodName=chatContext.name, asker=(sub ? name : ""), canRetry=(own and m.id == lastKey and not chat.busy))
+                    MessageRow(message=m, agentId=page.agentId, doodName=threadsListing.name, asker=(sub ? name : ""), canRetry=(own and m.id == lastKey and not chat.busy))
             if not atEnd
               row position="absolute" bottom=12 left=0 right=0 justify-content="center" pointer-events="none"
                 button press=toLatest aria-label="Scroll to end" class=JumpButton pointer-events="auto" testId="to-latest"
                   image "symbol:icon.arrow-down" font-size="1rem"
-          if sayError != ""
-            text sayError font-size="0.8125rem" color="danger" padding="0 16px" max-width="45rem" margin="0 auto" testId="say-error"
-        Asks(agentId=page.agentId, name=(chatContext.name != "" ? chatContext.name : "Your Dood"), chatId=chat.chatId)
+        if sayError != ""
+          text sayError font-size="0.8125rem" color="danger" padding="0 16px" max-width="45rem" margin="0 auto" testId="say-error"
+        Asks(agentId=page.agentId, name=(threadsListing.name != "" ? threadsListing.name : "Your Dood"), chatId=chat.chatId)
         if sub
-          ChatFoot(face=true, words=`Only ${name} talks to its sub-agents. To change what this one is doing, tell ${name}.`, href=(chatInfo.parentId != "" ? path("chat", page.agentId, chatInfo.parentId) : path("dood", page.agentId)), label=`Back to ${name}`, dood=dood, route=route)
+          ChatFoot(face=true, words=`Only ${name} talks to its sub-agents. To change what this one is doing, tell ${name}.`, href=chatHref(page.agentId, chatThread.parentId), label=`Back to ${name}`, dood=dood, route=route)
         else if thread
-          ChatFoot(face=true, words=`Only ${name} and ${peerName} write here. To change what ${name} is doing in it, tell ${peerName}.`, href=path("chat", chatInfo.peerAgentId, chatInfo.peerChatId), label=`Back to ${peerName}`, dood=dood, route=route)
+          ChatFoot(face=true, words=`Only ${name} and ${peerName} write here. To change what ${name} is doing in it, tell ${peerName}.`, href=chatHref(chatThread.peerId, chatThread.peerChatId), label=`Back to ${peerName}`, dood=dood, route=route)
         else if slack
-          SlackFoot(info=chatInfo, route=route)
+          SlackFoot(info=chatThread, route=route)
         else if aside
-          ChatFoot(face=true, words=`An old side chat, kept to read. Everything with ${name} now happens in its main chat.`, href=path("chat", page.agentId, mainChatId), label="Back to the main chat", dood=dood, route=route)
-        else
-          // --- composer --- (views/composer.contract takes this place)
-          ChatComposer(draft=draft, sending=sending, ours=ours, name=nameOf(dood), editDraft=editDraft, say=say)
+          ChatFoot(face=true, words=`An old side chat, kept to read. Everything with ${name} now happens in its main chat.`, href=chatHref(page.agentId, mainChatId), label="Back to the main chat", dood=dood, route=route)
+        // In a chat read here, the composer's place keeps only its way to the Dood's other chats.
+        ComposerBox(agentId=page.agentId, chatId=chat.chatId, name=nameOf(dood), draft=draft, ours=ours, sending=sending, busy=chat.busy, editDraft=editDraft, say=say)
       if wide and panelOpen
         DoodPanel(dood=dood, busy=(ours and chat.busy))
-
-// The composer as it was: the box and Send. views/composer.contract's composer replaces this use.
-component ChatComposer
-  props
-    draft: string
-    sending: bool
-    ours: bool
-    name: string
-    editDraft: action
-    say: action
-  view
-    column width="100%" max-width="45rem" margin="0 auto" padding="4px 16px 16px" box-sizing="border-box" flex-shrink=0
-      row class=Composer
-        textarea id="composer" value=draft input=editDraft rows=1 field-sizing="content" max-height=200
-          placeholder=`Message ${name}` aria-label="Message" flex=1 min-width=0 padding="7px 6px 7px 12px"
-          border="none" outline="none" background-color="transparent" color="ink" font-family="Geist" font-size="1rem" line-height=1.5
-          testId="composer"
-        button press=say disabled=(draft.trim() == "" or sending or not ours) retainFocus=true aria-label="Send" class=SendButton testId="send"
-          image "symbol:icon.arrow-up"
 
 // What a sub-agent's chat, or a conversation with another Dood, floats over its transcript: the
 // way back to where it was started, whose it is (the use's children: its face), its title, how
@@ -364,7 +342,7 @@ component ChatBar
 // A thread in Slack, read here: where it is, how it is getting on, and the way to it.
 component SlackBar
   props
-    info: ChatInfo
+    info: ThreadRow
     mainHref: string
     stop: action
     route: string
@@ -384,8 +362,8 @@ component SlackBar
           button press=stop class=OutlineButton testId=`slack-stop-${route}`
             image "symbol:icon.stop" aria-hidden=true font-size="0.75rem"
             text "Stop"
-        if info.slackUrl != ""
-          link href=info.slackUrl target="_blank" aria-label="Open in Slack" color="primary" font-size="0.8125rem" font-weight=500 text-decoration="none"
+        if info.url != ""
+          link href=info.url target="_blank" aria-label="Open in Slack" color="primary" font-size="0.8125rem" font-weight=500 text-decoration="none"
             text "Open in Slack"
 
 // Where the message box would be, in a chat that is not the person's to write in.
@@ -407,15 +385,15 @@ component ChatFoot
 
 component SlackFoot
   props
-    info: ChatInfo
+    info: ThreadRow
     route: string
   view
     column width="100%" max-width="48rem" margin="0 auto" padding="4px 16px 20px" box-sizing="border-box" flex-shrink=0
       row align-items="center" gap=10 padding="12px 16px" border-radius=16 border="1px dashed var(--input)" color="ink.muted" font-size="0.875rem" testId=`chat-foot-${route}`
         image "symbol:icon.slack-logo" aria-hidden=true
         text "This conversation is in Slack. Reply there to carry it on." flex=1 min-width=0
-        if info.slackUrl != ""
-          link href=info.slackUrl target="_blank" color="primary" font-weight=500 text-decoration="none"
+        if info.url != ""
+          link href=info.url target="_blank" color="primary" font-weight=500 text-decoration="none"
             text "Open in Slack"
 
 // The Dood's panel, beside its chat on a wide window: where it is looked after. The React app
@@ -426,8 +404,11 @@ component DoodPanel
     dood: Dood
     busy: bool
   view
-    column width="20rem" flex-shrink=0 border-left="1px solid var(--hairline)" align-items="center" padding="40px 24px" gap=10
+    column width="20rem" flex-shrink=0 border-left="1px solid var(--hairline)" align-items="center" padding="40px 24px" gap=10 overflow-y="auto"
       testId="dood-panel"
       DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=96)
       text nameOf(dood) font-size="1.0625rem" font-weight=500 margin-top=8 testId="panel-name"
       text (dood.asking ? "Waiting on you" : (busy or dood.working) ? "Working" : "Ready") font-size="0.875rem" color="ink.muted" testId="panel-status"
+      // What is pinned to it, under its face (pins.contract).
+      column align-self="stretch" margin-top=16
+        PinsShelf()

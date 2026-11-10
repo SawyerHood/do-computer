@@ -1,17 +1,48 @@
 import { getPlatform } from "#platform"
 import type { SocketLike } from "@do-computer/runtime/node"
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry"
+import { readFile } from "node:fs/promises"
+import { resolve, sep } from "node:path"
 import { admitToAgent, agentSocket } from "./server/agent-socket.ts"
 import { answerClientOrigin } from "./server/client-origins.ts"
 import { authenticateDaemon, computerActorName, CONNECT_PATH } from "./server/computers.ts"
+import { answerExactApp, type ExactBuild } from "./server/exact-app.ts"
 import { admitToPresence, PRESENCE_PATH, presenceWorkspace } from "./server/presence.ts"
 
 export default createServerEntry({
   fetch: (request) =>
-    answerClientOrigin(request, getPlatform().config.clientOrigins, (asked) =>
-      handler.fetch(asked),
+    answerExactApp(request, exactBuild(), (asked) =>
+      answerClientOrigin(asked, getPlatform().config.clientOrigins, (again) =>
+        handler.fetch(again),
+      ),
     ),
 })
+
+let exact: { folder: string; build: ExactBuild } | undefined
+
+/** The Exact app's web build that `DC_EXACT_APP` names, read from disk as it is asked for. */
+function exactBuild(): ExactBuild | undefined {
+  const folder = getPlatform().config.exactApp
+  if (folder === undefined) return undefined
+  if (exact?.folder !== folder) {
+    const root = resolve(folder)
+    exact = {
+      folder,
+      build: {
+        read: async (path) => {
+          const file = resolve(root, path)
+          // exact-app.ts names nothing outside it; this is the second look.
+          if (!file.startsWith(root + sep)) return undefined
+          return readFile(file).then(
+            (bytes) => new Uint8Array(bytes),
+            () => undefined,
+          )
+        },
+      },
+    }
+  }
+  return exact.build
+}
 
 export { CONNECT_PATH, PRESENCE_PATH }
 

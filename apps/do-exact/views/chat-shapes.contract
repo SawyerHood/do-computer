@@ -82,6 +82,9 @@ shape Chat
   firstId: string
   // A message of the user's that has just reached the Dood.
   justDelivered: string
+  // What the Dood is thinking in its newest message. The transcript does not draw it, as the
+  // React app does not; the transport's tests and tools/stream-check.mjs read it.
+  thought: string
 
 // Which chat is a Dood's main one: what `/a/:agentId` opens.
 shape Opened
@@ -96,29 +99,6 @@ shape Earlier
   anchor: string
   messages: Message[]
   more: bool
-
-// One of the Dood's chats: what kind it is ("chat", "subagent", "agent", "slack", "schedule"),
-// how a sub-agent or a conversation is getting on, and where it leads back to.
-shape ChatInfo
-  id: string
-  title: string
-  kind: string
-  main: bool
-  status: string
-  parentId: string
-  createdAt: number
-  peerAgentId: string
-  peerName: string
-  peerChatId: string
-  slackWhere: string
-  slackUrl: string
-
-shape ChatContext
-  owner: string
-  agentId: string
-  name: string
-  tagline: string
-  chats: ChatInfo[]
 
 // What the open Dood's event stream said changed, counted, for what the chat shows of it: each
 // count asks again for what it is about. The shell's stream carries it (DoodPulse `asks`).
@@ -142,11 +122,6 @@ shape ApprovalAsk
   onceOnly: bool
   // What a yes has to come with, typed: a card's security code. "" for nothing.
   wants: string
-
-shape Approvals
-  owner: string
-  agentId: string
-  pending: ApprovalAsk[]
 
 shape SecretField
   name: string
@@ -186,38 +161,6 @@ shape SignInReply
   error: string
   url: string
 
-// Where the Dood's library files are served without a session, and which files it has now.
-shape LibraryView
-  owner: string
-  agentId: string
-  base: string
-  files: string[]
-
-// A command the Dood left running in the background, as its chip says how it is getting on.
-shape Job
-  id: string
-  command: string
-  computer: string
-  // "running", "done", "failed", "timed_out", "stopped", "lost".
-  status: string
-  startedAt: number
-  // How it ended, in a few words ("finished in 4s"); "" while it runs.
-  ended: string
-
-shape Jobs
-  owner: string
-  agentId: string
-  jobs: Job[]
-
-// What is pinned to the Dood, and what of its library is shared, as words a card looks itself up
-// by: `id:<fileId>` and `path:<path>` for a pin; `id:<siteId>`, `path:<path>` and `public:<siteId>`
-// for a site.
-shape Standing
-  owner: string
-  agentId: string
-  pins: string[]
-  sites: string[]
-
 // A computer the Dood asked to use, for whoever it belongs to to answer.
 shape ComputerAsk
   id: string
@@ -233,3 +176,7 @@ shape ComputerAsks
   owner: string
   agentId: string
   asks: ComputerAsk[]
+
+// The address of one of a Dood's chats, safe to make before what it names has arrived: no Dood is
+// the list, no chat the Dood's main one.
+fn chatHref(agentId: string, chatId: string): string = agentId == "" ? "/" : (chatId == "" ? path("dood", agentId) : path("chat", agentId, chatId))

@@ -6,24 +6,14 @@ use Dood from "./shapes.contract"
 use UserBubble, Card, OutlineButton, QuietButton, EventLine from "./styles.contract"
 use doodOf, nameOf, stateOf from "./shell.contract"
 use DoodFace from "./creature.contract"
-use Message, Block, ChatInfo, ChatContext from "./chat-shapes.contract"
+use Message, Block, chatHref from "./chat-shapes.contract"
 use VisualFrame, McpAppFrame from "./chat-frames.contract"
+use MessageText from "./markdown.contract"
+use LibraryFileCard from "./library-card.contract"
+use SiteCopy from "./sites.contract"
 
-// A message's words, as Markdown. The one place they are drawn, so that the Markdown area's own
-// component (views/markdown.contract) replaces this one.
-component MessageText
-  props
-    text: string
-    testId: string
-  view
-    text text markup="markdown" overflow-wrap="break-word" max-width="100%" font-size="1rem" line-height=1.6 testId=testId
-
-// Smaller Markdown, inside a fold: what a sub-agent reported, what a thread said.
-component NoteText
-  props
-    text: string
-  view
-    text text markup="markdown" overflow-wrap="break-word" max-width="100%" font-size="0.875rem" line-height=1.55 color="ink"
+// A message's words are drawn by views/markdown.contract's `MessageText`, with the library as its
+// link targets (`chatLibraryLinks`); what it says of a link or a picture is `markdownSaid`.
 
 // One row: a message, as transcript.tsx `MessageView`.
 component MessageRow
@@ -56,6 +46,7 @@ component UserMessage
   inject
     doodList: Dood[]
     deliveredNow: string
+    showPicture: action
   derive own = message.from == ""
   derive peer = doodOf(doodList, message.authorId)
   derive delivery = message.delivery != "" ? message.delivery : (message.id == deliveredNow ? "delivered" : "")
@@ -92,7 +83,8 @@ component UserMessage
               text "Said on a call"
           for b in message.blocks key=b.id
             if b.kind == "image"
-              image b.src alt="Attached" max-height=256 border-radius=16
+              button press=showPicture(b.src, "Attached") aria-label="Open the picture large" padding=0 border="none" background-color="transparent"
+                image b.src alt="Attached" max-height=256 border-radius=16
             else if own
               text b.text class=UserBubble overflow-wrap="break-word" white-space="pre-wrap" max-width="100%" min-width=0 box-sizing="border-box" testId=`message-${message.id}`
             else
@@ -131,7 +123,7 @@ component AssistantMessage
   view
     column gap=8 align-items="flex-start" width="100%"
       for b in message.blocks key=b.id
-        PartView(block=b, agentId=agentId, doodName=doodName, messageId=message.id)
+        PartView(block=b, agentId=agentId, doodName=doodName, messageId=message.id, streaming=(message.status == "streaming"))
       if message.notSent != ""
         // Its words were on screen as they were written; it says it did not go, and why.
         row gap=6 align-items="flex-start" padding="0 4px" font-size="0.875rem" color="danger" role="alert" testId=`not-sent-${message.id}`
@@ -149,14 +141,20 @@ component PartView
     agentId: string
     doodName: string
     messageId: string
+    // Its message is still being written: Markdown keeps an unclosed code block plain.
+    streaming: bool
   inject
     filesBase: string
+    chatLibraryLinks: string
+    markdownSaid: action
+    showPicture: action
   view
     if block.kind == "text"
-      column padding="0 4px" max-width="100%" box-sizing="border-box"
-        MessageText(text=block.text, testId=`message-${messageId}`)
+      column padding="0 4px" max-width="100%" min-width=0 align-self="stretch" box-sizing="border-box" font-size="1rem" line-height=1.6 testId=`message-${messageId}`
+        MessageText(text=block.text, streaming=streaming, files=chatLibraryLinks, message=markdownSaid)
     else if block.kind == "image"
-      image block.src alt="A picture" max-height=256 border-radius=16
+      button press=showPicture(block.src, "A picture") aria-label="Open the picture large" padding=0 border="none" background-color="transparent"
+        image block.src alt="A picture" max-height=256 border-radius=16
     else if block.kind == "schedule"
       row gap=8 align-items="center" padding="0 4px" font-size="0.875rem" color="ink.muted"
         image "symbol:icon.clock" aria-hidden=true
@@ -252,7 +250,7 @@ component NoticeRow
       column class=EventLine testId=`notice-${block.status}`
         row gap=8 align-items="center" flex-wrap="wrap"
           if block.status == "subagent"
-            DoodFace(seed=`${agentId}/sub/${block.chatId}`, color=doodOf(doodList, agentId).color, state=(block.outcome == "failed" ? "error" : "idle"), name=block.name, size=20)
+            DoodFace(seed=`${agentId}/sub/${block.chatId}`, color=doodOf(doodList, agentId).color, state=(block.outcome == "failed" ? "error" : "idle"), name=`Sub-agent ${block.name}`, size=20)
           else if block.status == "agent" and block.agentId != ""
             DoodFace(seed=peer.seed, color=peer.color, state="idle", name=block.name, size=20)
           else
@@ -264,7 +262,7 @@ component NoticeRow
             text (block.after != "" and not block.after.startsWith(",") and not block.after.startsWith(":") ? " " : "")
             text block.after
           if block.chatId != ""
-            link href=path("chat", block.agentId != "" ? block.agentId : agentId, block.chatId) color="ink.muted" text-decoration="underline" testId=`notice-link-${block.status}`
+            link href=chatHref(block.agentId != "" ? block.agentId : agentId, block.chatId) color="ink.muted" text-decoration="underline" testId=`notice-link-${block.status}`
               text block.linkLabel
         if block.more != ""
           Fold(label=block.moreLabel, body=block.more, startOpen=block.open, mono=(block.status == "command"))
@@ -278,6 +276,9 @@ component Fold
     body: string
     startOpen: bool
     mono: bool
+  inject
+    chatLibraryLinks: string
+    markdownSaid: action
   state flipped = false
   derive open = startOpen != flipped
   view
@@ -290,8 +291,8 @@ component Fold
           text body font-family="Geist Mono" font-size="0.75rem" line-height=1.6 color="ink" white-space="pre-wrap" overflow-wrap="break-word"
             margin-top=6 padding="8px 12px" border-radius=12 background-color="surface" max-height=384 overflow="auto" width="100%" box-sizing="border-box"
         else
-          column margin-top=6 padding="8px 12px" border-radius=12 background-color="surface" width="100%" box-sizing="border-box"
-            NoteText(text=body)
+          column margin-top=6 padding="8px 12px" border-radius=12 background-color="surface" width="100%" box-sizing="border-box" font-size="0.875rem" line-height=1.55
+            MessageText(text=body, streaming=false, files=chatLibraryLinks, message=markdownSaid)
   action flip
     flipped = not flipped
 
@@ -326,40 +327,34 @@ component CallRecord
   action toggle
     open = not open
 
-// A file the Dood delivered, as the file: the picture itself where it is one, then its card,
-// which opens it in the library, with the way to download it.
+// A file the Dood delivered, as the file: the picture itself where it is one (opening large),
+// then the library's card for it (library-card.contract), which opens it beside the chat, pins,
+// shares and downloads it. `text` is its path in the library, `path` that path as an address.
 component FileCard
   props
     block: Block
     agentId: string
     base: string
+  inject
+    showPicture: action
   view
     column gap=8 max-width="100%" testId=`file-${block.name}`
       if block.outcome == "picture" and base != ""
-        image `${base}${block.path}` alt=block.name max-height=320 border-radius=16 border="1px solid var(--border)"
-      row align-items="center" height=40 max-width="100%" border-radius=12 class=Card font-size="0.875rem"
-        link href=`${path("library", agentId)}?file=${block.fileId}` title="Open in the library" display="flex" align-items="center" gap=10
-          padding="0 14px 0 12px" height="100%" min-width=0 color="ink" text-decoration="none" testId=`file-open-${block.name}`
-          image "symbol:icon.file" color="primary" font-size="1.25rem" aria-hidden=true
-          text block.name font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap" min-width=0 title=block.detail
-        if base != ""
-          link href=`${base}${block.path}` target="_blank" aria-label=`Download ${block.name}` title="Download" display="flex" align-items="center" justify-content="center"
-            width=32 height=32 margin-right=4 border-radius=8 color="ink.muted" testId=`file-download-${block.name}`
-            image "symbol:icon.download" font-size="1rem" aria-hidden=true
+        button press=showPicture(`${base}${block.path}`, block.name) aria-label=`Open ${block.name} large` padding=0 border="none" background-color="transparent" align-self="flex-start" testId=`file-picture-${block.name}`
+          image `${base}${block.path}` alt=block.name max-height=320 border-radius=16 border="1px solid var(--border)"
+      LibraryFileCard(fileId=block.fileId, name=block.name, path=block.text, url=(base == "" ? "" : `${base}${block.path}`))
 
 // A site the Dood shared, where it shared it: its title, who can open it now, its address, and
-// the ways to copy it and open it; or that it is not shared any more, and the way to share it again.
+// the ways to copy and open it; or that it is not shared any more, and the way to share it
+// again (sites.contract's sharing, which also changes who can open it).
 component SiteCard
   props
     block: Block
   inject
-    siteWords: string[]
-    standingKnown: bool
-    standingBusy: bool
-    shareSiteAgain: action
-  // Until the list is here, it is shown as the Dood left it.
-  derive shared = not standingKnown or siteWords.includes(`id:${block.fileId}`) or siteWords.includes(`path:${block.path}`)
-  derive open = standingKnown ? (siteWords.includes(`public:${block.fileId}`) or siteWords.includes(`public:${block.path}`)) : block.outcome == "public"
+    librarySiteWords: string[]
+    shareLibraryPath: action
+  derive shared = librarySiteWords.includes(`id:${block.fileId}`) or librarySiteWords.includes(`path:${block.path}`)
+  derive open = librarySiteWords.includes(`public:${block.fileId}`) or librarySiteWords.includes(`public:${block.path}`)
   view
     row flex-wrap="wrap" align-items="center" gap=12 padding="10px 10px 10px 12px" border-radius=16 class=Card font-size="0.875rem" max-width="100%"
       role="group" aria-label=`Site: ${block.name}` testId=`site-${block.name}`
@@ -374,33 +369,28 @@ component SiteCard
             else
               text "Not shared any more" font-size="0.75rem" color="ink.muted" testId=`site-gone-${block.name}`
           text (shared ? block.detail.replaceAll("https://", "").replaceAll("http://", "") : block.path) font-family="Geist Mono" font-size="0.75rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
-      if shared
-        row gap=6 flex-shrink=0
-          button press=copyLink class=OutlineButton testId=`site-copy-${block.name}`
-            text "Copy link"
+      row gap=6 flex-shrink=0
+        if shared
+          SiteCopy(url=block.detail, tag=block.name)
           link href=block.detail target="_blank" class=OutlineButton
             text "Open"
             image "symbol:icon.arrow-square-out" aria-hidden=true font-size="0.875rem"
-      else
-        button press=shareSiteAgain(block.path, block.name) disabled=standingBusy class=OutlineButton testId=`site-share-${block.name}`
-          text "Share again"
-  action copyLink
-    copyText(block.detail)
+        button press=shareLibraryPath(block.path) class=OutlineButton testId=`site-share-${block.name}`
+          text (shared ? "Who can open it" : "Share again")
 
-// Something the Dood pinned, where it pinned it: what it is, the way to open it and to take the
-// pin off; or that it is no longer pinned, and the way to pin it again as it was.
+// Something the Dood pinned, where it pinned it: what it is, the way to open it beside the chat
+// and to take the pin off; or that it is no longer pinned, and the way to pin it again
+// (pins.contract's pins, which the Dood's panel shows too).
 component PinCard
   props
     block: Block
     agentId: string
     doodName: string
   inject
-    pinWords: string[]
-    standingKnown: bool
-    standingBusy: bool
-    pinAgain: action
-    unpin: action
-  derive pinned = not standingKnown or pinWords.includes(`id:${block.fileId}`) or pinWords.includes(`path:${block.path}`)
+    libraryPinnedIds: string[]
+    libraryTogglePinFile: action
+    openLibraryPanel: action
+  derive pinned = libraryPinnedIds.includes(block.fileId)
   view
     row flex-wrap="wrap" align-items="center" gap=12 padding="10px 10px 10px 12px" border-radius=16 class=Card font-size="0.875rem" max-width="100%"
       role="group" aria-label=`Pinned: ${block.name}` testId=`pin-${block.name}`
@@ -412,12 +402,12 @@ component PinCard
           text block.path font-family="Geist Mono" font-size="0.75rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
       row gap=6 flex-shrink=0
         if pinned
-          link href=`${path("library", agentId)}?file=${block.fileId}` class=OutlineButton
+          button press=openLibraryPanel(block.fileId) class=OutlineButton testId=`pin-open-card-${block.name}`
             text "Open"
-          button press=unpin(block.fileId) disabled=standingBusy class=OutlineButton testId=`unpin-${block.name}`
+          button press=libraryTogglePinFile(block.fileId) class=OutlineButton testId=`unpin-${block.name}`
             text "Unpin"
         else
-          button press=pinAgain(block.fileId, block.text) disabled=standingBusy class=OutlineButton testId=`pin-again-${block.name}`
+          button press=libraryTogglePinFile(block.fileId) class=OutlineButton testId=`pin-again-${block.name}`
             text "Pin it again"
 
 // Where the Dood started a sub-agent: a way into its chat, its creature, and how it is getting on.
@@ -431,9 +421,9 @@ component SubagentChip
   // The sub-agents' statuses are `id=status` words, so a chip looks its own up without a search.
   derive status = subagentStatuses.includes(`${block.chatId}=working`) ? "working" : subagentStatuses.includes(`${block.chatId}=waiting`) ? "waiting" : subagentStatuses.includes(`${block.chatId}=stopped`) ? "stopped" : subagentStatuses.includes(`${block.chatId}=failed`) ? "failed" : ""
   view
-    link href=path("chat", agentId, block.chatId) display="flex" align-items="center" gap=10 height=40 max-width="100%" padding="0 12px 0 10px"
+    link href=chatHref(agentId, block.chatId) display="flex" align-items="center" gap=10 height=40 max-width="100%" padding="0 12px 0 10px"
       border-radius=12 class=Card font-size="0.875rem" text-decoration="none" testId=`subagent-${block.name}`
-      DoodFace(seed=`${agentId}/sub/${block.chatId}`, color=doodOf(doodList, agentId).color, state=(status == "working" ? "working" : status == "waiting" ? "asking" : status == "failed" ? "error" : "idle"), name=block.name, size=24)
+      DoodFace(seed=`${agentId}/sub/${block.chatId}`, color=doodOf(doodList, agentId).color, state=(status == "working" ? "working" : status == "waiting" ? "asking" : status == "failed" ? "error" : "idle"), name=`Sub-agent ${block.name}`, size=24)
       text block.name font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap" min-width=0
       StatusMark(status=status)
 
@@ -482,7 +472,7 @@ component AgentChip
     doodList: Dood[]
   derive peer = doodOf(doodList, block.agentId)
   view
-    link href=path("chat", block.agentId, block.chatId) display="flex" align-items="center" gap=8 max-width="100%" padding="6px 10px 6px 8px"
+    link href=chatHref(block.agentId, block.chatId) display="flex" align-items="center" gap=8 max-width="100%" padding="6px 10px 6px 8px"
       border-radius=16 class=Card font-size="0.875rem" text-decoration="none" testId=`agent-chip-${block.name}`
       DoodFace(seed=peer.seed, color=peer.color, state="idle", name=block.name, size=24)
       text "Asked" font-size="0.75rem" color="ink.muted"

@@ -1,29 +1,35 @@
-// The chat area: which chat is a Dood's main one, the chat as it stands and as it changes, what
-// came before it, saying something in it, stopping it, and what the Dood waits on someone for
-// (leave to do something, a secret, a sign-in). data/chat-rows.ts makes the rows the view draws.
+// The chat area: which chat is a Dood's main one, the chat as it stands and as it changes over
+// the Dood's socket, what came before it, and what the Dood waits on someone for (leave to do
+// something, a secret, a sign-in, a computer). data/chat-rows.ts makes the rows the view draws.
 import type { Result, Sources } from '../app.contract.d.ts';
 // What a chat is and how an event changes it, from the protocol the server and every other
 // client share: types and one pure function, so nothing of the package's is run but that.
-import { EMPTY_CHAT, reduceChat, type ChatEvent, type ChatHistoryPage, type ChatMessage, type ChatState } from '../protocol/chat.ts';
-import type { AgentSummary, ApprovalDecision, ApprovalsState, ChatSummary, ConnectorSummary, LibraryListing, SecretRequest } from '../protocol/agent.ts';
+import { EMPTY_CHAT, reduceChat, type ChatHistoryPage, type ChatMessage, type ChatState } from '../protocol/chat.ts';
+import type { ApprovalDecision, ChatSummary, ConnectorSummary, SecretRequest } from '../protocol/agent.ts';
+import type { ComputerRequest } from '../protocol/daemon.ts';
 import { LOGIN_PASSWORD, LOGIN_USERNAME, MAX_PASSWORD_CHARS, MAX_USERNAME_CHARS } from '../protocol/passwords.ts';
 import { siteHost } from '../protocol/screen.ts';
-import { jobOutcome, type JobSummary } from '../protocol/jobs.ts';
-import { API, current, del, follow, get, NOBODY, post, put, reply, seg } from './api.ts';
-import type { Pin } from '../protocol/pins.ts';
-import type { SiteSummary } from '../protocol/sites.ts';
-import type { ComputerRequest } from '../protocol/daemon.ts';
+import { digest, type AgentSocketMessage, type AgentSocketRequest } from '../protocol/socket.ts';
+import { current, follow, get, NOBODY, post, reply, seg } from './api.ts';
 import { activityOf, rowsOf, startsMidway, waitingRows } from './chat-rows.ts';
 
 type Chat = Result<'followChat'>;
 
 const NO_CHAT: Chat = {
   owner: NOBODY, agentId: '', chatId: '', busy: false, lost: false, messages: [],
-  loaded: false, activity: '', midway: false, firstId: '', justDelivered: '',
+  loaded: false, activity: '', midway: false, firstId: '', justDelivered: '', thought: '',
 };
 
 /** The user an owner is (data/api.ts `ownerOf`), whose own messages carry no name. */
 const userOf = (owner: string) => owner.split('/')[0] ?? '';
+
+/** The chats last followed, as they stood, so that one followed again is not empty until it is told. */
+const held = new Map<string, ChatState>();
+function hold(key: string, state: ChatState) {
+  held.delete(key);
+  held.set(key, state);
+  if (held.size > 16) held.delete(held.keys().next().value!);
+}
 
 function chatOf(owner: string, agentId: string, chatId: string, state: ChatState, lost: boolean, loaded: boolean, justDelivered: string): Chat {
   const first = state.messages[0];
@@ -33,7 +39,14 @@ function chatOf(owner: string, agentId: string, chatId: string, state: ChatState
     activity: activityOf(state),
     midway: startsMidway(first),
     firstId: first?.id ?? '',
+    thought: thoughtOf(state),
   };
+}
+
+/** The thinking of the Dood's newest message, not drawn but read by the transport's checks. */
+function thoughtOf(state: ChatState): string {
+  const last = state.messages.findLast((message) => message.role === 'assistant');
+  return (last?.parts ?? []).flatMap((part) => (part.type === 'thinking' && part.written !== true ? [part.text] : [])).join('');
 }
 
 const textOf = (message: ChatMessage) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('');
@@ -41,7 +54,7 @@ const textOf = (message: ChatMessage) => message.parts.flatMap((part) => (part.t
 /**
  * The user's message that has just taken the place of an input that waited for the Dood: the
  * steer that is gone from the queue, now a message of the chat's with its words. It is said to
- * be delivered, for a moment (views/chat.contract `Delivery`).
+ * be delivered, for a moment (views/chat-rows.contract `Delivery`).
  */
 function deliveredBy(before: ChatState, after: ChatState): string | undefined {
   const gone = before.queued.filter((input) => input.mode === 'steer' && !after.queued.some((still) => still.id === input.id));
@@ -55,22 +68,9 @@ const earlierPages = new Map<string, { messages: ChatMessage[]; before: string |
 
 const NO_EARLIER: Result<'loadEarlier'> = { owner: NOBODY, chatId: '', anchor: '', messages: [], more: false };
 
-// What a Dood's chats are: the open chat's kind (a sub-agent's, a conversation with another
-// Dood, a thread in Slack, an old side chat) and how each sub-agent is getting on.
-type ChatInfo = Result<'loadChatContext'>['chats'][number];
-function chatInfo(chat: ChatSummary): ChatInfo {
-  const where = chat.slack === undefined ? '' : chat.slack.direct ? 'a direct message' : chat.slack.channel === null ? 'Slack' : `#${chat.slack.channel}`;
-  return {
-    id: chat.id, title: chat.title, kind: chat.kind, main: chat.main === true, status: chat.status ?? '', parentId: chat.parentId ?? '',
-    createdAt: chat.createdAt, peerAgentId: chat.peer?.agentId ?? '', peerName: chat.peer?.name ?? '', peerChatId: chat.peer?.chatId ?? '',
-    slackWhere: where, slackUrl: chat.slack?.url ?? '',
-  };
-}
-
 export const chatSources: Pick<Sources,
-  'openChat' | 'followChat' | 'sendMessage' | 'stopChat' | 'loadEarlier' | 'loadChatContext' | 'loadApprovals' | 'answerApproval' |
-  'loadSecretAsks' | 'answerSecret' | 'answerLogin' | 'declineSecret' | 'loadSignIns' | 'signInConnector' | 'dismissConnector' | 'loadLibraryView' | 'loadJobs' |
-  'loadStanding' | 'pinFile' | 'unpinFile' | 'shareAgain' | 'loadComputerAsks' | 'answerComputerAsk'
+  'openChat' | 'followChat' | 'loadEarlier' | 'answerApproval' | 'loadSecretAsks' | 'answerSecret' | 'answerLogin' | 'declineSecret' |
+  'loadSignIns' | 'signInConnector' | 'dismissConnector' | 'loadComputerAsks' | 'answerComputerAsk'
 > = {
   // The Dood's main chat, which it is given the first time it is opened.
   openChat: async ([owner, agentId], store): Promise<Result<'openChat'>> => {
@@ -78,26 +78,42 @@ export const chatSources: Pick<Sources,
     const { body } = await post<ChatSummary>(store, `/api/agents/${seg(agentId)}/chats/main`);
     return { owner, agentId, chatId: body.id };
   },
-  // The chat as it stands, then again after each event. Events are deltas, so one that Exact
-  // dropped (it coalesces those that come faster than it commits) leaves the chat behind: it is
-  // marked `lost`, and the view follows it again from a fresh snapshot.
+  // The chat as it stands, then again after each change, over the Dood's socket, which carries
+  // every change of each chat it is asked to follow, in order. When the socket ends the chat is
+  // marked `lost`, and the view follows it again; meanwhile, and until the new socket's
+  // snapshot, it shows what it had.
   followChat: ([owner, agentId, chatId], store): Chat | Promise<Chat> => {
     if (agentId === '' || chatId === '' || !current(owner, store)) return NO_CHAT;
-    let state: ChatState = EMPTY_CHAT;
+    const key = `${owner} ${agentId} ${chatId}`;
+    let state: ChatState = held.get(key) ?? EMPTY_CHAT;
     let lost = false;
-    let loaded = false;
+    // A chat held from before is shown as it was until its snapshot: it was loaded then.
+    let loaded = held.has(key);
     let justDelivered = '';
     const now = () => chatOf(owner, agentId, chatId, state, lost, loaded, justDelivered);
-    return follow<Chat, ChatEvent>(store, `/api/agents/${seg(agentId)}/chats/${seg(chatId)}/events`, {
-      each: (change, skipped) => {
-        // Events that were skipped cannot be made up for; a snapshot says where things stand anyway.
-        if (change.type === 'snapshot') lost = false;
-        else if (skipped) lost = true;
-        const before = state;
-        state = reduceChat(state, change);
-        // A snapshot on its first arrival says nothing of what was on its way: only one seen go is.
-        if (loaded) justDelivered = deliveredBy(before, state) ?? justDelivered;
-        if (change.type === 'snapshot') loaded = true;
+    const follow_ = { type: 'follow', chat: chatId } satisfies AgentSocketRequest;
+    return follow<Chat, AgentSocketMessage>(store, `/api/agents/${seg(agentId)}/socket`, {
+      open: (say) => {
+        say(follow_);
+        return now();
+      },
+      each: (message, say) => {
+        if (message.type === 'chat' && message.chat === chatId) {
+          const before = state;
+          state = reduceChat(state, message.event);
+          hold(key, state);
+          // A snapshot on its first arrival says nothing of what was on its way: only one seen go is.
+          if (loaded) justDelivered = deliveredBy(before, state) ?? justDelivered;
+          if (message.event.type === 'snapshot') {
+            loaded = true;
+            lost = false;
+          }
+        } else if (message.type === 'resumed' && message.chats[chatId] !== digest(state)) {
+          // The Dood was put away and is back with something other than what is here.
+          say(follow_);
+        } else if (message.type === 'gone' && message.chat === chatId) {
+          lost = true;
+        }
         return now();
       },
       lost: () => {
@@ -107,10 +123,6 @@ export const chatSources: Pick<Sources,
       now,
     });
   },
-  sendMessage: ([agentId, chatId, text, requestId], store) => reply(() =>
-    post(store, `/api/agents/${seg(agentId)}/chats/${seg(chatId)}/messages`, { text, requestId })),
-  // Stop what the Dood is doing in a chat: its own, or a sub-agent's.
-  stopChat: ([agentId, chatId], store) => reply(() => post(store, `/api/agents/${seg(agentId)}/chats/${seg(chatId)}/abort`)),
 
   // What a summary or a fresh start moved out of the live transcript, `pages` pages of it, back
   // from `anchor`, the live transcript's first message. A page once had is kept.
@@ -132,25 +144,6 @@ export const chatSources: Pick<Sources,
     return { owner, chatId, anchor, messages: rowsOf(state, userOf(owner)), more: before !== null };
   },
 
-  // The Dood and its chats, from its state: what kind of chat is open, and its sub-agents.
-  loadChatContext: async ([owner, agentId], store): Promise<Result<'loadChatContext'>> => {
-    if (agentId === '' || !current(owner, store)) return { owner: NOBODY, agentId: '', name: '', tagline: '', chats: [] };
-    const state = await get<{ agent: AgentSummary; chats: ChatSummary[] }>(store, `/api/agents/${seg(agentId)}`);
-    return { owner, agentId, name: state.agent.name ?? '', tagline: state.agent.tagline ?? '', chats: state.chats.map(chatInfo) };
-  },
-
-  // What the Dood waits for someone to allow, in every chat of it.
-  loadApprovals: async ([owner, agentId], store): Promise<Result<'loadApprovals'>> => {
-    if (agentId === '' || !current(owner, store)) return { owner: NOBODY, agentId: '', pending: [] };
-    const state = await get<ApprovalsState>(store, `/api/agents/${seg(agentId)}/approvals`);
-    return {
-      owner, agentId,
-      pending: state.pending.map((request) => ({
-        id: request.id, chatId: request.chatId, chatTitle: request.chatTitle, chatKind: request.chatKind, task: request.task ?? '',
-        title: request.title, detail: request.detail, onceOnly: request.onceOnly === true, wants: request.wants?.label ?? '',
-      })),
-    };
-  },
   answerApproval: ([agentId, requestId, decision, typed], store) => reply(() =>
     post(store, `/api/agents/${seg(agentId)}/approvals/${seg(requestId)}`, {
       decision: decision as ApprovalDecision,
@@ -215,47 +208,6 @@ export const chatSources: Pick<Sources,
   },
   dismissConnector: ([agentId, connectorId], store) => reply(() => post(store, `/api/agents/${seg(agentId)}/connectors/${seg(connectorId)}/dismiss`)),
 
-  // Where the Dood's library files are served as what they are, with no session: the address a
-  // visual, a picture or a download is had from (`/d/<agent>/<view>/<path>`).
-  loadLibraryView: async ([owner, agentId], store): Promise<Result<'loadLibraryView'>> => {
-    if (agentId === '' || !current(owner, store)) return { owner: NOBODY, agentId: '', base: '', files: [] };
-    const listing = await get<LibraryListing>(store, `/api/agents/${seg(agentId)}/library`);
-    return { owner, agentId, base: `${API}/d/${seg(agentId)}/${seg(listing.view)}/`, files: listing.files.map((file) => file.id) };
-  },
-
-  // The Dood's background commands, for the chips where they were started.
-  loadJobs: async ([owner, agentId], store): Promise<Result<'loadJobs'>> => {
-    if (agentId === '' || !current(owner, store)) return { owner: NOBODY, agentId: '', jobs: [] };
-    const { jobs } = await get<{ jobs: JobSummary[] }>(store, `/api/agents/${seg(agentId)}/jobs`);
-    return {
-      owner, agentId,
-      jobs: jobs.map((job) => ({
-        id: job.id, command: job.command, computer: job.computer, status: job.status, startedAt: job.startedAt,
-        ended: job.status === 'running' ? '' : lower(jobOutcome({ ...job, ms: (job.endedAt ?? job.startedAt) - job.startedAt })),
-      })),
-    };
-  },
-
-  // How the pins and the sites the chat shows stand now: a card says so, not how they stood.
-  loadStanding: async ([owner, agentId], store): Promise<Result<'loadStanding'>> => {
-    if (agentId === '' || !current(owner, store)) return { owner: NOBODY, agentId: '', pins: [], sites: [] };
-    const [{ pins }, { sites }] = await Promise.all([
-      get<{ pins: Pin[] }>(store, `/api/agents/${seg(agentId)}/pins`),
-      get<{ sites: SiteSummary[] }>(store, `/api/agents/${seg(agentId)}/sites`),
-    ]);
-    return {
-      owner, agentId,
-      pins: pins.flatMap((pin) => [`id:${pin.fileId}`, `path:${pin.path}`]),
-      sites: sites.flatMap((site) => [`id:${site.id}`, `path:${site.path}`, ...(site.public ? [`public:${site.id}`, `public:${site.path}`] : [])]),
-    };
-  },
-  // Back as the Dood pinned it, under the title it gave.
-  pinFile: ([agentId, fileId, title], store) => reply(() =>
-    put(store, `/api/agents/${seg(agentId)}/pins/${seg(fileId)}`, title === '' ? {} : { title })),
-  unpinFile: ([agentId, fileId], store) => reply(() => del(store, `/api/agents/${seg(agentId)}/pins/${seg(fileId)}`)),
-  // The same place shared again after it was stopped is a site with another address.
-  shareAgain: ([agentId, path, title], store) => reply(() => post(store, `/api/agents/${seg(agentId)}/sites`, { path, title })),
-
   // The computers the Dood asked to use, which the person's own list of asks holds.
   loadComputerAsks: async ([owner, agentId], store): Promise<Result<'loadComputerAsks'>> => {
     if (agentId === '' || !current(owner, store)) return { owner: NOBODY, agentId: '', asks: [] };
@@ -270,8 +222,6 @@ export const chatSources: Pick<Sources,
   },
   answerComputerAsk: ([requestId, approve], store) => reply(() => post(store, `/api/computers/requests/${seg(requestId)}`, { approve })),
 };
-
-const lower = (words: string) => words.charAt(0).toLowerCase() + words.slice(1);
 
 function hostOf(url: string): string {
   try {

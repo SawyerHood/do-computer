@@ -25,6 +25,8 @@ try {
   for (const entry of readdirSync(work, { recursive: true, withFileTypes: true })) {
     const file = relative(work, resolve(entry.parentPath, entry.name));
     if (!entry.isFile() || existsSync(join(here, file))) continue;
+    // The template's test of its own starter screen, which this app does not have.
+    if (file === 'app.test.contract') continue;
     mkdirSync(dirname(join(here, file)), { recursive: true });
     cpSync(join(work, file), join(here, file));
     added++;

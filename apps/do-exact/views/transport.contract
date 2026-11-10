@@ -1,0 +1,30 @@
+// How the app hears from the server live: no screen, only what keeps its sockets going. Where the
+// session is a bearer token (served from another origin, or a native host), a socket opens with
+// a ticket, good once, of which a few are kept ready (data/api.ts `follow`); served by the
+// deployment itself the browser's cookie is the session and no ticket is asked for. Every socket
+// is pinged now and then, as the React app's are. data/transport.ts answers it.
+use Reply from "./shapes.contract"
+
+shape SocketTickets
+  owner: string
+  // How many are ready.
+  ready: number
+
+members App
+  // --- transport ---
+  // A round a minute: what ages a ticket, since a data source has no clock.
+  state socketRound = 0
+  // Tickets are topped up when the person signs in, a page opens sockets, one is lost, and each round.
+  derive socketDemand = `${openAgentId}/${openChatId}/${chat.lost}/${pulse.lost}/${feed.lost}`
+  resource socketTickets = stockSockets(session.owner, socketRound) with socketDemand as shape SocketTickets else empty()
+  mutation pinged as shape Reply
+  task socketRounds mount
+    every(60000, nextSocketRound)
+  task socketPings mount
+    every(30000, pingSockets)
+
+  action nextSocketRound
+    socketRound = socketRound + 1
+  action pingSockets
+    if session.signedIn
+      send pinged = pingAll()

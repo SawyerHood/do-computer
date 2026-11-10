@@ -1,0 +1,190 @@
+use LibraryFile, LibraryContent, LibraryHistory from "./library-shapes.contract"
+use LibraryMarkdown from "./library-markdown.contract"
+use Sites, ShareControls from "./sites.contract"
+use Screen, Field, MenuItem, IconButton from "./styles.contract"
+
+component LibraryViewer
+  props
+    file: LibraryFile
+    compact: bool
+  inject
+    wide: bool
+    libraryContentFailed: bool
+    libraryHistoryFailed: bool
+    libraryPageOpen: action
+    libraryPageColour: string
+    libraryContent: LibraryContent
+    libraryHistory: LibraryHistory
+    libraryHistoryOpen: bool
+    libraryReady: bool
+    libraryText: string
+    libraryMode: string
+    librarySaveState: string
+    libraryError: string
+    libraryRenaming: bool
+    libraryRename: string
+    libraryBusy: bool
+    libraryHome: action
+    libraryEdit: action
+    librarySave: action
+    librarySetMode: action
+    libraryBeginRename: action
+    libraryEditRename: action
+    libraryCancelRename: action
+    libraryMove: action
+    libraryDelete: action
+    libraryHistoryToggle: action
+    libraryRevert: action
+    libraryKeepMine: action
+    libraryTakeTheirs: action
+    libraryRefresh: action
+    libraryPin: action
+    libraryPinned: bool
+    shareLibraryPath: action
+  state formatCommand = ""
+  state formatSerial = 0
+  action format(kind: string)
+    formatCommand = `${kind}:${formatSerial}`
+    formatSerial = formatSerial + 1
+  action showPicture
+    showModal("library-picture-dialog")
+  action hidePicture
+    close("library-picture-dialog")
+  action pageReload
+    reload("library-page")
+  derive wordCount = libraryText.split("\n").map(line => line.split(" ")).flat().map(w => w.split("\t")).flat().filter(w => w.trim() != "").length
+  view
+    column flex=1 min-width=0 min-height=0 testId="library-viewer"
+      row flex-shrink=0 flex-wrap="wrap" gap=4 align-items="center" padding="6px 10px" border-bottom="1px solid var(--hairline)"
+        if not compact
+          button press=libraryHome aria-label="Back to the library" testId="library-home" class=IconButton
+            image "symbol:back"
+        if libraryRenaming
+          input value=libraryRename input=libraryEditRename submit=libraryMove aria-label="Folder and name" class=Field flex=1 min-width=0 testId="library-rename-path"
+          button press=libraryMove disabled=libraryBusy testId="library-rename-save" class=MenuItem
+            text "Save"
+          button press=libraryCancelRename testId="library-rename-cancel" class=MenuItem
+            text "Cancel"
+        else
+          text file.name flex=1 min-width=0 font-size="0.875rem" font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId="library-file-name"
+          if librarySaveState != ""
+            text librarySaveState color=(librarySaveState == "conflict" ? "danger" : "ink.muted") font-size="0.75rem" aria-live="polite" testId="library-save-state"
+          if file.kind == "markdown"
+            button press=librarySetMode("read") aria-pressed=(libraryMode == "read") aria-label="Read" testId="library-mode-read" class=IconButton background-color=(libraryMode == "read" ? "wash" : "transparent")
+              image "symbol:book"
+            button press=librarySetMode("edit") aria-pressed=(libraryMode == "edit") aria-label="Edit" testId="library-mode-edit" class=IconButton background-color=(libraryMode == "edit" ? "wash" : "transparent")
+              image "symbol:pencil"
+            button press=librarySetMode("split") aria-pressed=(libraryMode == "split") aria-label="Split" testId="library-mode-split" class=IconButton background-color=(libraryMode == "split" ? "wash" : "transparent")
+              image "symbol:layers"
+          else if file.kind == "page" or file.kind == "table"
+            button press=librarySetMode("read") aria-pressed=(libraryMode == "read") aria-label="Read" testId="library-mode-read" class=IconButton background-color=(libraryMode == "read" ? "wash" : "transparent")
+              text (file.kind == "page" ? "Page" : "Table")
+            button press=librarySetMode("source") aria-pressed=(libraryMode == "source") aria-label="Source" testId="library-mode-source" class=IconButton
+              image "symbol:document"
+          button press=libraryPin disabled=libraryBusy aria-pressed=libraryPinned aria-label=(libraryPinned ? "Unpin" : "Pin beside the chat") testId="library-pin" class=IconButton
+            image "symbol:pin"
+          button press=shareLibraryPath(file.path) aria-label="Share" testId="library-share" class=IconButton
+            image "symbol:share"
+          button press=libraryHistoryToggle aria-label="History" aria-expanded=libraryHistoryOpen testId="library-history" class=IconButton
+            image "symbol:activity"
+          button popovertarget="library-more" aria-label="More" testId="library-more-button" class=IconButton
+            image "symbol:more"
+          column id="library-more" popover="auto" background-color="popover" color="ink" padding=8 border-radius=12 box-shadow="0 0 0 1px var(--hairline)"
+            text file.path font-size="0.8125rem" overflow-wrap="break-word" max-width="16rem" padding=6
+            text `${file.by} · ${file.when} · ${file.bytes}` font-size="0.75rem" color="ink.muted" padding=6
+            button press=libraryBeginRename popovertarget="library-more" popovertargetaction="hide" class=MenuItem testId="library-rename"
+              text "Rename or move"
+            do-library-download address=file.url filename=file.name width="100%" height=32 role="button" aria-label="Download" testId="library-download"
+            button press=libraryDelete disabled=libraryBusy popovertarget="library-more" popovertargetaction="hide" class=MenuItem color="danger" testId="library-delete"
+              text "Delete"
+      if libraryError != ""
+        text libraryError role="alert" color="danger" padding="8px 16px" font-size="0.8125rem" testId="library-write-error"
+      if librarySaveState == "Could not save"
+        button press=librarySave class=MenuItem testId="library-save-retry"
+          text "Try saving again"
+      if libraryHistoryOpen
+        scroll max-height=240 padding=12 border-bottom="1px solid var(--hairline)"
+          column gap=8
+            text "Versions" font-size="0.875rem" font-weight=600
+            text `Current · ${file.by} · ${file.when}` font-size="0.75rem" color="ink.muted"
+            if libraryHistoryFailed
+              text "Versions could not be read. Close and try again." color="danger" font-size="0.8125rem" testId="library-history-error"
+            else if libraryHistory.fileId != file.id
+              text "Looking for earlier versions…" font-size="0.8125rem"
+            else if libraryHistory.versions.length == 0
+              text "It has not been changed since it was made." font-size="0.8125rem" testId="library-history-empty"
+            for v in libraryHistory.versions key=v.rev
+              button press=libraryRevert(v.rev) disabled=libraryBusy class=MenuItem testId=`library-revert-${v.rev}`
+                text `Put back this version · ${v.detail}` overflow-wrap="break-word"
+      if librarySaveState == "conflict"
+        column padding=12 gap=8 background-color="surface" role="alert"
+          text "This file changed while you were editing it. Your changes are not saved." font-size="0.875rem" testId="library-conflict"
+          row gap=8
+            button press=libraryTakeTheirs disabled=(not libraryReady) testId="library-take-theirs" class=MenuItem
+              text "Show theirs"
+            button press=libraryKeepMine testId="library-keep-mine" class=MenuItem
+              text "Keep mine"
+      if file.kind == "image"
+        column flex=1 min-height=0 justify-content="center" align-items="center" padding=24 background-color="surface"
+          button press=showPicture background-color="transparent" border="none" max-width="100%" aria-label="Enlarge picture" testId="library-picture-open" class=MenuItem
+            image file.url alt=file.name max-width="100%" max-height="65vh" object-fit="contain" border-radius=8
+          dialog id="library-picture-dialog" aria-label=file.name testId="library-picture" max-width="95vw" background-color="canvas" color="ink"
+            row align-items="center" gap=8
+              text file.name flex=1
+              do-library-download address=file.url filename=file.name width=100 height=32 role="button" aria-label="Download picture"
+              button press=hidePicture testId="library-picture-close" class=MenuItem
+                text "Close"
+            image file.url alt=file.name max-width="85vw" max-height="80vh" object-fit="contain"
+      else if file.kind == "pdf"
+        iframe src=`${file.url}#toolbar=0&view=FitH` title=file.name width="100%" flex=1 min-height=0 border="none" testId="library-pdf"
+      else if file.kind == "page" and libraryMode == "read"
+        do-library-frame colour=libraryPageColour message=libraryPageOpen width=0 height=0 aria-hidden=true
+        row gap=8 padding=6 align-items="center"
+          button press=pageReload aria-label="Reload page" testId="library-page-reload" class=MenuItem
+            image "symbol:refresh"
+          text file.path flex=1 min-width=0 font-size="0.75rem" color="ink.muted" overflow-wrap="break-word"
+          text "sandboxed" font-size="0.6875rem" color="ink.muted"
+          link href=file.url target="_blank" testId="library-page-tab"
+            text "Open"
+        iframe id="library-page" src=file.url title=file.name sandbox="allow-scripts allow-popups allow-forms allow-modals" width="100%" flex=1 min-height=0 border="none" testId="library-page"
+      else if file.kind == "video"
+        video src=file.url controls=true width="100%" flex=1 min-height=0 aria-label=file.name testId="library-video"
+      else if file.kind == "audio"
+        column flex=1 justify-content="center" padding=24
+          audio src=file.url controls=true width="100%" aria-label=file.name testId="library-audio"
+      else if file.kind == "other" or (file.kind == "table" and file.size > 1048576 and libraryMode != "read")
+        column flex=1 justify-content="center" align-items="center" padding=24 gap=12
+          text file.name font-weight=500 overflow-wrap="break-word"
+          text `${file.bytes} · This kind of file cannot be shown here.` color="ink.muted" font-size="0.875rem"
+          do-library-download address=file.url filename=file.name width=120 height=36 role="button" aria-label="Download file" testId="library-other-download"
+      else if not libraryReady and libraryText == ""
+        column padding=24 gap=8
+          text (libraryContentFailed ? "This file could not be read. Try again." : "Loading file…") color="ink.muted" testId="library-file-loading"
+          button press=libraryRefresh testId="library-file-retry" class=MenuItem
+            text "Try again"
+      else if file.kind == "table" and libraryMode == "read"
+        scroll flex=1 min-height=0 padding=24
+          table border-spacing=0 font-size="0.8125rem" testId="library-table"
+            tbody
+              for r in libraryContent.rows key=r.id
+                tr
+                  for cell in r.cells key=cell.id
+                    td padding="6px 10px" border="1px solid var(--hairline)" font-weight=(r.id == "0" ? 600 : 400)
+                      text cell.text white-space="pre-wrap"
+          if libraryContent.cut
+            text "Only the first rows and columns are shown. Download to see all of it." font-size="0.75rem" color="ink.muted"
+      else
+        if file.kind == "markdown" and libraryMode != "read"
+          row gap=2 padding="6px 12px" border-bottom="1px solid var(--hairline)" align-items="center" flex-wrap="wrap"
+            for kind in ["Bold", "Italic", "Heading", "List", "Task", "Code", "Link"] key=kind
+              button press=format(kind) testId=`library-format-${kind}` class=MenuItem
+                text kind font-size="0.75rem"
+            text `${wordCount} ${wordCount == 1 ? "word" : "words"}` color="ink.muted" font-size="0.75rem"
+            do-library-format marks=formatCommand draft=libraryText message=libraryEdit width=0 height=0 aria-hidden=true
+        row flex=1 min-height=0
+          if file.kind != "markdown" or libraryMode != "read"
+            textarea id="library-editor" value=libraryText input=libraryEdit aria-label=`Edit ${file.name}` flex=1 min-width=0 min-height=0 border="none" outline="none" background-color="transparent" color="ink" padding=24 font-family="Geist Mono" font-size="0.8125rem" line-height=1.6 testId="library-editor"
+          if file.kind == "markdown" and (libraryMode == "read" or (libraryMode == "split" and wide))
+            scroll flex=1 min-width=0 min-height=0 padding=(compact or not wide ? 24 : 36) border-left=(libraryMode == "split" ? "1px solid var(--hairline)" : "none")
+              column max-width="48rem" margin="0 auto"
+                LibraryMarkdown(text=(libraryText == libraryContent.text ? libraryContent.rendered : libraryText))

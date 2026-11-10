@@ -1,0 +1,291 @@
+// The person's own settings, as the top of the React app's settings window
+// (apps/web/src/components/settings/settings.tsx `OWN`): General (the theme, and the model and
+// computer a new Dood starts with), Notifications, and the lists of Doods and workspaces that
+// every Dood's and workspace's settings are reached through. data/settings-account.ts answers it.
+use Session, Reply, Dood, Page, Workspace from "./shapes.contract"
+use doodOf, nameOf, stateOf from "./shell.contract"
+use DoodFace from "./creature.contract"
+use AccountSettings, SettingsSection, ErrorLine, workspaceOf from "./settings-kit.contract"
+use Hint, SmallHint, OutlineButton, GhostButton, StatusWords, FieldName from "./settings-kit.contract"
+use ModelChoice, ModelChoices, ModelPicker from "./profile.contract"
+
+shape KindChoice
+  id: string
+  label: string
+  description: string
+
+shape AccountSetup
+  owner: string
+  // "" for the deployment's own.
+  defaultModel: string
+  deploymentDefaultModel: string
+  defaultComputer: string
+  deploymentDefaultComputer: string
+  kinds: KindChoice[]
+  // They look after the deployment, so may set what it offers everyone.
+  admin: bool
+  // The deployment has a waiting list.
+  waitlist: bool
+
+shape DoodAbout
+  id: string
+  name: string
+  seed: string
+  color: string
+  about: string
+
+shape DoodGroup
+  workspaceId: string
+  name: string
+  doods: DoodAbout[]
+
+shape DoodsAbout
+  owner: string
+  groups: DoodGroup[]
+
+shape WorkspaceAbout
+  id: string
+  about: string
+  // It keeps logins or cards this person may see, so it has a Passwords section.
+  secrets: bool
+  logins: bool
+  cards: bool
+
+shape InvitationAbout
+  id: string
+  name: string
+  color: string
+  from: string
+
+shape WorkspacesAbout
+  owner: string
+  workspaces: WorkspaceAbout[]
+  invitations: InvitationAbout[]
+
+shape ThemeChoice
+  id: string
+  label: string
+
+fn themeChoices(): ThemeChoice[] = [ThemeChoice(id="light", label="Light"), ThemeChoice(id="dark", label="Dark"), ThemeChoice(id="system", label="System")]
+
+fn isAccountSettings(route: string): bool = route == "account" or route == "general" or route == "notifications" or route == "doodsList" or route == "workspacesList" or route == "serverModels" or route == "waitlist"
+
+fn workspaceAboutOf(abouts: WorkspaceAbout[], id: string): WorkspaceAbout = match first(abouts.filter(a => a.id == id)) {
+  case some(a) => a,
+  case none => WorkspaceAbout(id=id, about="", secrets=false, logins=false, cards=false)
+}
+
+members App
+  // --- settings: the person's own ---
+  // Light, dark or the device's: kept by this browser, as the React app keeps it (lib/theme.ts),
+  // and the app's own scheme, set at launch and when it is chosen.
+  state theme = "system" persist
+  task scheme mount
+    after(1, applyTheme)
+  action applyTheme
+    setScheme(theme)
+  action chooseTheme(t: string)
+    theme = t
+    setScheme(t)
+
+  derive accountOn = isAccountSettings(onRoute)
+  resource accountSetup = loadAccountSettings(accountOn ? session.owner : "") as shape AccountSetup else empty()
+  derive accountOurs = accountSetup.owner == session.owner and session.owner != ""
+  derive admin = accountOurs and accountSetup.admin
+  derive hasWaitlist = accountOurs and accountSetup.waitlist
+  resource allModels = loadModelChoices(session.owner, "", onRoute == "account" or onRoute == "general") as shape ModelChoices else empty()
+  derive allModelList = allModels.owner == session.owner and allModels.workspaceId == "" ? allModels.models : []
+  mutation defaultModelSaved as shape Reply refreshes accountSetup
+  state defaultModelPicked = ""
+  derive defaultModelError = pending(defaultModelSaved) ? "" : match defaultModelSaved { case some(r) => r.error, case none => "" }
+  derive defaultModelOk = not pending(defaultModelSaved) and match defaultModelSaved { case some(r) => r.ok, case none => false }
+  mutation defaultComputerSaved as shape Reply refreshes accountSetup
+  state defaultComputerPicked = ""
+  derive defaultComputerError = pending(defaultComputerSaved) ? "" : match defaultComputerSaved { case some(r) => r.error, case none => "" }
+  derive defaultComputerOk = not pending(defaultComputerSaved) and match defaultComputerSaved { case some(r) => r.ok, case none => false }
+
+  resource doodsAbout = loadDoodsAbout(session.owner, onRoute == "doodsList") as shape DoodsAbout else empty()
+  resource workspacesAbout = loadWorkspacesAbout(session.owner, onRoute == "workspacesList" or onRoute == "workspaceModels" or onRoute == "passwords") as shape WorkspacesAbout else empty()
+
+  // The page the person's settings were opened over, which the cross goes back to.
+  state settingsReturn = "/"
+  action openAccountSettings
+    settingsReturn = isAccountSettings(top(nav).name) ? settingsReturn : top(nav).url
+    follow("/settings")
+  action pickDefaultModel(id: string)
+    defaultModelPicked = id
+    send defaultModelSaved = saveDefaultModel(id)
+  action pickDefaultComputer(id: string)
+    // Choosing the server's own default is choosing to follow it.
+    defaultComputerPicked = id
+    send defaultComputerSaved = saveDefaultComputer(id == accountSetup.deploymentDefaultComputer ? "" : id)
+
+// `/settings`: the list of the person's sections, which a wide window shows beside General.
+component AccountScreen
+  props
+    page: Page
+  inject
+    admin: bool
+    hasWaitlist: bool
+    settingsReturn: string
+  view
+    AccountSettings(page=page, route="account", title="General", lead="Yours, whichever workspace you are in. What one Dood is like is set on that Dood, and what a workspace has is set on the workspace.", listing=true, admin=admin, waitlist=hasWaitlist, close=settingsReturn)
+      GeneralBody()
+
+component GeneralScreen
+  props
+    page: Page
+  inject
+    admin: bool
+    hasWaitlist: bool
+    settingsReturn: string
+  view
+    AccountSettings(page=page, route="general", title="General", lead="Yours, whichever workspace you are in. What one Dood is like is set on that Dood, and what a workspace has is set on the workspace.", listing=false, admin=admin, waitlist=hasWaitlist, close=settingsReturn)
+      GeneralBody()
+
+// The theme, and the defaults (general.tsx).
+component GeneralBody
+  inject
+    theme: string
+    chooseTheme: action
+    accountSetup: AccountSetup
+    accountOurs: bool
+    allModelList: ModelChoice[]
+    defaultModelPicked: string
+    defaultModelSaving: bool
+    defaultModelError: string
+    defaultModelOk: bool
+    pickDefaultModel: action
+    defaultComputerPicked: string
+    defaultComputerSaving: bool
+    defaultComputerError: string
+    defaultComputerOk: bool
+    pickDefaultComputer: action
+  derive shownModel = defaultModelSaving ? defaultModelPicked : accountSetup.defaultModel
+  derive shownComputer = defaultComputerSaving ? defaultComputerPicked : (accountSetup.defaultComputer == "" ? accountSetup.deploymentDefaultComputer : accountSetup.defaultComputer)
+  view
+    column gap=24 testId="general-body"
+      SettingsSection(title="Theme", hint="How Do Computer looks in this browser. System follows what the device is set to.", testId="general-theme")
+        // The React app's outlined ToggleGroup: each choice a bordered button, the chosen one washed.
+        row role="radiogroup" aria-label="Theme" appearance="none" gap=6 align-self="flex-start"
+          for t in themeChoices() key=t.id
+            button role="radio" aria-checked=(theme == t.id) press=chooseTheme(t.id) min-height="2rem" padding="0 14px" font-size="0.875rem"
+              border="1px solid var(--border)" border-radius=8 background-color=(theme == t.id ? "wash" : "popover") color="ink"
+              font-weight=(theme == t.id ? 500 : 400) testId=`theme-${t.id}`
+              text t.label
+      if not accountOurs
+        progress aria-label="Loading"
+      else
+        SettingsSection(title="Default model", hint="The model a new Dood of yours starts on. Doods you already have keep theirs; change one in its own settings.", testId="general-model")
+          ModelPicker(id="default-model", label="Default model", models=allModelList, value=(shownModel == "" ? accountSetup.deploymentDefaultModel : shownModel), pick=pickDefaultModel, testId="default-model")
+          row flex-wrap="wrap" align-items="center" gap=12
+            if shownModel != ""
+              button press=pickDefaultModel("") disabled=defaultModelSaving class=OutlineButton testId="default-model-server"
+                text "Use this server’s default"
+            else
+              text "This is the server’s default. Pick another to make it yours." class=StatusWords testId="default-model-is-server"
+            if defaultModelOk
+              text "Saved" role="status" class=StatusWords testId="default-model-saved"
+          ErrorLine(text=defaultModelError, testId="default-model-error")
+        // With one kind there is nothing to choose.
+        if accountSetup.kinds.length >= 2
+          SettingsSection(title="Default computer", hint="The kind of computer a workspace is given when you make a Dood in one that has none the Dood could use. A workspace that already has a computer keeps it, and more are added under Computers.", testId="general-computer")
+            column role="radiogroup" aria-label="Default computer" appearance="none" gap=8
+              for k in accountSetup.kinds key=k.id
+                button role="radio" aria-checked=(shownComputer == k.id) press=pickDefaultComputer(k.id)
+                  display="flex" align-items="flex-start" gap=12 padding=12 border-radius=12 text-align="start" font-size="0.875rem"
+                  background-color="transparent" color="ink" border=(shownComputer == k.id ? "1px solid var(--primary)" : "1px solid var(--border)") testId=`default-computer-${k.id}`
+                  column width=16 height=16 margin-top=2 border-radius=8 flex-shrink=0 align-items="center" justify-content="center"
+                    border=(shownComputer == k.id ? "1px solid var(--primary)" : "1px solid var(--input)")
+                    if shownComputer == k.id
+                      column width=8 height=8 border-radius=4 background-color="primary"
+                  column min-width=0 gap=2
+                    row flex-wrap="wrap" gap=8 align-items="baseline"
+                      text k.label font-weight=500
+                      if k.id == accountSetup.deploymentDefaultComputer
+                        text "this server’s default" font-size="0.75rem" color="ink.muted"
+                    text k.description color="ink.muted"
+            if defaultComputerOk
+              text "Saved" role="status" class=StatusWords testId="default-computer-saved"
+            ErrorLine(text=defaultComputerError, testId="default-computer-error")
+
+// Every Dood the person can set up, under the workspace it is in (lists.tsx `AgentsList`).
+component DoodsListScreen
+  props
+    page: Page
+  inject
+    admin: bool
+    hasWaitlist: bool
+    settingsReturn: string
+    session: Session
+    doodsAbout: DoodsAbout
+    hatching: bool
+    hatchError: string
+    hatch: action
+  derive groups = doodsAbout.owner == session.owner ? doodsAbout.groups : []
+  view
+    AccountSettings(page=page, route="doodsList", title="Doods", lead="Every Dood you can set up, by the workspace it is in. Choose one to change who it is, what it thinks with and what it may do.", listing=false, admin=admin, waitlist=hasWaitlist, close=settingsReturn)
+      ErrorLine(text=hatchError, testId="doods-list-error")
+      if doodsAbout.owner != session.owner
+        progress aria-label="Loading"
+      for g, gi in groups key=g.workspaceId
+        column gap=6 testId=`doods-of-${g.workspaceId}`
+          row align-items="center" justify-content="space-between" gap=12 padding="0 6px"
+            text g.name role="heading" aria-level=3 font-size="0.8125rem" font-weight=500 color="ink.muted"
+            button press=hatch(g.workspaceId) disabled=hatching aria-busy=hatching aria-label=`New Dood in ${g.name}` class=GhostButton min-height="1.5rem" font-size="0.75rem" testId=`doods-list-new-${g.workspaceId}`
+              image "symbol:icon.plus" aria-hidden=true
+              text "New Dood"
+          if g.doods.length == 0
+            text "No Doods here yet." class=Hint padding="0 6px"
+          else
+            column role="list"
+              for d, i in g.doods key=d.id
+                link href=`/a/${d.id}/settings` role="listitem" aria-label=`${d.name}'s settings` display="flex" align-items="center" gap=12 padding="10px 6px"
+                  border-radius=8 border-top=(i == 0 ? "none" : "1px solid var(--border)") text-decoration="none" color="ink" testId=`doods-list-${gi}-${i}`
+                  :hover
+                    background-color="wash"
+                  DoodFace(seed=d.seed, color=d.color, state="idle", name=d.name, size=32)
+                  row flex=1 min-width=0 align-items="baseline" gap=12 flex-wrap="wrap"
+                    text d.name font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+                    text d.about margin-left="auto" font-size="0.875rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+                  image "symbol:icon.caret-right" aria-hidden=true color="ink.muted" font-size="0.875rem"
+
+// The person's workspaces and the teams that asked them to join (lists.tsx `WorkspacesList`).
+component WorkspacesListScreen
+  props
+    page: Page
+  inject
+    admin: bool
+    hasWaitlist: bool
+    settingsReturn: string
+    session: Session
+    workspaceList: Workspace[]
+    workspacesAbout: WorkspacesAbout
+  derive ours = workspacesAbout.owner == session.owner
+  view
+    AccountSettings(page=page, route="workspacesList", title="Workspaces", lead="Your own, and the teams you are in. A workspace has the computers its Doods work on and the models they can run on; a team has its people too.", listing=false, admin=admin, waitlist=hasWaitlist, close=settingsReturn)
+      column role="list"
+        for w, i in workspaceList key=w.id
+          link href=`/w/${w.id}/settings` role="listitem" aria-label=`${w.name}: workspace settings` display="flex" align-items="center" gap=12 padding="10px 6px"
+            border-radius=8 border-top=(i == 0 ? "none" : "1px solid var(--border)") text-decoration="none" color="ink" testId=`workspaces-list-${w.kind == "personal" ? "personal" : w.id}`
+            :hover
+              background-color="wash"
+            column width="2rem" height="2rem" border-radius=8 background-color=w.color align-items="center" justify-content="center" flex-shrink=0
+              text w.name.slice(0, 1).toUpperCase() color="ink.on-color" font-size="0.8125rem" font-weight=600
+            row flex=1 min-width=0 align-items="baseline" gap=12 flex-wrap="wrap"
+              text w.name font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+              text (ours ? workspaceAboutOf(workspacesAbout.workspaces, w.id).about : "") margin-left="auto" font-size="0.875rem" color="ink.muted"
+            image "symbol:icon.caret-right" aria-hidden=true color="ink.muted" font-size="0.875rem"
+      if ours and workspacesAbout.invitations.length > 0
+        column gap=6 testId="workspaces-invitations"
+          text "Invitations" role="heading" aria-level=3 font-size="0.8125rem" font-weight=500 color="ink.muted" padding="0 6px"
+          column role="list"
+            for v, i in workspacesAbout.invitations key=v.id
+              row role="listitem" align-items="center" gap=12 padding="10px 6px" border-top=(i == 0 ? "none" : "1px solid var(--border)")
+                column width="2rem" height="2rem" border-radius=8 background-color=v.color align-items="center" justify-content="center" flex-shrink=0
+                  text v.name.slice(0, 1).toUpperCase() color="ink.on-color" font-size="0.8125rem" font-weight=600
+                column flex=1 min-width=0
+                  text v.name font-weight=500
+                  text `from ${v.from}` font-size="0.875rem" color="ink.muted"
+                link href=`/invite/${v.id}` class=OutlineButton text-decoration="none" testId=`invitation-${v.id}`
+                  text "View"

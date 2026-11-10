@@ -1,6 +1,6 @@
 import { CALLER_HEADER, encodeCaller } from "@do-computer/agent"
 import { agentFor } from "./agents.ts"
-import { fromApp, getUser } from "./auth.ts"
+import { socketUser } from "./auth.ts"
 
 /**
  * Where a browser connects to follow an agent, and to follow the library of the agent's
@@ -25,16 +25,14 @@ export function agentSocket(pathname: string): { agentId: string; library: boole
 /**
  * Check a request to follow an agent, and resolve with the request to hand on, saying who is
  * asking, and the workspace the agent is in. Undefined when it is not from someone who may use
- * the agent, or not from the app itself.
+ * the agent, or carries neither a ticket nor a cookie from the app itself.
  */
 export async function admitToAgent(
   request: Request,
   agentId: string,
 ): Promise<{ request: Request; workspaceId: string } | undefined> {
-  // A browser sends cookies with a WebSocket to any site that asks, so a page elsewhere could
-  // open one as the signed-in user. Only the app's own pages may.
-  if (!fromApp(request)) return undefined
-  const user = await getUser(request)
+  // A cookie only from the app's own pages, or a ticket (auth.ts).
+  const user = await socketUser(request)
   if (user === undefined) return undefined
   const access = await agentFor(user, agentId)
   if (access === undefined) return undefined

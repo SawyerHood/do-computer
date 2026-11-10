@@ -88,7 +88,7 @@ function toolBlock(part: ToolPart, id: string, uses: Map<string, Use>): Block | 
   if (isSentFile(any as MessagePart)) {
     const file = part.details as unknown as LibraryFile;
     return block(id, 'file', {
-      name: file.name, detail: formatBytes(file.size), fileId: file.id, path: pathUrl(file.path), status: file.contentType,
+      name: file.name, detail: formatBytes(file.size), fileId: file.id, path: pathUrl(file.path), text: file.path, status: file.contentType,
       outcome: INLINE_IMAGE_TYPES.has(file.contentType) ? 'picture' : '',
     });
   }

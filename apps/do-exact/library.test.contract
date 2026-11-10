@@ -1,0 +1,101 @@
+test "library documents are created, autosaved, moved, pinned, shared, deleted and restored"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "library-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-library-dood"
+  clock data
+  expect tree has "library-empty"
+  tap "library-new"
+  clock data
+  clock settle
+  clock data
+  expect text "library-file-name" == "Untitled.md"
+  tap "library-mode-edit"
+  clock data
+  type "library-editor" "# A useful note\n\nThe library keeps this."
+  clock +1000
+  clock data
+  expect text "library-save-state" == "Saved"
+  tap "library-mode-read"
+  clock data
+  expect tree has "library-markdown"
+  tap "library-pin"
+  clock data
+  expect state libraryPinList.length == 1
+  tap "library-share"
+  tap "library-share-create"
+  clock data
+  expect state libraryShareSite.public == false
+  tap "library-share-public"
+  clock data
+  expect state libraryShareSite.public == true
+  tap "library-share-private"
+  clock data
+  expect state libraryShareSite.public == false
+  tap "library-share-stop"
+  clock data
+  expect state librarySiteList.length == 0
+  tap "library-share-close"
+  tap "library-more-button"
+  tap "library-rename"
+  type "library-rename-path" "notes/kept.md"
+  tap "library-rename-save"
+  clock data
+  clock settle
+  clock data
+  expect text "library-file-name" == "kept.md"
+  tap "library-history"
+  clock data
+  expect tree has "library-revert-0"
+  tap "library-revert-0"
+  clock data
+  clock settle
+  clock data
+  tap "library-mode-edit"
+  clock data
+  expect text "library-editor" == "# Untitled\n\n"
+  tap "library-home"
+  clock data
+  expect tree has "folder-notes"
+  type "library-filter" "nothing-at-all"
+  expect tree has "library-no-matches"
+  type "library-filter" ""
+  tap "kept.md"
+  clock data
+  tap "library-more-button"
+  tap "library-delete"
+  clock data
+  clock settle
+  clock data
+  expect tree has "library-empty"
+  expect state library.deleted.length == 1
+  expect state libraryPinList.0 .missing == true
+  tap "library-deleted-toggle"
+  tap "Restore kept.md"
+  clock data
+  clock settle
+  clock data
+  expect text "library-file-name" == "kept.md"
+  expect state library.deleted.length == 0
+  reload
+  clock data
+  clock settle
+  clock data
+  expect text "library-file-name" == "kept.md"
+  tap "library-home"
+  clock data
+  tap "folder-notes"
+  tap "library-new"
+  clock data
+  clock settle
+  clock data
+  expect state librarySelected.path == "notes/Untitled.md"
+  expect state libraryFiles.length == 2

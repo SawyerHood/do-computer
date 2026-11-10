@@ -13,6 +13,11 @@ if (!existsSync(join(web, 'dist/node/server/server.node.js'))) {
   process.exit(1);
 }
 const data = mkdtempSync(join(tmpdir(), 'do-exact-'));
+// Answers the echo model writes out for the tests that ask for them (`DC_ECHO_REPLIES`), beside
+// any the environment gives. A long thought, which is shown as it is written, piece by piece, to
+// see every piece arrive.
+const long = Array.from({ length: 120 }, (_, n) => `Word${n + 1}`).join(' ');
+const replies = { 'Say something long': { thinking: long, text: 'That was long.' }, ...JSON.parse(process.env.DC_ECHO_REPLIES || '{}') };
 // Where the web build of this app is served from: `EXACT_PORT`, which the scripts in package.json set.
 const client = `http://127.0.0.1:${process.env.EXACT_PORT ?? '8766'}`;
 const child = spawn(process.env.NODE ?? 'node', ['server.node.mjs'], {
@@ -23,9 +28,13 @@ const child = spawn(process.env.NODE ?? 'node', ['server.node.mjs'], {
     PORT: new URL(API).port,
     HOST: '127.0.0.1',
     DC_DATA_DIR: data,
-    DC_SIGNUP: 'open',
+    DC_SIGNUP: process.env.DC_SIGNUP ?? 'open',
     DC_CLIENT_ORIGINS: process.env.DC_CLIENT_ORIGINS ?? client,
+    DC_ECHO_REPLIES: JSON.stringify(replies),
     OPENROUTER_API_KEY: process.env.DO_EXACT_MODEL_KEY ?? '',
+    // Saved logins and cards for everyone, so that the settings' Passwords can be tested.
+    DC_SECRETS: process.env.DC_SECRETS ?? 'on',
+    DC_SECRET_KINDS: process.env.DC_SECRET_KINDS ?? 'passwords,cards',
   },
 });
 const stop = () => {

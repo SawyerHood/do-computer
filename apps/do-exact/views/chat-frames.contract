@@ -14,11 +14,11 @@ component VisualFrame
     doodName: string
     base: string
   inject
-    libraryFiles: string[]
+    chatLibraryIds: string[]
     putInComposer: action
   state height = 240
   state failure = ""
-  derive gone = base != "" and not libraryFiles.includes(block.fileId)
+  derive gone = base != "" and not chatLibraryIds.includes(block.fileId)
   view
     if gone
       text `“${block.name}” is no longer in the library, so it cannot be shown here.` font-size="0.875rem" color="ink.muted" padding="0 4px" testId=`visual-gone-${block.name}`

@@ -1,0 +1,85 @@
+use Dood from "./shapes.contract"
+use DoodFace from "./creature.contract"
+use doodOf, ago from "./shell.contract"
+use Reply from "./shapes.contract"
+use Menu, MenuItem, IconButton from "./styles.contract"
+
+shape ThreadRow
+  id: string
+  title: string
+  kind: string
+  main: bool
+  status: string
+  detail: string
+  url: string
+  parentId: string
+  peerId: string
+  updated: number
+  // --- chat transcript --- what the chat's bar says of it: the other Dood's name and its own
+  // chat, where in Slack it is, and when it was started (sub-agents are listed in that order).
+  peerName: string
+  peerChatId: string
+  slackWhere: string
+  createdAt: number
+
+shape ThreadListing
+  owner: string
+  agentId: string
+  // The Dood's own name and line, for the greeting of an empty chat ("" for none yet).
+  name: string
+  tagline: string
+  chats: ThreadRow[]
+
+members App
+  // --- threads ---
+  resource threads = loadThreads(session.owner, openAgentId) with `${pulse.changes}:${pulse.asks.chats}:${lastId}:${chat.busy}` as shape ThreadListing else empty()
+  derive threadsListing = threads.owner == session.owner and threads.agentId == openAgentId ? threads : ThreadListing(owner="", agentId="", name="", tagline="", chats=[])
+  derive threadsReadOnly = chatEntryId != "" and (opened.owner != session.owner or opened.agentId != openAgentId or chatEntryId != opened.chatId)
+  action threadsRefresh
+    refresh threads
+
+component ThreadsMenu
+  props
+    agentId: string
+    chatId: string
+    listing: ThreadListing
+    loading: bool
+    failed: bool
+    retry: action
+  inject
+    doodList: Dood[]
+    now: number
+    utcOffset: number
+  derive other = listing.chats.filter(c => not c.main)
+  view
+    row justify-content="flex-end"
+      if other.length > 0 or failed
+        button popovertarget="threads-menu" class=IconButton padding="4px 10px" aria-label="Other chats" testId="other-chats"
+          text `Other chats${other.length > 0 ? ` · ${other.length}` : ""}` font-size="0.75rem"
+      column id="threads-menu" popover="auto" class=Menu max-width="90vw" width="20rem"
+        if loading
+          progress aria-label="Loading chats" testId="threads-loading"
+        if failed
+          text "Could not load the chats." color="danger" font-size="0.8125rem" padding=8 testId="threads-error"
+          button press=retry class=MenuItem testId="threads-retry"
+            text "Try Again"
+        for group in ["chat", "agent", "slack", "subagent"] key=group
+          if listing.chats.filter(c => c.kind == group and not c.main).length > 0
+            text (group == "chat" ? "Old side chats · kept to read" : group == "agent" ? "From other Doods" : group == "slack" ? "From Slack" : "Sub-agents") color="ink.muted" font-size="0.75rem" padding="8px 10px"
+            for c in listing.chats.filter(c => c.kind == group and not c.main) key=c.id
+              link href=path("chat", agentId, c.id) class=MenuItem aria-label=c.title aria-current=(c.id == chatId ? "page" : "false") testId=`thread-${c.id}`
+                if c.kind == "agent"
+                  DoodFace(seed=doodOf(doodList, c.peerId).seed, color=doodOf(doodList, c.peerId).color, state="idle", name=c.detail, size=32)
+                else
+                  image (c.kind == "slack" ? "symbol:hashtag" : c.kind == "subagent" ? "symbol:messages" : "symbol:document") width="1.5rem" height="1.5rem" color="ink.muted"
+                column gap=2 min-width=0 flex=1
+                  text c.title font-size="0.875rem" overflow-wrap="break-word"
+                  text (c.kind == "chat" ? ago(c.updated, now, utcOffset) : c.detail) font-size="0.75rem" color="ink.muted"
+                if c.status == "working"
+                  progress width=14 height=14 aria-label="Answering"
+                else
+                  text c.status color=(c.status == "failed" ? "danger" : "ink.muted") font-size="0.6875rem"
+        for c in listing.chats.filter(c => c.main) key=c.id
+          hr
+          link href=path("dood", agentId) class=MenuItem testId="threads-main"
+            text "Main chat"
