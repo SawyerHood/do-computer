@@ -1,0 +1,51 @@
+use Reply from "./shapes.contract"
+use Menu, MenuItem, IconButton from "./styles.contract"
+
+shape ComposerJob
+  id: string
+  command: string
+  computer: string
+  started: number
+  output: string
+
+shape ComposerJobs
+  owner: string
+  agentId: string
+  jobs: ComposerJob[]
+
+members App
+  // --- composer commands ---
+  resource composerJobs = loadComposerJobs(session.owner, openAgentId, openChatId) as shape ComposerJobs else empty()
+  mutation composerJobStopped as shape Reply refreshes composerJobs
+  task composerJobPoll when openAgentId != ""
+    every(4000, composerRefreshJobs)
+  action composerRefreshJobs
+    refresh composerJobs
+  action composerStopJob(id: string)
+    send composerJobStopped = stopComposerJob(openAgentId, id)
+  derive composerJobError = pending(composerJobStopped) ? "" : match composerJobStopped { case some(r) => r.error, case none => "" }
+  derive composerRunning = composerJobs.owner == session.owner and composerJobs.agentId == openAgentId ? composerJobs.jobs : []
+
+component RunningCommands
+  inject
+    composerRunning: ComposerJob[]
+    composerStopJob: action
+    composerJobError: string
+    now: number
+  view
+    if composerRunning.length > 0
+      row
+        button popovertarget="composer-jobs" class=IconButton padding="4px 10px" aria-label="Running in the background" testId="running-commands"
+          text `${composerRunning.length} running` font-size="0.75rem"
+        column id="composer-jobs" popover="auto" class=Menu width="27rem" max-width="90vw" max-height="24rem" overflow-y="auto" gap=6
+          text "Running in the background" font-size="0.8125rem" color="ink.muted" padding=8
+          if composerJobError != ""
+            text composerJobError color="danger" font-size="0.75rem" role="alert" testId="job-stop-error"
+          for j in composerRunning key=j.id
+            column gap=6 padding=8 border-radius=10 background-color="surface"
+              row align-items="center" gap=8
+                text j.command font-size="0.8125rem" font-family="Geist Mono" min-width=0 overflow-wrap="break-word" flex=1
+                button press=composerStopJob(j.id) class=MenuItem aria-label=`Stop ${j.command}` testId=`stop-job-${j.id}`
+                  text "Stop" font-size="0.75rem"
+              text `${j.computer} · ${floor(max(0, now - j.started) / 1000)}s` color="ink.muted" font-size="0.75rem"
+              text (j.output == "" ? "It has printed nothing yet." : j.output) font-family="Geist Mono" font-size="0.75rem" white-space="pre-wrap" max-height="12rem" overflow-y="auto" overflow-wrap="break-word" testId=`job-output-${j.id}`

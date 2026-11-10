@@ -3,8 +3,7 @@
 `index.js` dispatches by tag. All props below are strings; booleans are `"true"` and
 `"false"`. Contract owns `width`, `height`, `press=`, `message=`, `load=`, `role`, `aria-label`
 and `testId`. A click or keyboard activation reaches `press=` once through Exact's host.
-Every view emits `load` after its first drawing. These are presentation views, not server
-clients: a `"pet"` is for the caller to send to the server if appropriate.
+Every view emits `load` after its first drawing. These views do not call the server: a `"pet"` is for the caller to send to the server if appropriate.
 
 ## do-creature
 
@@ -77,6 +76,24 @@ onboarding, not for each sidebar row.
 - `message=` receives `land`, `out`, `hatched`, or `fallback` if only the creature can draw.
   Normally wait for `land` before setting `hatching`. Reduced motion lands immediately and
   plays the package's short hatch. No auth, cards or flight-to-chat transition lives here.
+
+## do-dictation
+
+Browser microphone recording and its waveform; no server client and no draft text live in
+this tag. Use `press=` to send a directive through Contract (no shadow-DOM button bypasses
+Exact's agent-visible control).
+
+- `chat-key`: changing it cancels and releases the microphone.
+- `directive`: `start`, `cancel`, `draft` (stop to edit) or `send` (stop to send).
+- `serial`: change on every directive, including two identical ones.
+- `reply`: a completion counter; change when the transcription request settles so the view
+  returns to idle even if a refusal was too fast to observe a pending frame.
+- `message=` receives `state:idle`, `state:recording`, `state:transcribing`, `cancelled`, or
+  JSON `{audio, type, end}` (base64 audio, browser MIME and draft/send), or `{error}`.
+  Contract owns cancellation tickets and the `/api/transcribe` mutation. Removing the tag
+  stops the tracks and prevents late callbacks. The waveform uses the shared hatch clock;
+  reduced motion holds it still. Microphone permission and MediaRecorder need a secure
+  context (localhost works). There is no Apple/Linux implementation.
 
 ## Build and tests
 
