@@ -160,3 +160,39 @@ inserted as markup. Alerts have their kind/title/color but not the React icon se
 inherit the host rather than shipping React's Geist fonts. Code over 80,000 characters and
 unknown languages remain plain, as in React. There is no math renderer or custom mention
 widget in the React reference either: math delimiters and @names remain text.
+## Composer and other chats
+
+**Files use Exact's pick, paste and drop support, with a 16 MiB read ceiling.** React's
+`chat/composer.tsx` sends browser `File`s directly; here `input type="file"` produces picked
+paths, and clipboard/drop handlers produce `doc:` paths. `data/composer.ts` reads their bytes
+and uploads to the same library endpoint. Exact's `readFile` result is limited to 16 MiB;
+a larger file reports an attachment error and leaves the draft alone. Images use Exact's
+JPEG compressor at the same 1568-pixel limit and per-message budget instead of React's
+canvas quality ladder. Interactive file drives need `--storage`; authored tests already have
+it. No native file hatch or Exact patch was needed.
+
+**The picture preview is a simple dialog.** Attached pictures open large and close with the
+button or Escape. React's shared `PictureViewer` also has gallery navigation, zoom and swipe;
+those gestures are not ported in this composer dialog.
+
+**The microphone is a web native view.** `do-dictation` in `modules/web/dictation.js` reaches
+`getUserMedia`, `MediaRecorder` and an analyser. Contract owns the recording controls and
+sends the audio through `data/composer.ts` to the unchanged `/api/transcribe`. The waveform
+uses Exact's hatch clock. Cancelling or leaving the chat releases the microphone and ignores
+a late answer. The test deployment has no transcription model key, so recording, cancellation
+and the server's transcription refusal are tested; successful recognition needs a configured
+deployment. There is no implementation for native hosts, nor a live voice-call button here
+(the React composer gets that button from `components/call/call.tsx`).
+
+**Other chats open from a small menu above the composer.** React places old side chats in the
+Dood's pill menu, and agent/Slack threads in its panel; here `views/threads.contract` groups
+old side chats, other Doods, Slack and sub-agents under “Other chats”. All use the same
+`/a/:agentId/c/:chatId` route and are read-only, with Main chat/parent links, status, Stop and
+the Slack address. This React version has no new-side-chat, rename or delete controls, and no
+slash-command or mention menu: `chat/commands.tsx` is background shell commands, not slash
+commands. Their running count, last output and Stop live above this composer's box; transcript
+chips and their notices remain the transcript area's responsibility. Team typing indicators,
+the programmatically given initial cursor, gallery gestures and the live call button have not
+been ported by this area. Model choices use a searchable menu with arrow keys, Enter and Escape
+instead of React's combobox; model/thinking settings are the Dood's saved settings. The
+computer-kind picker is not part of React's composer and remains with computer/settings pages.

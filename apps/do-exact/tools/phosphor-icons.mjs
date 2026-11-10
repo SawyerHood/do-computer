@@ -16,6 +16,9 @@ const ICONS = {
   gear: "Gear",
   users: "Users",
   check: "Check",
+  brain: "Brain",
+  stop: "Stop",
+  x: "X",
 }
 const pnpm = resolve(here, "../../../node_modules/.pnpm")
 const dir = readdirSync(pnpm).find((name) => name.startsWith("@phosphor-icons+react@"))

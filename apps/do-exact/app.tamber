@@ -56,3 +56,6 @@ icons
   icon.gear = icon(sf "gearshape", svg "icons/gear.svg")
   icon.users = icon(sf "person.2", svg "icons/users.svg")
   icon.check = icon(sf "checkmark", svg "icons/check.svg")
+  icon.brain = icon(sf "brain.head.profile", svg "icons/brain.svg")
+  icon.stop = icon(sf "stop.fill", svg "icons/stop.svg")
+  icon.x = icon(sf "xmark", svg "icons/x.svg")

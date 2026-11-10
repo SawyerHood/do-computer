@@ -1,5 +1,5 @@
 // The chat area: which chat is a Dood's main one, the chat as it stands and as it changes, and
-// saying something in it.
+// following its transcript.
 import type { Result, Sources } from '../app.contract.d.ts';
 // What a chat is and how an event changes it, from the protocol the server and every other
 // client share: types and one pure function, so nothing of the package's is run but that.
@@ -54,7 +54,7 @@ function chatOf(owner: string, agentId: string, chatId: string, state: ChatState
   return { owner, agentId, chatId, busy: state.busy, lost, messages };
 }
 
-export const chatSources: Pick<Sources, 'openChat' | 'followChat' | 'sendMessage'> = {
+export const chatSources: Pick<Sources, 'openChat' | 'followChat'> = {
   // The Dood's main chat, which it is given the first time it is opened.
   openChat: async ([owner, agentId], store): Promise<Result<'openChat'>> => {
     if (agentId === '' || !current(owner, store)) return { owner: NOBODY, agentId: '', chatId: '' };
@@ -96,6 +96,4 @@ export const chatSources: Pick<Sources, 'openChat' | 'followChat' | 'sendMessage
       now,
     });
   },
-  sendMessage: ([agentId, chatId, text, requestId], store) => reply(() =>
-    post(store, `/api/agents/${seg(agentId)}/chats/${seg(chatId)}/messages`, { text, requestId })),
 };

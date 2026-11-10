@@ -40,7 +40,8 @@
     "do-sky",
     "do-markdown",
     "do-code",
-    "do-mermaid"
+    "do-mermaid",
+    "do-dictation"
   ],
   "env": [
     "API_BASE_URL",

@@ -54,6 +54,9 @@ component App
   members "./views/shell.contract"
   members "./views/chat.contract"
   members "./views/transport.contract"
+  members "./views/composer.contract"
+  members "./views/composer-jobs.contract"
+  members "./views/threads.contract"
   // A new area adds its members line here, in its own place, in the order of the routes.
 
   // What any screen may `inject` instead of taking it as a prop.
@@ -71,6 +74,39 @@ component App
     signOut
     togglePanel
     back
+    composerSettings
+    composerModelsLoading = pending(composerConfig)
+    composerModelsFailed = failed(composerConfig)
+    composerRetryModels
+    composerSaving = pending(composerSaved)
+    composerRunning
+    composerStopJob
+    composerJobError
+    composerAttachments
+    composerUploading = pending(composerUploaded)
+    composerUploadError
+    composerError
+    composerStopError
+    composerVoiceError = match composerTranscribed { case some(r) => r.key == composerKey and r.ticket == composerVoiceTicket ? r.error : "", case none => "" }
+    composerSearch
+    composerRestAt
+    composerPick
+    composerDrop
+    composerPaste
+    composerKeys
+    composerRemove
+    composerFind
+    composerChoose
+    composerThink
+    composerStop
+    composerVoiceEvent
+    composerVoiceDone
+    composerVoiceBusy = pending(composerTranscribed)
+    threadsListing
+    threadsReadOnly
+    threadsLoading = pending(threads)
+    threadsFailed = failed(threads)
+    threadsRefresh
 
   // The Dood whose page is open (the deepest one in the stack), and the chat a `/c/` page names.
   derive openAgentId = match stack(nav).filter(e => e.params.agentId != "").at(-1) { case some(e) => e.params.agentId, case none => "" }
