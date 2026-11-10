@@ -170,7 +170,7 @@ component CallStatus
       if callWords
         column gap=4 background-color=(panel ? "wash" : "transparent") border-radius=12 padding=(panel ? "12px" : "0") text-align="start"
           if lastYou != ""
-            text `You ${lastYou}` font-size="0.8125rem" color=(panel ? "ink.muted" : "ink.on-color") overflow-wrap="break-word"
+            text `You: ${lastYou}` font-size="0.8125rem" color=(panel ? "ink.muted" : "ink.on-color") overflow-wrap="break-word"
           text (lastDood != "" ? lastDood : callView.phase == "starting" or callView.phase == "connecting" ? `Calling ${callView.name}…` : `Go ahead. ${callView.name} is listening.`) font-size="0.875rem" overflow-wrap="break-word"
       row justify-content="center" gap=8
         CallControl(label=(callView.muted ? "Unmute" : "Mute"), pressed=callView.muted, ending=false, caption=false, panel=panel, act=callControl("mute"), testId=(panel ? "call-mute-panel" : "call-mute-card"))
@@ -245,10 +245,15 @@ component CallInChat
           row gap=8 font-size="0.875rem"
             text (l.who == "you" ? "You" : callView.name) color="ink.muted" width="4rem" flex-shrink=0 min-width=0 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
             text l.text flex=1 min-width=0 overflow-wrap="break-word"
+        // What is being said now, set as the lines above it are.
         if callView.you != ""
-          text `You: ${callView.you}` font-size="0.875rem" overflow-wrap="break-word"
+          row gap=8 font-size="0.875rem"
+            text "You" color="ink.muted" width="4rem" flex-shrink=0
+            text callView.you flex=1 min-width=0 overflow-wrap="break-word"
         if callView.dood != ""
-          text callView.dood font-size="0.875rem" overflow-wrap="break-word"
+          row gap=8 font-size="0.875rem"
+            text callView.name color="ink.muted" width="4rem" flex-shrink=0 min-width=0 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+            text callView.dood flex=1 min-width=0 overflow-wrap="break-word"
         for w in callView.works.slice(-5) key=w.id
           if not w.done
             text (w.step != "" ? w.step : `Handed to ${callView.name}`) role="status" font-size="0.8125rem" color="ink.muted" overflow-wrap="break-word"
@@ -277,7 +282,8 @@ component CallHistory
               image "symbol:icon.check" color="ink.muted" aria-hidden=true margin-top=3 font-size="0.875rem"
               text l min-width=0 overflow-wrap="break-word"
       if open
-        text block.more padding="10px 16px 4px" border-top="1px solid var(--border)" font-size="0.875rem" white-space="pre-wrap" overflow-wrap="break-word" testId="call-record-words"
+        // The server writes the Dood's lines as "Dood:"; the record names it, as the live card does.
+        text (block.more.startsWith("Dood: ") ? `${name}: ${block.more.slice(6)}` : block.more).replaceAll("\nDood: ", `\n${name}: `) padding="10px 16px 4px" border-top="1px solid var(--border)" font-size="0.875rem" white-space="pre-wrap" overflow-wrap="break-word" testId="call-record-words"
       row padding="8px 12px 12px" gap=8 flex-wrap="wrap"
         if block.more == ""
           text "Nothing was said." font-size="0.8125rem" color="ink.muted" padding="0 4px"
