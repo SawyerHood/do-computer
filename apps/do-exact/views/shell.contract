@@ -41,6 +41,12 @@ members App
   state tick = 0
   // Whether the open Dood's panel is beside its chat, on a wide window. Kept, as the React app keeps it.
   state panelOpen = false persist
+  // How wide the sidebar is beside the page, as the React app's (lib/columns.ts): dragged or
+  // moved by the arrow keys from 208 to 448, and kept.
+  state sidebarWidth = 288 persist
+  state sidebarDragging = false
+  // Where the pointer was when the edge was taken, less the width then.
+  state sidebarGrip = 0
   resource workspaces = loadWorkspaces(session.owner) as shape Workspaces else empty()
   resource pulse = followDood(session.owner, openAgentId) as shape DoodPulse else empty()
   resource feed = followFeed(session.owner, session.userId) as shape Feed else empty()
@@ -94,6 +100,26 @@ members App
         tick = tick
   action togglePanel
     panelOpen = not panelOpen
+  action sidebarGrab(e: PointerEvent)
+    if e.button == 0
+      // No text is selected by the drag: a selection begun here would be dragged by the next one.
+      preventDefault()
+      sidebarGrip = e.clientX - sidebarWidth
+      sidebarDragging = true
+  action sidebarDrag(e: PointerEvent)
+    if sidebarDragging
+      sidebarWidth = round(min(448, max(208, e.clientX - sidebarGrip)))
+  action sidebarDrop(e: PointerEvent)
+    sidebarDragging = false
+  action sidebarReset
+    sidebarWidth = 288
+  action sidebarKey(k: string)
+    if k == "ArrowLeft"
+      sidebarWidth = max(208, sidebarWidth - 16)
+    else if k == "ArrowRight"
+      sidebarWidth = min(448, sidebarWidth + 16)
+    else if k == "Home"
+      sidebarWidth = 288
 
 fn doodOf(doods: Dood[], id: string): Dood = match first(doods.filter(d => d.id == id)) {
   case some(d) => d,
@@ -137,11 +163,26 @@ component Sidebar
     hereTeam: string
     hereOthers: HerePlace[]
     hereMembers: TeamMember[]
+    sidebarWidth: number
+    sidebarDragging: bool
+    sidebarGrab: action
+    sidebarDrag: action
+    sidebarDrop: action
+    sidebarKey: action
+    sidebarReset: action
   derive named = workspaceList.filter(w => w.kind == "team").length > 0
   derive shown = named ? workspaceList : workspaceList.filter(w => w.kind == "personal")
   view
-    column navigationKey=key navigationSplit="288" navigationScroll="sidebar-list" position="absolute" inset=0
+    column navigationKey=key navigationSplit=`${sidebarWidth}` navigationScroll="sidebar-list" position="absolute" inset=0
       display="flex" flex-direction="column" class=Frame border-right=(wide ? "1px solid var(--hairline)" : "none") testId="sidebar"
+      // The edge that is dragged, over the border (resize-handle.tsx).
+      if wide
+        box role="separator" aria-orientation="vertical" aria-label="Resize the sidebar" aria-valuemin=208 aria-valuemax=448 aria-valuenow=sidebarWidth tabindex=0
+          position="absolute" top=0 bottom=0 right=-3 width=7 z-index=5 cursor="col-resize" touch-action="none" user-select="none"
+          pointerdown=sidebarGrab pointermove=sidebarDrag pointerup=sidebarDrop dblclick=sidebarReset key=sidebarKey testId="sidebar-resize"
+          background-color=(sidebarDragging ? "hairline" : "transparent")
+          :hover
+            background-color="hairline"
       // In no team, one list under "Doods"; in one, each workspace is under its own name instead.
       header appearance="none" display="flex" align-items="center" gap=2 min-height=(named ? 8 : 36) padding=(named ? "0" : "8px 8px 0 16px")
         if not named

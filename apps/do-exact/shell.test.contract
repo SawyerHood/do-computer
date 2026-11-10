@@ -130,3 +130,43 @@ test "a workspace's settings open from its menu in the sidebar"
   clock settle
   expect state onRoute == "workspaceSettings"
   expect text "heading-workspaceComputers" == "Computers"
+
+test "the sidebar's edge is dragged wider and narrower between its bounds, moved by the arrow keys, and kept over a reload"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "shell-resize@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  expect state sidebarWidth == 288
+  expect tree has "sidebar-resize"
+  tap "sidebar-resize" drag 60 0 mouse
+  expect state sidebarWidth == 348
+  expect state sidebarDragging == false
+  tap "sidebar-resize" drag -330 0 mouse
+  expect state sidebarWidth == 208
+  tap "sidebar-resize" drag 900 0 mouse
+  expect state sidebarWidth == 448
+  // After a drag that ended away from the edge, the next one still follows the pointer.
+  tap "sidebar-resize" drag -48 0 mouse
+  expect state sidebarWidth == 400
+  tap "sidebar-resize" drag 48 0 mouse
+  type "sidebar-resize" key "ArrowLeft"
+  expect state sidebarWidth == 432
+  reload
+  clock data
+  expect state sidebarWidth == 432
+  tap "sidebar-resize" dblclick
+  expect state sidebarWidth == 288
+
+test "a phone has no edge to drag"
+  size 390x844
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "shell-resize-2@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  expect tree has "sidebar"
+  expect tree missing "sidebar-resize"

@@ -244,6 +244,13 @@ component App
     hatch
     signOut
     togglePanel
+    sidebarWidth
+    sidebarDragging
+    sidebarGrab
+    sidebarDrag
+    sidebarDrop
+    sidebarKey
+    sidebarReset
     back
     follow
     teamList

@@ -29,10 +29,10 @@ screen and pulls the sidebar over it from the left edge (`usePulledSidebar`). He
 the stack's first screen and a Dood's chat is pushed over it, with the way back at the top
 left where the React app's sidebar button is.
 
-**The sidebar does not fold to a rail of faces or resize.** The React app's wide sidebar can be
-a column of faces, and is dragged to any width from 208 to 448 px (`ResizeHandle`,
-`sidebarColumn`). Exact's split column has one width, `navigationSplit="288"` (the React app's
-starting width), and no way to drag it.
+**The sidebar does not fold to a rail of faces.** The React app's wide sidebar can be shut to
+a column of faces (`ResizeHandle`'s `shut`). Here it is always the list. Its width is dragged
+from 208 to 448 px and kept, as there (`sidebarWidth`, the edge `sidebar-resize`): the arrow
+keys move the edge, and a double press or Home puts it back to 288.
 
 **A pages menu opens from the pill's start, not its middle.** The React app centres the Dood's
 menu under its name (`align="center"`); an Exact popover is placed by the platform under the
