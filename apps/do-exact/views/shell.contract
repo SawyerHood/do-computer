@@ -3,7 +3,7 @@
 // at its foot, the pill over a Dood's pages that leads to its other pages, and the scaffolds a
 // Dood's page and a workspace's page are drawn in. data/shell.ts answers it.
 use Session, Reply, Time, Viewport, Workspace, Workspaces, Dood, Doods, Page from "./shapes.contract"
-use Frame, Screen, ListHeading, SidebarRow, RowName, RowLine, RowTime, IconButton, Pill, PillButton, Menu, MenuItem, PageTitle, PageLead from "./styles.contract"
+use Frame, Screen, PrimaryButton, ListHeading, SidebarRow, RowName, RowLine, RowTime, IconButton, Pill, PillButton, Menu, MenuItem, PageTitle, PageLead from "./styles.contract"
 use DoodFace from "./creature.contract"
 use EmptyState from "exact:content"
 
@@ -118,7 +118,7 @@ component Sidebar
   view
     column navigationKey=key navigationSplit="288" navigationScroll="sidebar-list" position="absolute" inset=0
       display="flex" flex-direction="column" class=Frame border-right=(wide ? "1px solid var(--hairline)" : "none") testId="sidebar"
-      header appearance="none" display="flex" align-items="center" gap=2 height=36 padding="8px 8px 0 16px"
+      header appearance="none" display="flex" align-items="center" gap=2 min-height=36 padding="8px 8px 0 16px"
         text (named ? "Workspaces" : "Doods") role="heading" aria-level=1 flex=1 class=ListHeading
         if not named
           for w in shown key=w.id
@@ -135,7 +135,7 @@ component Sidebar
         for w in shown key=w.id
           column gap=2 testId=`workspace-${w.id}`
             if named
-              row height=36 align-items="center" gap=6 padding="0 0 0 8px"
+              row min-height=36 align-items="center" gap=6 padding="0 0 0 8px"
                 column width="1.125rem" height="1.125rem" border-radius=5 background-color=w.color align-items="center" justify-content="center"
                   text w.name.slice(0, 1).toUpperCase() color="ink.on-color" font-size="0.625rem" font-weight=600
                 text w.name role="heading" aria-level=2 flex=1 min-width=0 class=ListHeading overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
@@ -215,8 +215,6 @@ component AccountButton
         text session.name flex=1 min-width=0 font-size="0.875rem" text-align="start" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
         image "symbol:icon.caret-up-down" aria-hidden=true color="ink.muted"
       column id="account-menu" popover="auto" role="menu" aria-label=session.email class=Menu
-        text session.email font-size="0.75rem" color="ink.muted" padding="6px 10px"
-        hr
         button role="menuitem" press=signOut popovertarget="account-menu" popovertargetaction="hide" class=MenuItem testId="sign-out"
           image "symbol:icon.sign-out" aria-hidden=true
           text "Sign out"
@@ -237,26 +235,29 @@ component DoodHeader
   derive dood = doodOf(doodList, page.agentId)
   derive menu = `pages-${page.key}`
   view
-    header appearance="none" display="flex" align-items="center" justify-content="center" gap=8 padding="4px 10px" min-height=52
-      position="relative" flex-shrink=0
+    header appearance="none" display="flex" align-items="center" gap=8 padding="4px 10px" min-height=52 flex-shrink=0
       if not wide
-        button id="back" press=back aria-label="Your Doods" class=IconButton position="absolute" left=10 width=36 height=36 border-radius=18
+        button id="back" press=back aria-label="Your Doods" class=IconButton min-width="2.25rem" min-height="2.25rem" border-radius=999
           box-shadow="0 0 0 1px var(--hairline)" testId=`back-${route}`
           image "symbol:icon.sidebar"
-      row class=Pill max-width="100%" min-width=0
-        if wide
-          button press=togglePanel aria-label=(panelOpen ? `Hide ${nameOf(dood)}'s panel` : `Show ${nameOf(dood)}'s panel`) aria-pressed=panelOpen
-            padding=2 border-radius=999 background-color="transparent" border="none" testId=`panel-toggle-${route}`
-            DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=28)
-        else
-          column padding=2
-            DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=28)
-        button popovertarget=menu aria-label=`${nameOf(dood)}: pages and settings` class=PillButton min-width=0 testId=`pages-${route}`
-          text nameOf(dood) role="heading" aria-level=1 font-size="0.875rem" font-weight=500
-            overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`title-${route}`
-          if route != "dood" and route != "chat" and route != "library"
-            text ` · ${pageName(route)}` font-size="0.875rem" color="ink.muted" white-space="pre"
-          image "symbol:icon.caret-down" aria-hidden=true color="ink.muted" font-size="0.75rem"
+      row flex=1 min-width=0 justify-content="center"
+        row class=Pill max-width="100%" min-width=0
+          if wide
+            button press=togglePanel aria-label=(panelOpen ? `Hide ${nameOf(dood)}'s panel` : `Show ${nameOf(dood)}'s panel`) aria-pressed=panelOpen
+              padding=2 border-radius=999 background-color="transparent" border="none" testId=`panel-toggle-${route}`
+              DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=28)
+          else
+            column padding=2
+              DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=28)
+          button popovertarget=menu aria-label=`${nameOf(dood)}: pages and settings` class=PillButton min-width=0 testId=`pages-${route}`
+            text nameOf(dood) role="heading" aria-level=1 font-size="0.875rem" font-weight=500
+              overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`title-${route}`
+            if route != "dood" and route != "chat" and route != "library"
+              text ` · ${pageName(route)}` font-size="0.875rem" color="ink.muted" white-space="pre"
+            image "symbol:icon.caret-down" aria-hidden=true color="ink.muted" font-size="0.75rem"
+      // As wide as the way back, so the pill stays in the middle.
+      if not wide
+        column min-width="2.25rem" aria-hidden=true
       column id=menu popover="auto" role="menu" aria-label=`${nameOf(dood)}'s pages` class=Menu
         PageLink(href=path("dood", page.agentId), label="Chat", on=(route == "dood" or route == "chat"), testId=`go-chat-${route}`)
         PageLink(href=path("library", page.agentId), label="Library", on=(route == "library"), testId=`go-library-${route}`)
@@ -322,7 +323,7 @@ component WorkspaceScreen
       class=Screen testId=`screen-${route}`
       header appearance="none" display="flex" align-items="center" gap=6 padding="6px 10px" min-height=52 flex-shrink=0
         if not wide
-          button id="back" press=back aria-label="Your Doods" class=IconButton width=36 height=36 border-radius=18
+          button id="back" press=back aria-label="Your Doods" class=IconButton min-width="2.25rem" min-height="2.25rem" border-radius=999
             box-shadow="0 0 0 1px var(--hairline)" testId=`back-${route}`
             image "symbol:icon.sidebar"
         text name role="heading" aria-level=1 font-size="0.9375rem" font-weight=600 padding="0 4px" testId=`title-${route}`
@@ -346,7 +347,7 @@ component NoDood
       if doodList.length == 0
         EmptyState(symbol="symbol:sparkles", title="No Doods yet", message="A Dood is an agent of your own: it has a name, a memory and computers to work on.")
           for w in workspaceList.filter(x => x.kind == "personal") key=w.id
-            button press=hatch(w.id) disabled=hatching buttonStyle="filled" testId="first-dood"
+            button press=hatch(w.id) disabled=hatching class=PrimaryButton testId="first-dood"
               text "Hatch a Dood"
       else
         EmptyState(symbol="symbol:messages", title="Pick a Dood", message="Choose one in the sidebar to talk to it.")

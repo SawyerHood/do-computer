@@ -30,6 +30,8 @@ theme
   // A Dood that asks for someone: amber, under white.
   asking = #f59e0b  scheme=fixed
   ink.on-asking = #ffffff  scheme=fixed
+  // What a Dood's colour is deepened with, under its initial (creature.contract).
+  shade = #000000  scheme=fixed
   // Words on a Dood's or a workspace's own colour.
   ink.on-color = #ffffff  scheme=fixed
 

@@ -58,7 +58,7 @@ component SignIn
         column gap=6
           image "assets/icon-192.png" width=44 height=44 border-radius=12 margin-bottom=12 alt=""
           text (joining ? "Create your account" : "Welcome back") role="heading" aria-level=1
-            font-size="1.5rem" font-weight=600 letter-spacing="-0.02em" testId="sign-title"
+            font-size="min(-exact-title2, 36px)" font-weight=600 letter-spacing="-0.02em" testId="sign-title"
           text (joining ? "Then meet your Dood: it gets its own name and memory, and a computer to work on." : "Sign in to pick up where you and your Dood left off.")
             font-size="0.875rem" color="ink.muted"
         column gap=16

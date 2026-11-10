@@ -33,7 +33,7 @@ style RowTime
 
 // A small round button with a symbol: the sidebar's + and …, the composer's.
 style IconButton
-  width=28 height=28 border-radius=8 display="flex" align-items="center" justify-content="center"
+  min-width="1.75rem" min-height="1.75rem" border-radius=8 display="flex" align-items="center" justify-content="center"
   color="ink.muted" background-color="transparent" border="none" padding=0
   :hover
     background-color="wash"
@@ -44,7 +44,7 @@ style Pill
   background-color="popover" box-shadow="0 0 0 1px var(--hairline), 0 1px 2px rgb(0 0 0 / 0.07)"
 
 style PillButton
-  display="flex" align-items="center" gap=6 height=32 padding="0 10px 0 6px" border-radius=999
+  display="flex" align-items="center" gap=6 min-height="2rem" padding="0 10px 0 6px" border-radius=999
   background-color="transparent" border="none" color="ink"
   :hover
     background-color="wash"
@@ -79,7 +79,7 @@ style Composer
   box-shadow="0 0 0 1px var(--hairline), 0 1px 2px rgb(0 0 0 / 0.07)"
 
 style SendButton
-  width=36 height=36 border-radius=18 display="flex" align-items="center" justify-content="center"
+  min-width="2.25rem" min-height="2.25rem" border-radius=999 display="flex" align-items="center" justify-content="center"
   background-color="primary" color="primary.ink" border="none" padding=0
   :disabled
     background-color="muted"
@@ -87,14 +87,14 @@ style SendButton
 
 // A filled button in the app's colour: the main action on a page.
 style PrimaryButton
-  height=34 padding="0 14px" border-radius=8 font-size="0.875rem" font-weight=500
+  min-height="2.125rem" padding="6px 14px" border-radius=8 font-size="0.875rem" font-weight=500
   background-color="primary" color="primary.ink" border="none"
   :disabled
     opacity=0.5
 
 // A field in a form (sign-in): the React app's input, bordered and rounded.
 style Field
-  height=36 padding="0 10px" border-radius=8 border="1px solid var(--input)" font-size="0.875rem"
+  min-height="2.25rem" padding="0 10px" border-radius=8 border="1px solid var(--input)" font-size="0.875rem"
   background-color="transparent" color="ink" font-family="Geist"
 
 style FieldLabel
