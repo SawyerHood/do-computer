@@ -1,0 +1,16 @@
+// A workspace's own page, `/w/:workspaceId`: a PLACEHOLDER. The React app has none for a team
+// with Doods (it opens the first of them) and asks a team with none to make its first; here it
+// says whose workspace it is and leads to its people and settings, until that is built.
+use Page from "./shapes.contract"
+use WorkspaceScreen from "./shell.contract"
+
+component WorkspaceHomeScreen
+  props
+    page: Page
+  view
+    WorkspaceScreen(page=page, route="workspace", lead="Its Doods are in the sidebar.")
+      column gap=8
+        link href=path("people", page.workspaceId) testId="workspace-home-people"
+          text "People"
+        link href=path("workspaceSettings", page.workspaceId) testId="workspace-home-settings"
+          text "Workspace settings"

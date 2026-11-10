@@ -1,0 +1,353 @@
+// The frame around everything behind sign-in, as the React app's AppShell
+// (apps/web/src/components/shell): the sidebar of Doods under their workspaces with the account
+// at its foot, the pill over a Dood's pages that leads to its other pages, and the scaffolds a
+// Dood's page and a workspace's page are drawn in. data/shell.ts answers it.
+use Session, Reply, Time, Viewport, Workspace, Workspaces, Dood, Doods, Page from "./shapes.contract"
+use Frame, Screen, PrimaryButton, ListHeading, SidebarRow, RowName, RowLine, RowTime, IconButton, Pill, PillButton, Menu, MenuItem, PageTitle, PageLead from "./styles.contract"
+use DoodFace from "./creature.contract"
+use EmptyState from "exact:content"
+
+// What a hatch answers: the new Dood, to open it.
+shape Hatched
+  ok: bool
+  error: string
+  agentId: string
+
+// The open Dood's own event stream (`/api/agents/:id/events`), counted: `changes` goes up when
+// something the sidebar shows changed, which asks for the Doods again.
+shape DoodPulse
+  agentId: string
+  changes: number
+  lost: bool
+
+members App
+  // --- shell ---
+  resource viewport = exactViewport() as shape Viewport
+  resource time = exactTime() as shape Time
+  // performanceNow() when the clock was last looked at, for "4m" beside a Dood.
+  state tick = 0
+  // Whether the open Dood's panel is beside its chat, on a wide window. Kept, as the React app keeps it.
+  state panelOpen = false persist
+  resource workspaces = loadWorkspaces(session.owner) as shape Workspaces else empty()
+  resource pulse = followDood(session.owner, openAgentId) as shape DoodPulse else empty()
+  resource doods = loadDoods(session.owner) with pulse.changes as shape Doods else empty()
+  mutation hatched as shape Hatched refreshes doods then afterHatch
+  mutation seen as shape Reply refreshes doods
+  // The sidebar beside the page: Exact's web host splits a list from its detail from 900 px.
+  derive wide = viewport.width >= 900
+  derive now = time.epochAtZero + tick
+  // Answers kept from another sign-in are never shown (data/api.ts `ownerOf`).
+  derive doodList = doods.owner == session.owner ? doods.doods : []
+  derive workspaceList = workspaces.owner == session.owner ? workspaces.workspaces : []
+  derive openDood = doodOf(doodList, openAgentId)
+  derive hatchError = pending(hatched) ? "" : match hatched { case some(r) => r.error, case none => "" }
+  derive seenKey = `${openAgentId}:${openDood.latestAt}`
+
+  // The other Doods' rows are asked for again now and then: the React app hears of them on a
+  // socket of the person's own, which cannot carry this app's session (GAPS.md). The open
+  // Dood's own changes arrive on its event stream, and its chat says when it starts and stops.
+  task poll mount
+    every(10000, pull)
+  task clock mount
+    every(30000, look)
+  task mendPulse mount
+    every(5000, healPulse)
+  task seeing key=seenKey
+    after(400, see)
+
+  action pull
+    if session.signedIn
+      refresh doods
+  action look
+    tick = performanceNow()
+  action healPulse
+    if pulse.lost and openAgentId != ""
+      refresh pulse
+  // The Dood on screen is being looked at, so nothing of its is new.
+  action see
+    if openDood.unread and not pending(seen)
+      send seen = markSeen(openAgentId)
+  action hatch(workspaceId: string)
+    if not pending(hatched)
+      send hatched = hatchDood(workspaceId)
+  action afterHatch
+    match hatched
+      case some(r)
+        if r.ok and r.agentId != ""
+          follow(path("dood", r.agentId))
+      case none
+        tick = tick
+  action togglePanel
+    panelOpen = not panelOpen
+
+fn doodOf(doods: Dood[], id: string): Dood = match first(doods.filter(d => d.id == id)) {
+  case some(d) => d,
+  case none => Dood(id=id, name="", workspaceId="", latest="", latestAt=0, working=false, asking=false, unread=false, seed=id, color="#5b6672", hatched=false)
+}
+fn nameOf(d: Dood): string = d.name == "" ? "New Dood" : d.name
+fn stateOf(d: Dood): string = d.asking ? "asking" : d.working ? "working" : "idle"
+
+// When something last happened, in as few characters as say it: now, 4m, 1h, Tue, Sep 28.
+fn weekdayOf(at: number, offset: number): string = match ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"].at(floor((at + offset * 60000) / 86400000) % 7) { case some(d) => d, case none => "" }
+fn dayOf(at: number, offset: number): string = match formatDate(at, offset, "medium").split(",").at(0) { case some(d) => d, case none => "" }
+fn ago(at: number, now: number, offset: number): string =
+  now - at < 60000 ? "now" : now - at < 3600000 ? `${floor((now - at) / 60000)}m` : now - at < 86400000 ? `${floor((now - at) / 3600000)}h` : now - at < 604800000 ? weekdayOf(at, offset) : dayOf(at, offset)
+
+fn pageName(route: string): string = route == "dood" ? "Chat" : route == "library" ? "Library" : route == "automations" ? "Automations" : route == "skills" ? "Skills" : route == "connectors" ? "Connectors" : route == "computers" ? "Computers" : route == "permissions" ? "Permissions" : route == "profile" ? "Profile" : route == "settings" ? "Settings" : route == "people" ? "People" : route == "workspaceSettings" ? "Workspace settings" : route == "workspace" ? "Workspace" : ""
+
+// The sidebar: every workspace's Doods, under its name where there is more than one, and the
+// account at the foot. It is the stack's first route, which a wide window shows beside the page.
+component Sidebar
+  props
+    // The route entry's id.
+    key: string
+    current: string
+  inject
+    session: Session
+    doodList: Dood[]
+    workspaceList: Workspace[]
+    now: number
+    utcOffset: number
+    wide: bool
+    hatchError: string
+    hatching: bool
+    hatch: action
+    signOut: action
+  derive named = workspaceList.filter(w => w.kind == "team").length > 0
+  derive shown = named ? workspaceList : workspaceList.filter(w => w.kind == "personal")
+  view
+    column navigationKey=key navigationSplit="288" navigationScroll="sidebar-list" position="absolute" inset=0
+      display="flex" flex-direction="column" class=Frame border-right=(wide ? "1px solid var(--hairline)" : "none") testId="sidebar"
+      header appearance="none" display="flex" align-items="center" gap=2 min-height=36 padding="8px 8px 0 16px"
+        text "Doods" role="heading" aria-level=1 flex=1 class=ListHeading
+        if not named
+          for w in shown key=w.id
+            WorkspaceMenuButton(workspace=w)
+            button press=hatch(w.id) disabled=hatching aria-label="New Dood" class=IconButton testId="new-dood"
+              image "symbol:icon.plus" color="ink.muted" font-size="1rem"
+      scroll id="sidebar-list" flex=1 min-height=0 padding="2px 8px 12px"
+        if doodList.length == 0 and session.signedIn
+          column padding="24px 8px" gap=12 align-items="flex-start"
+            text "No Doods yet." class=RowLine font-size="0.875rem"
+            text "A Dood is an agent of your own: it has a name, a memory and computers to work on." class=RowLine
+            if hatchError != ""
+              text hatchError color="danger" font-size="0.75rem" testId="hatch-error"
+        for w in shown key=w.id
+          column gap=2 testId=`workspace-${w.id}`
+            if named
+              row min-height=36 align-items="center" gap=6 padding="0 0 0 8px"
+                column width="1.125rem" height="1.125rem" border-radius=5 background-color=w.color align-items="center" justify-content="center"
+                  text w.name.slice(0, 1).toUpperCase() color="ink.on-color" font-size="0.625rem" font-weight=600
+                text w.name role="heading" aria-level=2 flex=1 min-width=0 class=ListHeading overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+                WorkspaceMenuButton(workspace=w)
+                button press=hatch(w.id) disabled=hatching aria-label=`New Dood in ${w.name}` class=IconButton testId=`new-dood-${w.id}`
+                  image "symbol:icon.plus" color="ink.muted" font-size="1rem"
+            for d in doodList.filter(x => x.workspaceId == w.id) key=d.id
+              DoodRow(dood=d, current=(d.id == current), now=now, utcOffset=utcOffset)
+      AccountButton(session=session)
+      NoDood()
+
+// A workspace's own menu, from the … beside its name: its settings, its people.
+component WorkspaceMenuButton
+  props
+    workspace: Workspace
+  // Its test ids: "personal" for the person's own, which has an id of theirs, else the team's id.
+  derive tag = workspace.kind == "personal" ? "personal" : workspace.id
+  view
+    row
+      button popovertarget=`workspace-menu-${workspace.id}` aria-label=`${workspace.name}: workspace menu` class=IconButton testId=`workspace-menu-${tag}`
+        image "symbol:icon.dots" color="ink.muted" font-size="1rem"
+      column id=`workspace-menu-${workspace.id}` popover="auto" role="menu" aria-label=workspace.name class=Menu
+        link href=path("workspaceSettings", workspace.id) role="menuitem" class=MenuItem testId=`workspace-settings-${tag}`
+          image "symbol:icon.gear" aria-hidden=true
+          text "Workspace settings"
+        if workspace.kind == "team"
+          link href=path("people", workspace.id) role="menuitem" class=MenuItem testId=`workspace-people-${tag}`
+            image "symbol:icon.users" aria-hidden=true
+            text "People"
+
+// One Dood in the sidebar: its face, its name, when it last said something, and that line.
+// Choosing it is talking to it: the row opens its main chat.
+component DoodRow
+  props
+    dood: Dood
+    current: bool
+    now: number
+    utcOffset: number
+  view
+    link href=path("dood", dood.id) aria-current=(current ? "page" : "false") aria-selected=current class=SidebarRow testId=`dood-${dood.id}`
+      column position="relative" flex-shrink=0
+        DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=40)
+        if dood.asking
+          column position="absolute" right=-2 bottom=-2 width="0.875rem" height="0.875rem" border-radius=7 background-color="asking"
+            align-items="center" justify-content="center" box-shadow="0 0 0 2px var(--frame)" role="img" aria-label="Waiting on someone"
+            text "?" color="ink.on-asking" font-size="0.625rem" font-weight=700 aria-hidden=true
+      column flex=1 min-width=0 gap=1
+        row align-items="baseline" gap=8
+          text nameOf(dood) flex=1 min-width=0 class=RowName font-weight=(dood.unread ? 600 : 500)
+            overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`dood-name-${dood.id}`
+          if dood.working
+            progress aria-label="Working" width=14 height=14 testId=`dood-working-${dood.id}`
+          else if dood.latestAt > 0
+            text ago(dood.latestAt, now, utcOffset) class=RowTime color=(dood.unread ? "notice" : "ink.muted") font-weight=(dood.unread ? 500 : 400)
+        if dood.latest != "" or dood.unread
+          row align-items="center" gap=6
+            text dood.latest flex=1 min-width=0 class=RowLine color=(dood.unread ? "ink" : "ink.muted")
+              overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`dood-latest-${dood.id}`
+            if dood.unread
+              column width=8 height=8 border-radius=4 background-color="notice" flex-shrink=0 role="img" aria-label="Something new" testId=`dood-unread-${dood.id}`
+
+// The person's own menu, at the foot of the sidebar: signing out.
+component AccountButton
+  props
+    session: Session
+  inject
+    signOut: action
+  view
+    column padding="6px 8px"
+      button popovertarget="account-menu" aria-label=`${session.name}: settings and signing out`
+        display="flex" align-items="center" gap=10 padding="6px 8px" border-radius=12 background-color="transparent" border="none"
+        color="ink" testId="account"
+        :hover
+          background-color="wash"
+        column width="1.75rem" height="1.75rem" border-radius=14 background-color="ink.muted" align-items="center" justify-content="center" flex-shrink=0
+          text session.initials color="canvas" font-size="0.625rem" font-weight=600
+        text session.name flex=1 min-width=0 font-size="0.875rem" text-align="start" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+        image "symbol:icon.caret-up-down" aria-hidden=true color="ink.muted"
+      column id="account-menu" popover="auto" role="menu" aria-label=session.email class=Menu
+        button role="menuitem" press=signOut popovertarget="account-menu" popovertargetaction="hide" class=MenuItem testId="sign-out"
+          image "symbol:icon.sign-out" aria-hidden=true
+          text "Sign out"
+
+// What is over a Dood's pages, as the React app's AgentStrip: on a phone the way back to the
+// list, then the pill with its face and name, whose menu goes to its other pages.
+component DoodHeader
+  props
+    page: Page
+    // The route the page is: "dood" (its chat), "library", …
+    route: string
+  inject
+    doodList: Dood[]
+    wide: bool
+    panelOpen: bool
+    togglePanel: action
+    back: action
+  derive dood = doodOf(doodList, page.agentId)
+  derive menu = `pages-${page.key}`
+  view
+    header appearance="none" display="flex" align-items="center" gap=8 padding="4px 10px" min-height=52 flex-shrink=0
+      if not wide
+        button id="back" press=back aria-label="Your Doods" class=IconButton min-width="2.25rem" min-height="2.25rem" border-radius=999
+          box-shadow="0 0 0 1px var(--hairline)" testId=`back-${route}`
+          image "symbol:icon.sidebar"
+      row flex=1 min-width=0 justify-content="center"
+        row class=Pill max-width="100%" min-width=0
+          if wide
+            button press=togglePanel aria-label=(panelOpen ? `Hide ${nameOf(dood)}'s panel` : `Show ${nameOf(dood)}'s panel`) aria-pressed=panelOpen
+              padding=2 border-radius=999 background-color="transparent" border="none" testId=`panel-toggle-${route}`
+              DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=28)
+          else
+            column padding=2
+              DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=28)
+          button popovertarget=menu aria-label=`${nameOf(dood)}: pages and settings` class=PillButton min-width=0 testId=`pages-${route}`
+            text nameOf(dood) role="heading" aria-level=1 font-size="0.875rem" font-weight=500
+              overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`title-${route}`
+            if route != "dood" and route != "chat" and route != "library"
+              text ` · ${pageName(route)}` font-size="0.875rem" color="ink.muted" white-space="pre"
+            image "symbol:icon.caret-down" aria-hidden=true color="ink.muted" font-size="0.75rem"
+      // As wide as the way back, so the pill stays in the middle.
+      if not wide
+        column min-width="2.25rem" aria-hidden=true
+      column id=menu popover="auto" role="menu" aria-label=`${nameOf(dood)}'s pages` class=Menu
+        PageLink(href=path("dood", page.agentId), label="Chat", on=(route == "dood" or route == "chat"), testId=`go-chat-${route}`)
+        PageLink(href=path("library", page.agentId), label="Library", on=(route == "library"), testId=`go-library-${route}`)
+        PageLink(href=path("automations", page.agentId), label="Automations", on=(route == "automations"), testId=`go-automations-${route}`)
+        hr
+        PageLink(href=path("skills", page.agentId), label="Skills", on=(route == "skills"), testId=`go-skills-${route}`)
+        PageLink(href=path("connectors", page.agentId), label="Connectors", on=(route == "connectors"), testId=`go-connectors-${route}`)
+        PageLink(href=path("computers", page.agentId), label="Computers", on=(route == "computers"), testId=`go-computers-${route}`)
+        PageLink(href=path("permissions", page.agentId), label="Permissions", on=(route == "permissions"), testId=`go-permissions-${route}`)
+        hr
+        PageLink(href=path("profile", page.agentId), label="Profile", on=(route == "profile"), testId=`go-profile-${route}`)
+        PageLink(href=path("settings", page.agentId), label=`${nameOf(dood)}'s settings`, on=(route == "settings"), testId=`go-settings-${route}`)
+
+// One of a Dood's pages in its pill's menu, ticked when it is the one open.
+component PageLink
+  props
+    href: string
+    label: string
+    on: bool
+    testId: string
+  view
+    link href=href role="menuitem" aria-current=(on ? "page" : "false") class=MenuItem testId=testId
+      text label flex=1
+      if on
+        image "symbol:icon.check" aria-hidden=true
+
+// The frame of one of a Dood's pages other than its chat: the header, then the page's title,
+// a line under it, and what the page holds (the use's children). An area's screen is one use.
+component DoodScreen
+  props
+    page: Page
+    route: string
+    lead: string
+  slot
+  inject
+    wide: bool
+  view
+    column navigationKey=page.key navigationScroll=`scroll-${page.key}` position="absolute" inset=0 display="flex" flex-direction="column"
+      class=Screen testId=`screen-${route}`
+      DoodHeader(page=page, route=route)
+      scroll id=`scroll-${page.key}` flex=1 min-height=0
+        column max-width="52rem" margin="0 auto" padding=(wide ? "28px 32px 48px" : "16px 16px 40px") gap=20 box-sizing="border-box" width="100%"
+          column gap=6
+            text pageName(route) role="heading" aria-level=2 class=PageTitle testId=`heading-${route}`
+            if lead != ""
+              text lead class=PageLead
+          children
+
+// The frame of a workspace's own page: its name over the page, as the React app's team pages.
+component WorkspaceScreen
+  props
+    page: Page
+    route: string
+    lead: string
+  slot
+  inject
+    workspaceList: Workspace[]
+    wide: bool
+    back: action
+  derive name = match first(workspaceList.filter(w => w.id == page.workspaceId)) { case some(w) => w.name, case none => "" }
+  view
+    column navigationKey=page.key navigationScroll=`scroll-${page.key}` position="absolute" inset=0 display="flex" flex-direction="column"
+      class=Screen testId=`screen-${route}`
+      header appearance="none" display="flex" align-items="center" gap=6 padding="6px 10px" min-height=52 flex-shrink=0
+        if not wide
+          button id="back" press=back aria-label="Your Doods" class=IconButton min-width="2.25rem" min-height="2.25rem" border-radius=999
+            box-shadow="0 0 0 1px var(--hairline)" testId=`back-${route}`
+            image "symbol:icon.sidebar"
+        text name role="heading" aria-level=1 font-size="0.9375rem" font-weight=600 padding="0 4px" testId=`title-${route}`
+      scroll id=`scroll-${page.key}` flex=1 min-height=0
+        column max-width="52rem" margin="0 auto" padding=(wide ? "28px 32px 48px" : "16px 16px 40px") gap=20 box-sizing="border-box" width="100%"
+          column gap=6
+            text pageName(route) role="heading" aria-level=2 class=PageTitle testId=`heading-${route}`
+            if lead != ""
+              text lead class=PageLead
+          children
+
+// What a wide window shows beside the sidebar while no Dood is open.
+component NoDood
+  inject
+    doodList: Dood[]
+    workspaceList: Workspace[]
+    hatching: bool
+    hatch: action
+  view
+    column navigationSplit="placeholder" flex=1 min-height=0 align-items="center" justify-content="center" class=Screen
+      if doodList.length == 0
+        EmptyState(symbol="symbol:sparkles", title="No Doods yet", message="A Dood is an agent of your own: it has a name, a memory and computers to work on.")
+          for w in workspaceList.filter(x => x.kind == "personal") key=w.id
+            button press=hatch(w.id) disabled=hatching class=PrimaryButton testId="first-dood"
+              text "Hatch a Dood"
+      else
+        EmptyState(symbol="symbol:messages", title="Pick a Dood", message="Choose one in the sidebar to talk to it.")

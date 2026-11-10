@@ -1,0 +1,14 @@
+// A Dood's connectors page: a PLACEHOLDER until its area is built. It will hold the connectors, signing in to one, and what each lets the Dood do.
+// The React app's is apps/web/src/components/settings/connectors.tsx. To build it: give this file a `members App` block for its
+// resources, mutations and actions (listed in app.contract beside the others), and its data
+// sources in data/connectors.ts (gathered in app.ts); then pass what the screen reads as props where
+// app.contract draws it. Keep the DoodScreen frame: it is the header, the title and the lead.
+use Page from "./shapes.contract"
+use DoodScreen from "./shell.contract"
+
+component ConnectorsScreen
+  props
+    page: Page
+  view
+    DoodScreen(page=page, route="connectors", lead="Apps and services your Dood can use.")
+      text "Not in this app yet." font-size="0.875rem" color="ink.muted" testId="placeholder-connectors"

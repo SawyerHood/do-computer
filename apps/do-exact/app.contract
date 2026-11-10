@@ -1,266 +1,144 @@
-// Do Computer, as an Exact app: sign in to a deployment, see your Doods, and talk to one in its
-// main chat, the reply arriving as it is written. app.ts asks the deployment (apps/web) for all
-// of it over the same HTTP API the web and phone apps use; nothing is kept here but the session.
-use EmptyState from "exact:content"
+// Do Computer, as an Exact app. This file is the root: the routes, which file holds each area's
+// members (its resources, mutations, state and actions), what every screen can inject, the
+// navigation, and which screen draws each route. Everything else is in views/<area>.contract,
+// and the data the areas ask for in data/<area>.ts, which app.ts gathers. PORTING.md says how
+// to add an area.
+use Page from "./views/shapes.contract"
+use SignIn from "./views/sign-in.contract"
+use Sidebar from "./views/shell.contract"
+use ChatScreen from "./views/chat.contract"
+use LibraryScreen from "./views/library.contract"
+use AutomationsScreen from "./views/automations.contract"
+use SkillsScreen from "./views/skills.contract"
+use ConnectorsScreen from "./views/connectors.contract"
+use ComputersScreen from "./views/computers.contract"
+use PermissionsScreen from "./views/permissions.contract"
+use ProfileScreen from "./views/profile.contract"
+use DoodSettingsScreen from "./views/dood-settings.contract"
+use WorkspaceHomeScreen from "./views/workspace.contract"
+use PeopleScreen from "./views/people.contract"
+use WorkspaceSettingsScreen from "./views/workspace-settings.contract"
 
+// The React app's type: Geist (assets/fonts, from vercel/geist-font, OFL).
+font "Geist" = "assets/fonts/Geist-Variable.ttf"
+font "Geist Mono" = "assets/fonts/GeistMono-Variable.ttf"
+
+// The React app's addresses (apps/web/src/routes/_app.*). A Dood's pages are under it, so a
+// phone's Back from one goes to its chat, and from the chat to the list.
 routes nav
   doods "/"
-    dood "/d/:id"
+    dood "/a/:agentId"
+      chat "/a/:agentId/c/:chatId"
+      library "/a/:agentId/library"
+      automations "/a/:agentId/automations"
+      skills "/a/:agentId/skills"
+      connectors "/a/:agentId/connectors"
+      computers "/a/:agentId/computers"
+      permissions "/a/:agentId/permissions"
+      profile "/a/:agentId/profile"
+      settings "/a/:agentId/settings"
+    workspace "/w/:workspaceId"
+      people "/w/:workspaceId/people"
+      workspaceSettings "/w/:workspaceId/settings"
 
-shape Session
-  signedIn: bool
-  name: string
-  email: string
-
-shape Dood
-  id: string
-  name: string
-  // The latest thing said to it or by it, one line.
-  latest: string
-  working: bool
-  asking: bool
-
-// One piece of a message: "text" (Markdown), "thinking", "tool" (`name` is the tool, `status`
-// how the call stands), "notice" or "image".
-shape Block
-  id: string
-  kind: string
-  text: string
-  name: string
-  status: string
-
-shape Message
-  id: string
-  role: string
-  status: string
-  error: string
-  blocks: Block[]
-
-shape Chat
-  // Whose chat this answer is, so a retained one is never shown under another Dood.
-  agentId: string
-  chatId: string
-  busy: bool
-  // The stream ended or skipped events: what is shown may be behind until it is followed again.
-  lost: bool
-  messages: Message[]
-
-shape Opened
-  agentId: string
-  chatId: string
-
-shape Reply
-  ok: bool
-  error: string
-
-fn nameOf(doods: Dood[], id: string): string = match first(doods.filter(d => d.id == id)) { case some(d) => d.name, case none => "" }
+// A segment of a path, "" past its end.
+fn segment(url: string, at: number): string = match url.split("?").at(0) {
+  case some(p) => match p.split("/").at(at) { case some(s) => s, case none => "" },
+  case none => ""
+}
+// The page a location's other pages hang from: a Dood's chat or a workspace's page, else the list.
+fn baseOf(url: string): string = url.startsWith("/a/") ? `/a/${segment(url, 2)}` : url.startsWith("/w/") ? `/w/${segment(url, 2)}` : "/"
 
 component App
-  state email = ""
-  state password = ""
-  state name = ""
-  // Making an account instead of signing in to one.
-  state joining = false
-  state draft = ""
-  derive openId = match stack(nav).filter(e => e.name == "dood").at(-1) { case some(e) => e.params.id, case none => "" }
-  resource session = loadSession() as shape Session else empty()
-  resource doods = loadDoods(session.signedIn) as shape Dood[] else empty()
-  resource opened = openDood(session.signedIn, openId) as shape Opened else empty()
-  resource chat = followChat(opened.agentId, opened.chatId) as shape Chat else empty()
-  mutation signed as shape Reply refreshes session then afterSign
-  mutation left as shape Reply refreshes session
-  mutation hatched as shape Reply refreshes doods
-  mutation said as shape Reply then afterSay
-  derive signError = pending(signed) ? "" : match signed { case some(r) => r.error, case none => "" }
-  derive sayError = pending(said) ? "" : match said { case some(r) => r.error, case none => "" }
-  derive hatchError = pending(hatched) ? "" : match hatched { case some(r) => r.error, case none => "" }
-  derive canSign = email.trim() != "" and password != "" and (not joining or name.trim() != "") and not pending(signed)
-  derive ours = chat.agentId == openId and openId != ""
-  derive lastId = match chat.messages.at(-1) { case some(m) => m.id, case none => "" }
+  members "./views/sign-in.contract"
+  members "./views/shell.contract"
+  members "./views/chat.contract"
+  // A new area adds its members line here, in its own place, in the order of the routes.
 
-  // The list of Doods says who is working and what was last said, so it is asked again now and
-  // then; a chat whose stream was lost is followed again.
-  task poll mount
-    every(5000, pull)
-  task mend mount
-    every(1000, heal)
+  // What any screen may `inject` instead of taking it as a prop.
+  provide
+    session
+    doodList
+    workspaceList
+    now
+    utcOffset = time.utcOffset
+    wide
+    hatchError
+    hatching = pending(hatched)
+    panelOpen
+    hatch
+    signOut
+    togglePanel
+    back
 
-  action pull
-    if session.signedIn
-      refresh doods
-  action heal
-    if ours and chat.lost
-      refresh chat
-  action editEmail(v: string)
-    email = v
-  action editPassword(v: string)
-    password = v
-  action editName(v: string)
-    name = v
-  action toggleJoining
-    joining = not joining
-  action sign
-    if canSign
-      send signed = signIn(email.trim(), password, name.trim(), joining)
-  action afterSign
-    if signError == ""
-      password = ""
-  action signOut
-    send left = signOut()
-    nav = go(nav, "/")
-  action hatch
-    if not pending(hatched)
-      send hatched = hatchDood()
+  // The Dood whose page is open (the deepest one in the stack), and the chat a `/c/` page names.
+  derive openAgentId = match stack(nav).filter(e => e.params.agentId != "").at(-1) { case some(e) => e.params.agentId, case none => "" }
+  derive chatEntryId = match stack(nav).filter(e => e.name == "chat").at(-1) { case some(e) => e.params.chatId, case none => "" }
+  // The route on top, for tests and for what reads which page is showing.
+  derive onRoute = top(nav).name
+
+  // Every link, and the browser's Forward and a typed address, come here. The stack is always
+  // the list, then the page a location hangs from (a Dood's chat, a workspace's page), then the
+  // location: so a phone's Back goes up one, a wide window shows the location beside the list,
+  // and a Dood's chat that is already open is kept, with its scroll, under its other pages. One
+  // of a Dood's pages in place of another replaces it, so the browser's Forward finds it again.
   action follow(url: string)
-    nav = top(nav).name == "dood" and url.startsWith("/d/") ? replace(nav, url) : go(nav, url)
+    let base = baseOf(url)
+    let home = go(nav, "/")
+    let held = stack(nav).filter(e => e.url == base).length > 0
+    let under = base == "/" ? home : (held ? go(nav, base) : push(home, base))
+    let sibling = base != "/" and url != base and top(nav).url != base and baseOf(top(nav).url) == base
+    nav = sibling ? replace(nav, url) : (base == "/" or url == base or top(under).url == url ? under : push(under, url))
   action back
     nav = back(nav)
-  action editDraft(v: string)
-    draft = v
-  // The id a send goes under, which the server takes once however often it arrives: the chat's
-  // newest message and this launch's clock, which no two sends share.
-  action say
-    if draft.trim() != "" and ours and not pending(said)
-      send said = sendMessage(chat.agentId, chat.chatId, draft.trim(), `x-${lastId}-${performanceNow()}`)
-    focus("composer")
-  action afterSay
-    if sayError == ""
-      draft = ""
-    toEnd()
-  action toEnd
-    if lastId != ""
-      scrollIntoView("transcript", lastId, block="end")
 
   view
-    main navigationKey=`${top(nav).id}` navigationBack="back" navigate=follow interactive-widget="resizes-content" testId="app" width="100%" height="100%"
+    main navigationKey=`${top(nav).id}` navigationBack="back" navigate=follow interactive-widget="resizes-content"
+      width="100%" height="100%" font-family="Geist" color="ink" testId="app"
       if not session.signedIn
         if pending(session)
-          column position="absolute" inset=0 justify-content="center" align-items="center"
+          column position="absolute" inset=0 justify-content="center" align-items="center" background-color="frame"
             progress aria-label="Loading" testId="session-loading"
         else
           SignIn(email=email, password=password, name=name, joining=joining, error=signError, busy=pending(signed), canSign=canSign, editEmail=editEmail, editPassword=editPassword, editName=editName, toggleJoining=toggleJoining, sign=sign)
       else
         for e in stack(nav) key=e.id
+          // --- shell ---
           if e.name == "doods"
-            column navigationKey=`${e.id}` navigationScroll="dood-list" position="absolute" inset=0
-              header display="flex" align-items="center" padding="8px 16px"
-                text "Doods" role="heading" aria-level=1 flex=1
-                button press=hatch aria-label="Add a Dood" testId="new-dood"
-                  image "symbol:add"
-                button popovertarget="account-menu" aria-label=`Signed in as ${session.name}` testId="account"
-                  image "symbol:person"
-              if doods.length == 0
-                if pending(doods)
-                  column flex=1 justify-content="center" align-items="center"
-                    progress aria-label="Loading" testId="doods-loading"
-                else
-                  EmptyState(symbol="symbol:sparkles", title="No Doods Yet", message=(hatchError != "" ? hatchError : "A Dood is an agent of your own: it has a name, a memory and computers to work on."))
-                    button press=hatch buttonStyle="filled" testId="first-dood"
-                      text "Hatch a Dood"
-              else
-                list id="dood-list" appearance="auto" flex=1 min-height=0
-                  section
-                    for d in doods key=d.id
-                      link href=path("dood", d.id) testId=`dood-${d.id}`
-                        column flex=1 min-width=0 gap=2 padding-top=4 padding-bottom=4
-                          text d.name testId=`dood-name-${d.id}`
-                          if d.latest != ""
-                            text d.latest font="-exact-subheadline" color="-exact-secondary-label" line-clamp=1 testId=`dood-latest-${d.id}`
-                        if d.asking
-                          text "Asking" font="-exact-footnote" color="-exact-system-orange"
-                        else if d.working
-                          text "Working" font="-exact-footnote" color="-exact-secondary-label"
-                        image "symbol:forward-chevron"
-          if e.name == "dood"
-            column navigationKey=`${e.id}` navigationScroll="transcript" position="absolute" inset=0
-              header display="flex" align-items="center" padding="8px 16px"
-                text nameOf(doods, e.params.id) role="heading" aria-level=2 testId="chat-title"
-                if ours and chat.busy
-                  text "Working…" font="-exact-footnote" color="-exact-secondary-label" testId="chat-busy"
-              if not ours
-                if pending(opened) or pending(chat)
-                  column flex=1 justify-content="center" align-items="center"
-                    progress aria-label="Loading" testId="chat-loading"
-                else
-                  EmptyState(symbol="symbol:alert", title="Can’t Open This Chat", message="The server didn’t answer. Check your connection and try again.")
-                    button press=heal testId="chat-retry"
-                      text "Try Again"
-              else
-                list id="transcript" appearance="none" virtualized=true scroll-start="end" scrollFollowEnd=true flex=1 min-height=0
-                  for m in chat.messages key=m.id
-                    MessageRow(message=m)
-                if sayError != ""
-                  text sayError font="-exact-footnote" color="-exact-system-red" padding="0 16px" testId="say-error"
-                row align-items="flex-end" margin="6px 12px" padding="0 4px 0 12px" border-radius=20
-                  border="1px solid -exact-separator"
-                  textarea id="composer" value=draft input=editDraft rows=1 field-sizing="content" max-height=140
-                    placeholder="Message" aria-label="Message" testId="composer" flex=1 min-width=0 padding="12px 0"
-                    border="none" background-color="transparent"
-                  button press=say disabled=(draft.trim() == "" or pending(said)) buttonStyle="filled" margin="4px 0"
-                    retainFocus=true aria-label="Send" testId="send"
-                    image "symbol:send"
-        column id="account-menu" popover="auto" role="menu"
-          button role="menuitem" press=signOut popovertarget="account-menu" popovertargetaction="hide" testId="sign-out"
-            text "Sign Out"
-
-// Signing in to the deployment, or making the first account on it.
-component SignIn
-  props
-    email: string
-    password: string
-    name: string
-    joining: bool
-    error: string
-    busy: bool
-    canSign: bool
-    editEmail: action
-    editPassword: action
-    editName: action
-    toggleJoining: action
-    sign: action
-  view
-    column position="absolute" inset=0 align-items="center" overflow="auto"
-      column width="100%" box-sizing="border-box" max-width="26.25rem" padding=24 gap=16
-        text "Do Computer" role="heading" aria-level=1 font="-exact-large-title" testId="sign-title"
-        text (joining ? "Make an account on this deployment." : "Sign in to your Doods.") color="-exact-secondary-label"
-        if joining
-          input value=name input=editName placeholder="Name" aria-label="Name" autocomplete="name" enterkeyhint="next" testId="sign-name"
-        input value=email input=editEmail type="email" placeholder="Email" aria-label="Email" autocomplete="email" autocapitalize="none" enterkeyhint="next" testId="sign-email"
-        input value=password input=editPassword submit=sign type="password" placeholder="Password" aria-label="Password" enterkeyhint="go" testId="sign-password"
-        if error != ""
-          text error font="-exact-footnote" color="-exact-system-red" testId="sign-error"
-        button press=sign disabled=(not canSign) buttonStyle="filled" testId="sign-submit"
-          text (busy ? "One moment…" : (joining ? "Make Account" : "Sign In"))
-        button press=toggleJoining testId="sign-toggle"
-          text (joining ? "I have an account" : "Make an account")
-
-// One message: yours in a bubble on the right, the Dood's as what it wrote, thought and did.
-component MessageRow
-  props
-    message: Message
-  view
-    column width="100%"
-      if message.role == "user"
-        row justify-content="flex-end" padding="3px 12px"
-          column max-width="75%" padding="8px 12px" border-radius=18 background-color="AccentColor"
-            for b in message.blocks key=b.id
-              text b.text color="AccentColorText" overflow-wrap="break-word" testId=`message-${message.id}`
-      else if message.role == "notice"
-        column align-items="center" padding="6px 24px"
-          for b in message.blocks key=b.id
-            text (b.name != "" ? `${b.name}: ${b.text}` : b.text) font="-exact-footnote" color="-exact-secondary-label" text-align="center"
-      else
-        column padding="3px 16px" gap=6 align-items="flex-start"
-          for b in message.blocks key=b.id
-            if b.kind == "text"
-              text b.text markup="markdown" overflow-wrap="break-word" max-width="100%" testId=`message-${message.id}`
-            else if b.kind == "thinking"
-              text b.text font="-exact-footnote" color="-exact-secondary-label" line-clamp=3
-            else if b.kind == "tool"
-              row gap=6 align-items="center" padding="4px 10px" border-radius=8 background-color="-exact-secondary-background"
-                text b.name font="-exact-footnote"
-                text b.status font="-exact-footnote" color=(b.status == "error" ? "-exact-system-red" : "-exact-secondary-label")
-            else
-              text b.text font="-exact-footnote" color="-exact-secondary-label"
-          if message.error != ""
-            text message.error font="-exact-footnote" color="-exact-system-red"
+            Sidebar(key=`${e.id}`, current=openAgentId)
+          // --- chat ---
+          if e.name == "dood" or e.name == "chat"
+            ChatScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""), route=e.name, chat=chat, ours=ours, loading=(pending(opened) or pending(chat)), draft=draft, sayError=sayError, sending=pending(said), editDraft=editDraft, say=say, heal=heal)
+          // --- library ---
+          if e.name == "library"
+            LibraryScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          // --- automations ---
+          if e.name == "automations"
+            AutomationsScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          // --- skills ---
+          if e.name == "skills"
+            SkillsScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          // --- connectors ---
+          if e.name == "connectors"
+            ConnectorsScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          // --- computers ---
+          if e.name == "computers"
+            ComputersScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          // --- permissions ---
+          if e.name == "permissions"
+            PermissionsScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          // --- profile ---
+          if e.name == "profile"
+            ProfileScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          // --- dood settings ---
+          if e.name == "settings"
+            DoodSettingsScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          // --- workspace ---
+          if e.name == "workspace"
+            WorkspaceHomeScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=e.params.workspaceId))
+          // --- people ---
+          if e.name == "people"
+            PeopleScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=e.params.workspaceId))
+          // --- workspace settings ---
+          if e.name == "workspaceSettings"
+            WorkspaceSettingsScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=e.params.workspaceId))

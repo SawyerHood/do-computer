@@ -1,0 +1,19 @@
+// A Dood's face: its creature, the `do-creature` web native view (modules/web/, the React app's
+// mascot drawn by the same package). Everything that shows a Dood draws it through DoodFace, so
+// what the creature can do (petting, outfits, hatching) is added here and nowhere else.
+// modules/web/README.md lists the view's props and messages.
+
+component DoodFace
+  props
+    // What its features grow from, and its colour (a hex): AgentSummary's avatar, resolved.
+    seed: string
+    color: string
+    // "idle", "working" or "asking".
+    state: string
+    // Its name, which a reader hears.
+    name: string
+    // Its width and height, in px.
+    size: number
+  view
+    do-creature seed=seed colour=color state=state side=`${size}` width=size height=size flex-shrink=0
+      role="img" aria-label=name

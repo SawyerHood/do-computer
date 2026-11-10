@@ -1,0 +1,42 @@
+// Signing in, making an account and signing out, against the real server. The session is kept
+// in the platform's secret store, so it outlives a reload.
+
+test "a wrong password is refused, an account is made, and signing out and in again finds its Doods"
+  expect tree has "sign-title"
+  expect disabled "sign-submit"
+  type "sign-email" "sign-in-1@example.com"
+  type "sign-password" "wrong horse"
+  tap "sign-submit"
+  clock data
+  expect tree has "sign-error"
+  tap "sign-toggle"
+  expect text "sign-title" == "Create your account"
+  type "sign-name" "Ada Lovelace"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  expect state session.signedIn == true
+  expect state session.name == "Ada Lovelace"
+  expect state session.initials == "AL"
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  reload
+  clock data
+  expect state session.signedIn == true
+  // On a phone the account is at the foot of the list, under the Dood's chat.
+  tap "back-dood"
+  clock settle
+  tap "account"
+  tap "sign-out"
+  clock data
+  clock settle
+  expect state session.signedIn == false
+  expect text "sign-title" == "Welcome back"
+  type "sign-email" "sign-in-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  expect state session.signedIn == true
+  expect state doods.doods.length == 1
