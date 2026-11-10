@@ -105,6 +105,8 @@ const context = await browser.newContext({
 })
 const page = await context.newPage()
 const id = (t) => page.getByTestId(t)
+// The app's Select (views/select.contract): its button, then the choice in its menu.
+const choose = async (t, value) => { await id(t).click(); await id(`${t}-${value}`).click() }
 const email = `tools-integration-${Date.now()}@example.com`,
   password = "correct horse"
 let agentId, computerId, workspaceId, socket, teamAgentId
@@ -179,7 +181,7 @@ try {
   await id(`computer-${computerId}`).waitFor()
   await id(`computer-disconnect-${computerId}-${agentId}`).click()
   await page.waitForTimeout(350)
-  await id(`computer-connect-${computerId}`).selectOption(agentId)
+  await choose(`computer-connect-${computerId}`, agentId)
   await id(`computer-disconnect-${computerId}-${agentId}`).waitFor()
   await page.goto(`${EXACT}/a/${agentId}`)
   await id("composer").waitFor()
@@ -270,11 +272,11 @@ try {
     assert.equal(row.agentIds.includes(agentId), approve)
     await route("computers")
     if (!approve) {
-      await id(`computer-connect-${computerId}`).selectOption(agentId)
+      await choose(`computer-connect-${computerId}`, agentId)
       await id(`computer-disconnect-${computerId}-${agentId}`).waitFor()
     }
   }
-  await id(`computer-owner-${computerId}`).selectOption(team.id)
+  await choose(`computer-owner-${computerId}`, team.id)
   await id(`computer-move-confirm-${computerId}-yes`).click()
   await page.waitForTimeout(450)
   assert.equal(
@@ -286,12 +288,12 @@ try {
   const personalAgentId = agentId
   agentId = teamAgentId
   await route("computers")
-  await id(`computer-owner-${computerId}`).selectOption(workspaceId)
+  await choose(`computer-owner-${computerId}`, workspaceId)
   await id(`computer-move-confirm-${computerId}-yes`).click()
   await page.waitForTimeout(450)
   agentId = personalAgentId
   await route("computers")
-  await id(`computer-connect-${computerId}`).selectOption(agentId)
+  await choose(`computer-connect-${computerId}`, agentId)
   await id(`computer-disconnect-${computerId}-${agentId}`).waitFor()
   console.log(
     "PASS: daemon update command receipt, requests denied/approved, ownership moved to team and back",

@@ -85,6 +85,7 @@ component App
   members "./views/shell.contract"
   members "./views/chat.contract"
   members "./views/teams.contract"
+  members "./views/teams-here.contract"
   members "./views/automations.contract"
   members "./views/skills.contract"
   members "./views/connectors.contract"
@@ -219,6 +220,7 @@ component App
     now
     utcOffset = time.utcOffset
     wide
+    stillMotion = viewport.prefersReducedMotion
     hatchError
     hatching = pending(hatched)
     panelOpen
@@ -228,6 +230,12 @@ component App
     back
     follow
     teamList
+    hereTeam
+    herePlaces
+    hereOthers
+    hereMembers
+    hereInChat
+    hereWriting
     teamInbox
     teamColors
     teamFolded
@@ -560,6 +568,7 @@ component App
     libraryUnpin
     libraryPinError
     openLibraryPanel
+    libraryPinsFresh
     libraryLinks
     libraryMarkdownSaid
     closeLibraryPanel

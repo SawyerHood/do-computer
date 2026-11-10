@@ -68,9 +68,26 @@ test "a picture is previewed, opens large, and is removed without sending"
   expect state composerAttachments.0 .mime == "image/jpeg"
   tap "Open picture.png large"
   expect tree has "picture-close"
+  expect tree missing "picture-next"
   tap "picture-close"
   tap "Remove picture.png"
   expect disabled "send"
+  // With two, the large one steps from one to the other.
+  tap "attach"
+  pick "file-picker" "tests/composer/picture.png"
+  clock data
+  tap "attach"
+  pick "file-picker" "tests/composer/second.png"
+  clock data
+  expect state composerAttachments.length == 2
+  tap "Open second.png large"
+  expect text "picture-count" == "2 of 2"
+  expect text "picture-name" == "second.png"
+  tap "picture-next"
+  expect text "picture-count" == "1 of 2"
+  tap "picture-previous"
+  expect text "picture-count" == "2 of 2"
+  tap "picture-close"
 
 test "a failed send keeps the draft and can be tried again"
   tap "sign-toggle"

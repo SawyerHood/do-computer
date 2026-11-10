@@ -25,6 +25,7 @@ shape Time
 shape Viewport
   width: number
   height: number
+  prefersReducedMotion: bool
 
 shape Workspace
   // This person may use saved logins or cards here.

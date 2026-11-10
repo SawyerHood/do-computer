@@ -1,7 +1,9 @@
 use Page, Session, Dood, Workspace from "./shapes.contract"
 use doodOf, nameOf from "./shell.contract"
+use DoodFace from "./creature.contract"
 use WorkspaceSettingsFrame, workspaceOf, SettingsCard, SettingsRow, SettingsEmpty, OutlineButton, SettingsField, Hint, SmallHint, FieldName, Confirm from "./settings-kit.contract"
-use PrimaryButton, Screen from "./styles.contract"
+use PrimaryButton, Screen, IconButton from "./styles.contract"
+use Select, Choice from "./select.contract"
 
 shape ComputerReply
   owner: string
@@ -290,11 +292,14 @@ component ComputerCommand
     copyText(command)
     copied = true
   view
-    column gap=6
+    // The React app's command box: the command on one line that scrolls, its copy button beside it.
+    column gap=4
       text label class=Hint
-      text command white-space="pre-wrap" hyphens="auto" font-family="Geist Mono" font-size="0.75rem" testId=testId
-      button press=copy class=OutlineButton align-self="start" testId=`${testId}-copy`
-        text (copied ? "Copied" : "Copy command")
+      row gap=8 align-items="center" padding="6px 6px 6px 12px" border-radius=8 border="1px solid var(--border)" background-color="canvas"
+        scroll overflow-x="auto" flex=1 min-width=0
+          text command white-space="nowrap" font-family="Geist Mono" font-size="0.75rem" testId=testId
+        button press=copy aria-label=(copied ? "Copied" : "Copy command") title=(copied ? "Copied" : "Copy command") class=IconButton flex-shrink=0 testId=`${testId}-copy`
+          image (copied ? "symbol:icon.check" : "symbol:icon.copy") font-size="0.875rem"
 
 component ComputerCard
   props
@@ -344,28 +349,25 @@ component ComputerCard
           text computer.description class=SmallHint
         if not computer.machine
           text (computer.online ? "Online" : "Offline") class=SmallHint padding="3px 8px" background-color="wash" border-radius=6
-      if not computer.machine
-        SettingsRow(label="Screen", hint=computer.screen, testId=`computer-screen-${computer.id}`)
-        SettingsRow(label="Browser", hint=computer.browser, testId=`computer-browser-${computer.id}`)
-      SettingsRow(label="Belongs to", hint="", testId=`computer-owner-row-${computer.id}`)
-        if not computer.machine and computer.pairedBy == session.userId and workspaceList.filter(w => w.kind == "team").length > 0
-          select value=computer.workspaceId change=move disabled=busy aria-label=`Who ${computer.name} belongs to` testId=`computer-owner-${computer.id}`
-            for w in workspaceList key=w.id
-              option (w.kind == "personal" ? "You" : w.name) value=w.id
-        else
-          text (personal ? "You" : `${teamName} · ${computer.machine ? "added" : "paired"} by ${computer.pairedBy == session.userId ? "you" : computer.pairedName}`) class=Hint
-      if computer.machine and computer.shareable
-        SettingsRow(label="Open to", hint="", testId=`computer-access-row-${computer.id}`)
-          select value=computer.access change=access disabled=busy aria-label=`Who can use ${computer.name}` testId=`computer-access-${computer.id}`
-            option everyone value="open"
-            option "Chosen Doods" value="chosen"
-      text "Doods" class=FieldName
-      ComputerConnections(computer=computer, chosen=chosen, busy=busy, change=change)
-      if connectable.length > 0
-        select value="" change=connect disabled=busy aria-label=`Connect a Dood to ${computer.name}` testId=`computer-connect-${computer.id}`
-          option (computer.agentIds.length == 0 ? "Connect a Dood…" : "Connect another…") value=""
-          for d in connectable key=d.id
-            option nameOf(d) value=d.id
+      // What it is, as the React app's list of facts: a word on the left, what it is on the right.
+      column gap=10
+        if not computer.machine
+          ComputerFact(label="Screen", testId=`computer-screen-${computer.id}`)
+            text computer.screen class=Hint
+          ComputerFact(label="Browser", testId=`computer-browser-${computer.id}`)
+            text computer.browser class=Hint
+        ComputerFact(label="Belongs to", testId=`computer-owner-row-${computer.id}`)
+          if not computer.machine and computer.pairedBy == session.userId and workspaceList.filter(w => w.kind == "team").length > 0
+            Select(id=`computer-owner-menu-${computer.id}`, label=`Who ${computer.name} belongs to`, value=computer.workspaceId, choices=workspaceList.map(w => Choice(value=w.id, label=(w.kind == "personal" ? "You" : w.name))), placeholder="", choose=move, disabled=busy, testId=`computer-owner-${computer.id}`)
+          else
+            text (personal ? "You" : `${teamName} · ${computer.machine ? "added" : "paired"} by ${computer.pairedBy == session.userId ? "you" : computer.pairedName}`) font-size="0.875rem"
+        if computer.machine and computer.shareable
+          ComputerFact(label="Open to", testId=`computer-access-row-${computer.id}`)
+            Select(id=`computer-access-menu-${computer.id}`, label=`Who can use ${computer.name}`, value=computer.access, choices=[Choice(value="open", label=everyone), Choice(value="chosen", label="Chosen Doods")], placeholder="", choose=access, disabled=busy, testId=`computer-access-${computer.id}`)
+        ComputerFact(label="Doods", testId=`computer-doods-${computer.id}`)
+          ComputerConnections(computer=computer, chosen=chosen, busy=busy, change=change)
+          if connectable.length > 0
+            Select(id=`computer-connect-menu-${computer.id}`, label=`Connect a Dood to ${computer.name}`, value="", choices=connectable.map(d => Choice(value=d.id, label=nameOf(d))), placeholder=(computer.agentIds.length == 0 ? "Connect a Dood…" : "Connect another…"), choose=connect, disabled=busy, testId=`computer-connect-${computer.id}`)
       if computer.machine and not computer.shareable
         text "It keeps its files with its Dood, so no other Dood can work on it." class=Hint
       else if computer.machine and computer.access == "open"
@@ -387,6 +389,19 @@ component ComputerCard
       Confirm(id=`computer-remove-${computer.id}`, title=`Delete ${computer.name}?`, message="The machine and everything on it is deleted. This cannot be undone.", action="Delete", destructive=true, confirm=confirmedRemove, testId=`computer-delete-confirm-${computer.id}`)
       Confirm(id=`computer-move-${computer.id}`, title=`Give ${computer.name} to another workspace?`, message="Doods outside that workspace will be disconnected from it.", action="Give to workspace", destructive=false, confirm=confirmedMove, testId=`computer-move-confirm-${computer.id}`)
 
+// A fact about a computer: its word, then what it is.
+component ComputerFact
+  props
+    label: string
+    testId: string
+  slot
+  view
+    row gap=12 align-items="center" flex-wrap="wrap" testId=testId
+      text label class=Hint width="5.5rem" flex-shrink=0
+      row flex=1 min-width="10rem" gap=6 align-items="center" flex-wrap="wrap"
+        children
+
+// The Doods connected to it, each a chip with its face, its folder there, and a way to disconnect it.
 component ComputerConnections
   props
     computer: Computer
@@ -396,16 +411,17 @@ component ComputerConnections
   inject
     doodList: Dood[]
   view
-    column gap=6
-      if computer.agentIds.length == 0
-        text "None yet" class=Hint
-      for id in computer.agentIds key=id
-        row flex-wrap="wrap" gap=8 align-items="center"
-          text nameOf(doodOf(doodList, id)) font-size="0.875rem"
-          text (match first(computer.folders.filter(f => f.agentId == id)) { case some(f) => f.path, case none => "" }) class=SmallHint hyphens="auto"
-          if chosen
-            button press=change(computer.id, "disconnect", id, false) disabled=busy class=OutlineButton aria-label=`Disconnect ${nameOf(doodOf(doodList, id))} from ${computer.name}` testId=`computer-disconnect-${computer.id}-${id}`
-              text "Disconnect"
+    if computer.agentIds.length == 0
+      text "None yet" class=Hint
+    for id in computer.agentIds key=id
+      row gap=6 align-items="center" min-height=28 padding=(chosen ? "2px 2px 2px 6px" : "2px 8px 2px 6px") box-sizing="border-box" border-radius=8 border="1px solid var(--border)" background-color="canvas" max-width="100%"
+        DoodFace(seed=doodOf(doodList, id).seed, color=doodOf(doodList, id).color, state="idle", name=nameOf(doodOf(doodList, id)), size=20)
+        text nameOf(doodOf(doodList, id)) font-size="0.875rem" overflow="hidden" text-overflow="ellipsis" white-space="nowrap" min-width=0
+        if (match first(computer.folders.filter(f => f.agentId == id)) { case some(f) => f.path, case none => "" }) != ""
+          text (match first(computer.folders.filter(f => f.agentId == id)) { case some(f) => f.path, case none => "" }) font-family="Geist Mono" font-size="0.75rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap" min-width=0
+        if chosen
+          button press=change(computer.id, "disconnect", id, false) disabled=busy class=IconButton min-width=24 min-height=24 width=24 height=24 aria-label=`Disconnect ${nameOf(doodOf(doodList, id))} from ${computer.name}` testId=`computer-disconnect-${computer.id}-${id}`
+            image "symbol:icon.x" font-size="0.75rem" color="ink.muted"
 
 component PairComputerScreen
   props
@@ -430,11 +446,15 @@ component PairComputerScreen
     pairComputer: action
     retryPairing: action
   view
-    column navigationKey=page.key navigationScroll="pair-scroll" position="absolute" inset=0 class=Screen
+    // The React app's pairing page: one card in the middle of the frame (routes/_app.pair.tsx).
+    column navigationKey=page.key navigationScroll="pair-scroll" position="absolute" inset=0 class=Screen background-color="frame"
       scroll id="pair-scroll" flex=1 min-height=0
-        column max-width="28rem" margin="32px auto" padding=24 gap=20 box-sizing="border-box"
-          link href="/" testId="pair-back"
-            text "Your Doods"
+        column width="calc(100% - 32px)" max-width="28rem" margin="max(16px, calc(50vh - 220px)) auto 32px" padding=28 gap=20 box-sizing="border-box"
+          border-radius=16 background-color="canvas" box-shadow="0 0 0 1px var(--hairline), 0 16px 48px -24px rgb(0 0 0 / 0.25)"
+          row align-items="center" justify-content="space-between"
+            image "symbol:icon.desktop" aria-hidden=true font-size="2rem" color="ink.muted"
+            link href="/" color="ink.muted" font-size="0.875rem" testId="pair-back"
+              text "Your Doods"
           if pairingDone
             text "Connected" role="heading" aria-level=1 font-size="1.5rem" font-weight=600 testId="pair-connected"
             text `${pairing.name} is connected. The daemon in your terminal will connect in a moment; you can close this page. ${pairingSelected.length == 0 ? "No Dood can use it yet: connect one under Computers, or let a Dood ask." : "Your chosen Doods can work on it."}` class=Hint
@@ -459,10 +479,7 @@ component PairComputerScreen
                 text `Home: ${pairing.home}` class=SmallHint hyphens="auto"
               text (pairing.readOnly ? "A Dood connected to it will be able to read any file your account can read on this computer. It will not be able to run commands or change anything." : "A Dood connected to it will be able to run any command and read and change any file your account can on this computer, without asking first. Only connect a machine you are comfortable handing over.") role="note" padding=16 border="1px solid var(--border)" border-radius=16 class=Hint
               text "Whose computer is it?" class=FieldName
-              select value=pairingWorkspace change=choosePairingWorkspace aria-label="Whose computer is it?" testId="pair-workspace"
-                option "Mine — only you decide which Doods use it, in any workspace" value=""
-                for w in workspaceList.filter(w => w.kind == "team") key=w.id
-                  option `${w.name} — anyone in the team can connect its Doods` value=w.id
+              Select(id="pair-workspace-menu", label="Whose computer is it?", value=pairingWorkspace, choices=[Choice(value="", label="Mine — only you decide which Doods use it, in any workspace")].concat(workspaceList.filter(w => w.kind == "team").map(w => Choice(value=w.id, label=`${w.name} — anyone in the team can connect its Doods`))), placeholder="", choose=choosePairingWorkspace, disabled=pairingBusy, testId="pair-workspace")
               text "Which Doods can use it?" class=FieldName
               for d in pairingOffered key=d.id
                 row gap=8 align-items="center"

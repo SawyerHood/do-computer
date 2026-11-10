@@ -26,7 +26,8 @@ theme
   bubble = light-dark(oklch(0.27 0.008 212 / 0.11), oklch(0.9 0.006 212 / 0.11))
   notice = light-dark(oklch(0.5 0.08 195), oklch(0.52 0.08 195))
   danger = light-dark(oklch(0.5 0.19 26), oklch(0.7 0.17 24))
-  // `primary` with no Dood open: the default agent colour, oklch(0.5 0.08 195), deepened.
+  // Every filled button, whichever Dood is open: the default agent colour, oklch(0.5 0.08 195),
+  // deepened. A Dood's own colour is on its creature and in its profile, not on buttons.
   primary = light-dark(oklch(0.5 0.104 195), oklch(0.52 0.104 195))
   primary.ink = light-dark(oklch(0.985 0.01 195), oklch(0.97 0.012 195))
   // A Dood that asks for someone: amber, under white.
@@ -119,3 +120,25 @@ icons
   icon.archive = icon(sf "archivebox", svg "icons/archive.svg")
   icon.arrow-square-out = icon(sf "arrow.up.right.square", svg "icons/arrow-square-out.svg")
   icon.monitor = icon(sf "display", svg "icons/monitor.svg")
+  // --- library, pins and sharing ---
+  icon.folder = icon(sf "folder", svg "icons/folder.svg")
+  icon.folder-open = icon(sf "folder", svg "icons/folder-open.svg")
+  icon.file-text = icon(sf "doc.text", svg "icons/file-text.svg")
+  icon.file-image = icon(sf "photo", svg "icons/file-image.svg")
+  icon.file-code = icon(sf "chevron.left.forwardslash.chevron.right", svg "icons/file-code.svg")
+  icon.table = icon(sf "tablecells", svg "icons/table.svg")
+  icon.note-pencil = icon(sf "square.and.pencil", svg "icons/note-pencil.svg")
+  icon.upload = icon(sf "arrow.up.to.line", svg "icons/upload.svg")
+  icon.share-network = icon(sf "square.and.arrow.up", svg "icons/share-network.svg")
+  icon.cloud-check = icon(sf "checkmark.icloud", svg "icons/cloud-check.svg")
+  icon.link = icon(sf "link", svg "icons/link.svg")
+  icon.push-pin-slash = icon(sf "pin.slash", svg "icons/push-pin-slash.svg")
+  icon.trash = icon(sf "trash", svg "icons/trash.svg")
+  icon.clock-counter-clockwise = icon(sf "clock.arrow.circlepath", svg "icons/clock-counter-clockwise.svg")
+  icon.pencil = icon(sf "pencil", svg "icons/pencil.svg")
+  icon.columns = icon(sf "rectangle.split.2x1", svg "icons/columns.svg")
+  // --- teams ---
+  icon.envelope = icon(sf "envelope", svg "icons/envelope.svg")
+  icon.github-logo = icon(sf "chevron.left.forwardslash.chevron.right", svg "icons/github-logo.svg")
+  icon.user-plus = icon(sf "person.badge.plus", svg "icons/user-plus.svg")
+  icon.sort-ascending = icon(sf "arrow.up.arrow.down", svg "icons/sort-ascending.svg")

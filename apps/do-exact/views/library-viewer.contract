@@ -58,7 +58,7 @@ component LibraryViewer
       row flex-shrink=0 flex-wrap="wrap" gap=4 align-items="center" padding="6px 10px" border-bottom="1px solid var(--hairline)"
         if not compact
           button press=libraryHome aria-label="Back to the library" testId="library-home" class=IconButton
-            image "symbol:back"
+            image "symbol:icon.arrow-left"
         if libraryRenaming
           input value=libraryRename input=libraryEditRename submit=libraryMove aria-label="Folder and name" class=Field flex=1 min-width=0 testId="library-rename-path"
           button press=libraryMove disabled=libraryBusy testId="library-rename-save" class=MenuItem
@@ -71,24 +71,24 @@ component LibraryViewer
             text librarySaveState color=(librarySaveState == "conflict" ? "danger" : "ink.muted") font-size="0.75rem" aria-live="polite" testId="library-save-state"
           if file.kind == "markdown"
             button press=librarySetMode("read") aria-pressed=(libraryMode == "read") aria-label="Read" testId="library-mode-read" class=IconButton background-color=(libraryMode == "read" ? "wash" : "transparent")
-              image "symbol:book"
+              image "symbol:icon.eye"
             button press=librarySetMode("edit") aria-pressed=(libraryMode == "edit") aria-label="Edit" testId="library-mode-edit" class=IconButton background-color=(libraryMode == "edit" ? "wash" : "transparent")
-              image "symbol:pencil"
+              image "symbol:icon.pencil"
             button press=librarySetMode("split") aria-pressed=(libraryMode == "split") aria-label="Split" testId="library-mode-split" class=IconButton background-color=(libraryMode == "split" ? "wash" : "transparent")
-              image "symbol:layers"
+              image "symbol:icon.columns"
           else if file.kind == "page" or file.kind == "table"
             button press=librarySetMode("read") aria-pressed=(libraryMode == "read") aria-label="Read" testId="library-mode-read" class=IconButton background-color=(libraryMode == "read" ? "wash" : "transparent")
               text (file.kind == "page" ? "Page" : "Table")
             button press=librarySetMode("source") aria-pressed=(libraryMode == "source") aria-label="Source" testId="library-mode-source" class=IconButton
-              image "symbol:document"
+              image "symbol:icon.file-code"
           button press=libraryPin disabled=libraryBusy aria-pressed=libraryPinned aria-label=(libraryPinned ? "Unpin" : "Pin beside the chat") testId="library-pin" class=IconButton
-            image "symbol:pin"
+            image (libraryPinned ? "symbol:icon.push-pin-slash" : "symbol:icon.push-pin")
           button press=shareLibraryPath(file.path) aria-label="Share" testId="library-share" class=IconButton
-            image "symbol:share"
+            image "symbol:icon.share-network"
           button press=libraryHistoryToggle aria-label="History" aria-expanded=libraryHistoryOpen testId="library-history" class=IconButton
-            image "symbol:activity"
+            image "symbol:icon.clock-counter-clockwise"
           button popovertarget="library-more" aria-label="More" testId="library-more-button" class=IconButton
-            image "symbol:more"
+            image "symbol:icon.dots"
           column id="library-more" popover="auto" background-color="popover" color="ink" padding=8 border-radius=12 box-shadow="0 0 0 1px var(--hairline)"
             text file.path font-size="0.8125rem" overflow-wrap="break-word" max-width="16rem" padding=6
             text `${file.by} · ${file.when} · ${file.bytes}` font-size="0.75rem" color="ink.muted" padding=6
@@ -141,7 +141,7 @@ component LibraryViewer
         do-library-frame colour=libraryPageColour message=libraryPageOpen width=0 height=0 aria-hidden=true
         row gap=8 padding=6 align-items="center"
           button press=pageReload aria-label="Reload page" testId="library-page-reload" class=MenuItem
-            image "symbol:refresh"
+            image "symbol:icon.arrow-clockwise"
           text file.path flex=1 min-width=0 font-size="0.75rem" color="ink.muted" overflow-wrap="break-word"
           text "sandboxed" font-size="0.6875rem" color="ink.muted"
           link href=file.url target="_blank" testId="library-page-tab"

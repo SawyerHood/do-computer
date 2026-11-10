@@ -51,6 +51,13 @@ build compiles Rust for a minute or two; later ones take seconds.
   pages menu, library, the phone's list) at 1280x800 and 390x844, light and dark, into
   `.exact/shots/exact/`; `node tools/react-shots.mjs` takes the React app's same screens into
   `.exact/shots/react/`, on a server of its own on port 3990. Hold them side by side.
+  `tools/tour.sh [screen…]` does both at once for every page: one server (`DC_EXACT_APP`) serves
+  the two apps at one origin with the same account and data, and each screen is taken at both
+  sizes and schemes into `.exact/shots/tour/<screen>-<size>.png` (React left, Exact right).
+  Add a screen to its list when you add a page. It does not open menus or dialogs: drive those.
+- Files in a drive: `type composer paste --file tests/composer/composer-note.txt` and
+  `tap composer-drop drop tests/composer/composer-note.txt` (with `--storage`); a test file's
+  parser does not take those two forms yet, and a test's `pick "file-picker" "<path>"` is the way.
 - `./x verify` at the end of a piece of work: tests, layout checks light and dark, a relaunch.
 - **Ports.** Other agents work in other checkouts on this machine. A checkout's `.slot` file
   holds a number that moves both its ports (the server's 3911 + slot, the page's 8766 + slot),
@@ -123,13 +130,29 @@ views/settings-kit.contract  the settings' frame (DoodSettings, AccountSettings,
                           WorkspaceSettingsFrame: the settings window's card, its list of sections
                           beside the open one) and pieces (SettingsSection, SettingsCard,
                           SettingsRow, SettingsList, SettingsItem, SettingsEmpty, Confirm, styles)
-views/<area>.contract     each other page: a placeholder screen in DoodScreen or WorkspaceScreen
+views/select.contract     Select: a choice of one, as the React app's Select (never a `select`)
+views/profile, dood-settings, permissions, settings-*.contract  the settings' sections
+views/composer*.contract  the composer (ComposerBox) and its running commands; threads.contract
+                          the chat's "Other chats"
+views/markdown.contract   MessageText: rich Markdown (`do-markdown`) or Exact's own for plain words
+views/library*.contract   the library (library.contract), its viewer, its shapes, the file card and
+                          picture viewer the chat uses (library-card), its Markdown
+                          (library-markdown, the same `do-markdown` set as a document);
+                          pins.contract the pins shelf and the document panel; sites.contract sharing
+views/teams*.contract     teams, invitations (teams-invite), the sidebar's Dood menu (teams-sidebar),
+                          who is here (teams-here); people.contract a team's People;
+                          workspace*.contract a workspace's page and its settings' first section
+views/skills, connectors, computers, automations.contract  those pages, and /pair
 views/transport.contract  members: tickets kept ready for the sockets, and their pings (no screen)
-data/api.ts               the session, ask/get/post/put/patch/del, reply, ownerOf/current, follow
+data/api.ts               the session, ask/get/post/put/patch/del, reply, ownerOf/current, follow,
+                          authorization (the bearer header, or none where the cookie is the session)
 data/<area>.ts            an area's sources, exported as `<area>Sources`
 <area>.test.contract      an area's tests
-tools/                    shots.sh, react-shots.mjs, phosphor-icons.mjs; stream-check.mjs (a long
-                          reply arrives whole); same-origin.sh (the app served by the server)
+tools/                    tour.sh (every screen beside the React app's), shots.sh and
+                          react-shots.mjs (the first set), each area's *-shots scripts,
+                          phosphor-icons.mjs (the icons), stream-check.mjs (a long reply arrives
+                          whole), same-origin.sh (the app served by the server), tools-check.mjs
+                          (OAuth, pairing and daemon fixtures in a real browser), side.sh
 tests/same-origin.test.contract  the app at the server's own origin, run by tools/same-origin.sh
 ```
 
@@ -235,6 +258,23 @@ parallel merges.
    (This example compiled and type-checked as written, 2026-11-10.)
 5. `library.test.contract`: the sign-up preamble from `chat.test.contract` with an address of
    its own, then `tap "pages-dood"`, `tap "go-library-dood"`, and what the page should show.
+
+### Notes by area
+
+- **Chat.** The Dood's socket (`followDood` in data/shell.ts) counts what changed for the chat,
+  the tools pages and the library (`pulse.asks`); a resource that shows such a thing is asked
+  again `with` its count instead of opening a socket of its own.
+- **Library.** An autosave is a mutation of its own (`librarySaved`), apart from making, moving
+  and reverting files, and its draft keeps its file, Dood and owner until it is saved, so Back
+  or a new document never saves into another file. A read is current only when its owner, file
+  id and revision all match. A table is edited whole up to 1 MiB; a larger one is a bounded,
+  read-only preview, never a part that could be written back over the whole. The chat uses the
+  library's `LibraryFileCard`, `LibraryPictureViewer` and `openLibraryPanel(fileId)`.
+- **Composer.** Drafts are per chat (`composerKey`) and kept for the session, as the React app's
+  are. Picked, pasted and dropped files are read in data/composer.ts, so a drive that attaches
+  one needs `--storage`.
+- **Teams.** Who is here comes from the team's presence socket (data/teams-here.ts); where this
+  page is and whether its person is typing is said on it by `sayHere`, not by reopening it.
 
 ## Native views
 

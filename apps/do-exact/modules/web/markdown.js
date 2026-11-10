@@ -190,6 +190,8 @@ export function create(element, props, event) {
   const setProps = next => {
     const files = read(next);
     appearance(body, element, next);
+    // A document of the library is set as one (the React app's `prose-doc`), a reply as a chat's.
+    body.classList.toggle('doc', next.variant === 'doc');
     if (current?.text === next.text && current?.streaming === next.streaming && current?.files === next.files && current?.dark === body.classList.contains('dark')) return;
     const tree = parse(next.text || '');
     records = reconcile(body, records, tree.children || [], { body, files, event: (kind, payload) => { if (kind !== 7) emit(kind, payload); }, writing: next.streaming === 'true' && endsInOpenFence(next.text || '') });

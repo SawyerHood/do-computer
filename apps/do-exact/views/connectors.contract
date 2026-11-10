@@ -1,4 +1,5 @@
-use Page, Reply from "./shapes.contract"
+use Page, Reply, Dood from "./shapes.contract"
+use doodOf, nameOf from "./shell.contract"
 use DoodSettings, SettingsCard, SettingsRow, OutlineButton, SettingsField, Hint, SmallHint, FieldName from "./settings-kit.contract"
 use DoodFace from "./creature.contract"
 use PrimaryButton from "./styles.contract"
@@ -161,6 +162,7 @@ component ConnectorsScreen
   props
     page: Page
   inject
+    doodList: Dood[]
     connectorItems: Connector[]
     connectorNotice: string
     connectorsLoading: bool
@@ -190,6 +192,7 @@ component ConnectorsScreen
     editConnectorSecret: action
     addConnector: action
     changeConnector: action
+  derive doodName = nameOf(doodOf(doodList, page.agentId))
   view
     DoodSettings(page=page, route="connectors", title=(slackOpen ? "Slack" : "Connectors"), listing=false, lead=(slackOpen ? "Put your Dood in Slack as a bot. Mention it in a channel or message it, and it answers there." : "Apps and services your Dood can use."))
       if slackOpen
@@ -214,18 +217,30 @@ component ConnectorsScreen
           ConnectorCard(connector=c, busy=connectorsBusy, change=changeConnector)
         if connectorItems.filter(c => c.apps).length == 0
           SettingsCard(testId="apps-offer")
-            text "Your apps" role="heading" aria-level=3 font-weight=600
-            text "Gmail, Calendar, Drive, Notion, GitHub and hundreds more. Your Dood asks before it acts in one." class=Hint
-            link href="https://do.computer/docs/apps" target="_blank"
-              text "How it works"
-            button press=addConnector(true) disabled=connectorsBusy class=PrimaryButton align-self="start" testId="apps-connect"
-              text (connectorsBusy ? "Connecting…" : "Connect apps")
+            row gap=12 align-items="center" flex-wrap="wrap"
+              column flex=1 min-width="12rem" gap=4
+                row gap=8 align-items="center"
+                  image "symbol:icon.squares-four" aria-hidden=true font-size="1rem"
+                  text "Your apps" role="heading" aria-level=3 font-weight=500 font-size="0.9375rem"
+                // A sentence with a link in it is a row of runs (GAPS.md, "Settings").
+                row flex-wrap="wrap" column-gap=4 align-items="baseline"
+                  text "Gmail, Calendar, Drive, Notion, GitHub and hundreds more. Your Dood asks before it acts in one." class=Hint
+                  link href="https://do.computer/docs/apps" target="_blank" color="ink.muted" font-size="0.875rem" text-decoration="underline"
+                    text "How it works"
+              button press=addConnector(true) disabled=connectorsBusy class=PrimaryButton flex-shrink=0 testId="apps-connect"
+                text (connectorsBusy ? "Connecting…" : "Connect apps")
         SettingsCard(testId="slack-offer")
-          SettingsRow(label="Slack", hint=(slackOurs and slack.connected ? `Your Dood is in ${slack.team} as @${slack.bot}.` : "Your Dood as a bot of its own, answering where it is mentioned."), testId="slack-offer-row")
-            button press=showSlack class=OutlineButton testId="slack-open"
+          row gap=12 align-items="center" flex-wrap="wrap" testId="slack-offer-row"
+            column flex=1 min-width="12rem" gap=4
+              row gap=8 align-items="center"
+                image "symbol:icon.slack-logo" aria-hidden=true font-size="1rem"
+                text "Slack" role="heading" aria-level=3 font-weight=500 font-size="0.9375rem"
+              text (slackOurs and slack.connected ? `${doodName} is in ${slack.team} as @${slack.bot}.` : `${doodName} as a bot of its own, answering where it is mentioned.`) class=Hint
+            button press=showSlack class=OutlineButton flex-shrink=0 testId="slack-open"
               text (slackOurs and slack.connected ? "Manage" : "Set up")
         if not connectorForm
           button press=showConnectorForm class=ConnectorGhost align-self="start" testId="connector-open"
+            image "symbol:icon.plus" aria-hidden=true font-size="0.875rem"
             text "Add a connector"
         else
           SettingsCard(testId="connector-form")
@@ -362,6 +377,7 @@ component SlackSection
 
 style ConnectorGhost
   min-height="2rem" padding="0 10px" border-radius=8 font-size="0.875rem" font-weight=500
+  display="flex" align-items="center" gap=6
   background-color="transparent" color="ink.muted" border="none"
   :hover
     background-color="wash"

@@ -11,6 +11,8 @@ use Face, Hatchling from "./creature.contract"
 use Creature, CreatureCare from "./care.contract"
 use crumbOf from "./care-pixels.contract"
 use IconButton from "./styles.contract"
+use HereFaces, namesOf from "./teams-here.contract"
+use TeamInfo, TeamMember, teamOf from "./teams.contract"
 
 members App
   // --- panel ---
@@ -144,7 +146,8 @@ component DoodPanel
         // --- subagents --- PanelSection(id="subagents", title="Sub-agents at work", …)
         // --- doods --- PanelSection(id="doods", title="From other Doods", startsFolded=true, …)
         // --- slack --- PanelSection(id="slack", title="From Slack", startsFolded=true, …)
-        // --- here --- PanelSection(id="here", title="Here now", …) in a team
+        // --- here --- who has this chat open, in a team
+        HereNow(workspaceId=dood.workspaceId)
         // --- shared --- PanelSection(id="shared", title="Shared here", startsFolded=true, …)
 
 // One section of the panel under a heading that folds it away (panel-section.tsx). Folded, the
@@ -178,3 +181,23 @@ component PanelSection
             text `${count}` min-width=20 padding="1px 6px" border-radius=999 background-color="secondary" text-align="center" font-size="0.6875rem" font-weight=400
       if not shut
         children
+
+// The panel's "Here now", in a team: who has this chat open, and a way to ask more.
+component HereNow
+  props
+    workspaceId: string
+  inject
+    hereTeam: string
+    hereInChat: TeamMember[]
+    hereWriting: TeamMember[]
+    teamList: TeamInfo[]
+  derive team = teamOf(teamList, workspaceId)
+  view
+    if hereTeam != "" and hereTeam == workspaceId
+      PanelSection(id="here", title="Here now", count=hereInChat.length, said="", startsFolded=false)
+        row gap=8 align-items="center" padding="0 16px 14px" testId="panel-here"
+          HereFaces(people=hereInChat, size=28)
+          text (hereWriting.length > 0 ? `${namesOf(hereWriting)} ${hereWriting.length == 1 ? "is" : "are"} typing` : hereInChat.length == 0 ? "Connecting…" : namesOf(hereInChat)) flex=1 min-width=0 font-size="0.75rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+          if team.role != "member"
+            link href=`/w/${workspaceId}/people` font-size="0.75rem" color="ink" testId="panel-here-invite"
+              text "Invite"

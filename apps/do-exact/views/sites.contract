@@ -62,7 +62,7 @@ component SharedSites
         column border-radius=16 background-color="popover" border="1px solid var(--hairline)" overflow="hidden"
           for s in sites.sites key=s.id
             row align-items="center" gap=8 padding="10px 12px" flex-wrap="wrap"
-              image "symbol:link" color="ink.muted"
+              image "symbol:icon.globe" color="ink.muted"
               column flex=1 min-width=0 gap=3
                 link href=s.url target="_blank" color="ink" text-decoration="none" testId=`site-${s.id}`
                   text s.title font-size="0.875rem" font-weight=500 overflow-wrap="break-word"
@@ -70,7 +70,7 @@ component SharedSites
               text (s.public ? "Public" : libraryAudience) color="ink.muted" font-size="0.6875rem"
               SiteCopy(url=s.url, tag=s.id)
               button press=shareLibraryPath(s.path) aria-label=`Sharing of ${s.title}` testId=`site-settings-${s.id}`
-                image "symbol:more"
+                image "symbol:icon.dots"
 
 component SiteCopy
   props
@@ -102,7 +102,7 @@ component ShareControls
         row align-items="center" gap=8
           text (libraryShareSite.id == "" ? "Share with a link" : "Shared with a link") flex=1 font-weight=600 font-size="0.875rem"
           button press=libraryCloseShare aria-label="Close sharing" testId="library-share-close"
-            image "symbol:close"
+            image "symbol:icon.x"
         text librarySharePath font-size="0.8125rem" color="ink.muted" overflow-wrap="break-word"
         if libraryShareSite.id == ""
           text `This gives it a link of its own, which shows it as it is in the library. ${libraryAudience} can open it, and nobody else until you make it public.` font-size="0.875rem" color="ink.muted"
@@ -115,12 +115,12 @@ component ShareControls
             SiteCopy(url=libraryShareSite.url, tag="dialog")
           text "Who can open it" font-size="0.8125rem" font-weight=500
           button press=librarySetAudience(false) disabled=librarySharingBusy aria-pressed=(not libraryShareSite.public) class=MenuItem background-color=(not libraryShareSite.public ? "wash" : "transparent") testId="library-share-private"
-            image "symbol:lock"
+            image "symbol:icon.lock"
             column gap=3
               text libraryAudience font-size="0.875rem"
               text "Signed in to this workspace" font-size="0.75rem" color="ink.muted"
           button press=librarySetAudience(true) disabled=librarySharingBusy aria-pressed=libraryShareSite.public class=MenuItem background-color=(libraryShareSite.public ? "wash" : "transparent") testId="library-share-public"
-            image "symbol:link"
+            image "symbol:icon.globe"
             column gap=3
               text "Anyone with the link" font-size="0.875rem"
               text "No sign-in needed" font-size="0.75rem" color="ink.muted"

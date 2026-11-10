@@ -1,0 +1,40 @@
+use Menu, MenuItem from "./styles.contract"
+
+// The settings' field (settings-kit.contract's SettingsField), as a button.
+style SelectButton
+  min-height="2.25rem" padding="0 10px" border-radius=8 border="1px solid var(--input)" font-size="0.875rem"
+  background-color="transparent" color="ink" font-family="Geist" min-width=0
+  :disabled
+    opacity=0.5
+
+shape Choice
+  value: string
+  label: string
+
+// The React app's Select: a button that drops a menu of the choices, a check by the chosen one.
+// A browser's own select would take none of the app's colours (the build says so of app.tamber's
+// accent). Each choice is labelled `<label>: <choice>`, and its test id is `<testId>-<value>`.
+component Select
+  props
+    // The menu's id, which no other node on the screen has.
+    id: string
+    label: string
+    value: string
+    choices: Choice[]
+    // What the button says while nothing is chosen.
+    placeholder: string
+    choose: action
+    disabled: bool
+    testId: string
+  derive chosen = match first(choices.filter(c => c.value == value)) { case some(c) => c.label, case none => placeholder }
+  view
+    row min-width=0
+      button popovertarget=id aria-label=label disabled=disabled display="flex" align-items="center" gap=8 class=SelectButton min-width="10rem" max-width="100%" testId=testId
+        text chosen flex=1 min-width=0 text-align="start" overflow="hidden" text-overflow="ellipsis" white-space="nowrap" color=(chosen == placeholder ? "ink.muted" : "ink")
+        image "symbol:icon.caret-down" aria-hidden=true color="ink.muted" font-size="0.75rem" flex-shrink=0
+      column id=id popover="auto" role="menu" aria-label=`${label}: choices` class=Menu max-width="min(24rem, calc(100vw - 32px))"
+        for c in choices key=c.value
+          button role="menuitem" press=choose(c.value) popovertarget=id popovertargetaction="hide" aria-label=`${label}: ${c.label}` class=MenuItem text-align="start" testId=`${testId}-${c.value}`
+            text c.label flex=1 min-width=0 overflow-wrap="break-word"
+            if c.value == value
+              image "symbol:icon.check" aria-hidden=true flex-shrink=0

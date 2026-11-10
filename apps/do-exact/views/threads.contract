@@ -71,7 +71,7 @@ component ThreadsMenu
                 if c.kind == "agent"
                   DoodFace(seed=doodOf(doodList, c.peerId).seed, color=doodOf(doodList, c.peerId).color, state="idle", name=c.detail, size=32)
                 else
-                  image (c.kind == "slack" ? "symbol:hashtag" : c.kind == "subagent" ? "symbol:messages" : "symbol:document") width="1.5rem" height="1.5rem" color="ink.muted"
+                  image (c.kind == "slack" ? "symbol:icon.slack-logo" : c.kind == "subagent" ? "symbol:icon.terminal" : "symbol:icon.archive") width="1.5rem" height="1.5rem" color="ink.muted"
                 column gap=2 min-width=0 flex=1
                   text c.title font-size="0.875rem" overflow-wrap="break-word"
                   text (c.kind == "chat" ? ago(c.updated, now, utcOffset) : c.detail) font-size="0.75rem" color="ink.muted"

@@ -27,6 +27,23 @@ members App
   // The files pinned, by id now and as pinned, so a card in a long chat looks itself up without a search.
   derive libraryPinnedIds = libraryPinList.map(p => p.currentId).concat(libraryPinList.map(p => p.fileId))
   derive libraryPinned = libraryPinList.map(p => p.currentId == librarySelected.id).includes(true)
+  // A pin whose file changed while it was on screen says "Just changed" for a moment, as the
+  // React shelf's does (pins/shelf.tsx `useJustChanged`). Its address carries the file's revision.
+  state libraryPinsSeen: string[] = []
+  state libraryPinsSeenFor = ""
+  state libraryPinsFresh: string[] = []
+  task libraryPinsWatch key=`${libraryPins.agentId}:${libraryPinList.map(p => p.url).join(" ")}`
+    after(1, libraryPinsNoted)
+  action libraryPinsNoted
+    let showing = libraryPinList.filter(p => not p.missing).map(p => p.url)
+    let before = libraryPinsSeenFor == libraryPins.agentId ? libraryPinsSeen : showing
+    libraryPinsFresh = libraryPinList.filter(p => not p.missing and not before.includes(p.url) and before.length > 0).map(p => p.fileId)
+    libraryPinsSeen = showing
+    libraryPinsSeenFor = libraryPins.agentId
+  task libraryPinsFreshEnd key=libraryPinsFresh.join(" ")
+    after(4000, libraryPinsSettled)
+  action libraryPinsSettled
+    libraryPinsFresh = []
   derive libraryPinError = pending(libraryPinnedReply) ? "" : match libraryPinnedReply { case some(r) => r.error, case none => "" }
   action libraryPin
     let p = match first(libraryPinList.filter(p => p.currentId == librarySelected.id)) { case some(p) => p.fileId, case none => librarySelected.id }
@@ -40,6 +57,7 @@ members App
 component PinsShelf
   inject
     libraryPinList: LibraryPin[]
+    libraryPinsFresh: string[]
     libraryUnpin: action
     openLibraryPanel: action
     libraryPinError: string
@@ -48,7 +66,10 @@ component PinsShelf
       column gap=8 padding=12 testId="library-pins"
         text "Pinned" font-size="0.8125rem" color="ink.muted"
         for p, i in libraryPinList key=p.fileId
-          column border-radius=12 background-color="popover" border="1px solid var(--hairline)" overflow="hidden"
+          column border-radius=12 background-color="popover" overflow="hidden"
+            border=(libraryPinsFresh.includes(p.fileId) ? "1px solid var(--primary)" : "1px solid var(--hairline)")
+            box-shadow=(libraryPinsFresh.includes(p.fileId) ? "0 0 0 2px color-mix(in oklch, var(--primary) 50%, transparent)" : "none")
+            transition="box-shadow 200ms ease"
             if i == 0 and not p.missing and (p.kind == "image" or p.kind == "markdown" or p.kind == "page")
               button press=openLibraryPanel(p.currentId) padding=0 border="none" background-color="transparent" height=160 overflow="hidden" aria-label=`Open ${p.title}` testId="library-pin-preview"
                 if p.kind == "image"
@@ -65,9 +86,9 @@ component PinsShelf
                 button press=openLibraryPanel(p.currentId) class=MenuItem flex=1 min-width=0 testId=`pin-open-${p.fileId}`
                   text p.title font-size="0.875rem" overflow-wrap="break-word"
               if not p.missing
-                text p.when color="ink.muted" font-size="0.6875rem"
+                text (libraryPinsFresh.includes(p.fileId) ? "Just changed" : p.when) color=(libraryPinsFresh.includes(p.fileId) ? "primary" : "ink.muted") font-size="0.75rem" flex-shrink=0 testId=`pin-when-${p.fileId}`
               button press=libraryUnpin(p.fileId) aria-label=`Unpin ${p.title}` testId=`pin-remove-${p.fileId}`
-                image "symbol:pin"
+                image "symbol:icon.push-pin-slash"
         if libraryPinError != ""
           text libraryPinError color="danger" role="alert" font-size="0.8125rem" testId="library-pin-error"
 
@@ -87,7 +108,7 @@ component LibraryDocumentPanel
           button press=libraryOpen(librarySelected.id) testId="library-panel-expand"
             text "Open in the Library"
           button press=closeLibraryPanel aria-label="Close the document" testId="library-panel-close"
-            image "symbol:close"
+            image "symbol:icon.x"
         if librarySelected.id == ""
           text "That file is no longer in the library. It may be under Recently deleted." padding=24 font-size="0.875rem" color="ink.muted" testId="library-panel-missing"
         else

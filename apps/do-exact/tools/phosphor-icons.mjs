@@ -69,6 +69,28 @@ const ICONS = {
   "archive": "Archive",
   "arrow-square-out": "ArrowSquareOut",
   "monitor": "Monitor",
+  // --- library, pins and sharing ---
+  "folder": "Folder",
+  "folder-open": "FolderOpen",
+  "file-text": "FileText",
+  "file-image": "FileImage",
+  "file-code": "FileCode",
+  "table": "Table",
+  "note-pencil": "NotePencil",
+  "upload": "UploadSimple",
+  "share-network": "ShareNetwork",
+  "cloud-check": "CloudCheck",
+  "link": "LinkSimple",
+  "push-pin-slash": "PushPinSlash",
+  "trash": "Trash",
+  "clock-counter-clockwise": "ClockCounterClockwise",
+  "pencil": "PencilSimple",
+  "columns": "Columns",
+  // --- teams ---
+  "envelope": "EnvelopeSimple",
+  "github-logo": "GithubLogo",
+  "user-plus": "UserPlus",
+  "sort-ascending": "SortAscending",
 }
 const pnpm = resolve(here, "../../../node_modules/.pnpm")
 const dir = readdirSync(pnpm).find((name) => name.startsWith("@phosphor-icons+react@"))

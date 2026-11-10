@@ -11,6 +11,7 @@ import { doodSources } from './data/dood.ts';
 import { sessionSources } from './data/session.ts';
 import { shellSources } from './data/shell.ts';
 import { teamsSources } from './data/teams.ts';
+import { teamsHereSources } from './data/teams-here.ts';
 import { automationsSources } from './data/automations.ts';
 import { skillsSources } from './data/skills.ts';
 import { connectorsSources } from './data/connectors.ts';
@@ -41,6 +42,7 @@ const sources: Sources = {
   ...shellSources,
   ...chatSources,
   ...teamsSources,
+  ...teamsHereSources,
   ...automationsSources,
   ...skillsSources,
   ...connectorsSources,

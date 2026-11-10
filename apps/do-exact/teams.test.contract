@@ -78,7 +78,7 @@ test "a Dood is brought into a team, renamed, moved back, and deleted from its p
   reload
   clock data
   tap "New Dood's pages and actions"
-  tap "Settings"
+  tap "New Dood: Settings"
   clock data
   clock settle
   tap "settings-go-profile-settings"
@@ -91,7 +91,7 @@ test "a Dood is brought into a team, renamed, moved back, and deleted from its p
   clock settle
   expect state doodList.0.name == "Pico"
   tap "profile-move-to"
-  tap "Personal"
+  tap "Move to Personal"
   tap "profile-move"
   clock data
   clock settle
@@ -195,7 +195,8 @@ test "email and GitHub invitations can be renewed and withdrawn"
   tap "team-invite-open-people"
   clock settle
   type "team-invite-who" "@octocat"
-  type "team-invite-role" "admin"
+  tap "team-invite-role"
+  tap "team-invite-role-admin"
   tap "team-invite-submit"
   clock data
   tap "team-invite-done"
@@ -218,21 +219,27 @@ test "dragging a Dood persists its order and Sort by latest gives that up"
   tap "new-dood"
   clock data
   clock settle
-  tap "New Dood's pages and actions"
-  tap "Rename New Dood"
-  clock settle
-  type "sidebar-rename-input" "Pico"
-  tap "sidebar-rename-save"
+  tap "pages-dood"
+  tap "go-profile-dood"
   clock data
+  clock settle
+  clock data
+  type "profile-name" "Pico"
+  tap "dood-save"
+  clock data
+  clock settle
   tap "new-dood"
   clock data
   clock settle
-  tap "New Dood's pages and actions"
-  tap "Rename New Dood"
-  clock settle
-  type "sidebar-rename-input" "Maple"
-  tap "sidebar-rename-save"
+  tap "pages-dood"
+  tap "go-profile-dood"
   clock data
+  clock settle
+  clock data
+  type "profile-name" "Maple"
+  tap "dood-save"
+  clock data
+  clock settle
   expect state doodList.0.name == "Maple"
   tap "Drag Pico to reorder" drag 0 -80 mouse
   clock data
@@ -254,6 +261,8 @@ test "dragging a Dood persists its order and Sort by latest gives that up"
   clock data
   expect state doodList.0.name == "Maple"
   resize 390x844
+  back
+  clock settle
   back
   clock settle
   tap "Pico's pages and actions"
@@ -318,13 +327,16 @@ test "the owner can promote, demote, and hand the team to another member"
   tap "People"
   clock settle
   clock data
-  type "Role of Grace" "admin"
+  tap "Role of Grace"
+  tap "Role of Grace: Admin"
   clock data
   expect state teamList.1.members.1.role == "admin"
-  type "Role of Grace" "member"
+  tap "Role of Grace"
+  tap "Role of Grace: Member"
   clock data
   expect state teamList.1.members.1.role == "member"
-  type "Role of Grace" "owner"
+  tap "Role of Grace"
+  tap "Role of Grace: Owner"
   clock settle
   tap "Confirm handing team to Grace"
   clock data
@@ -533,3 +545,40 @@ test "a team Dood hatches from its workspace plus, and a quick New team keeps th
   clock data
   expect state openDood.hatched == true
   expect state workspaceList.length == 2
+
+test "in a team, its presence socket says who is here and where, and the panel says who has the chat open"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Here Owner"
+  type "sign-email" "teams-here@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-team"
+  clock +1000
+  type "team-name" "Here Studio"
+  tap "team-create-submit"
+  clock data
+  tap "team-created-go"
+  clock data
+  clock settle
+  tap "New Dood in Here Studio"
+  clock data
+  clock settle
+  clock data
+  clock +500 real
+  clock data
+  expect state herePlaces.length == 1
+  expect state herePlaces.0 .typing == false
+  // Only someone else is shown with a Dood; the person themselves is in the panel's Here now.
+  expect state hereOthers.length == 0
+  tap "panel-toggle-dood"
+  expect tree has "panel-here"
+  expect state hereInChat.length == 1
+  type "composer" "Hello th"
+  clock +500 real
+  clock data
+  expect state herePlaces.0 .typing == true
+  clock +4500 real
+  clock data
+  expect state herePlaces.0 .typing == false

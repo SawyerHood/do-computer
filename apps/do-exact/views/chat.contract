@@ -19,6 +19,7 @@ use LibraryPicture, LibraryPictureViewer from "./library-card.contract"
 use LibraryFile, Library from "./library-shapes.contract"
 use chatHref, Block, Message, Chat, Opened, Earlier, ApprovalAsk, SecretField, SecretAsk, SecretAsks, SignInAsk, SignIns, SignInReply, ComputerAsk, ComputerAsks from "./chat-shapes.contract"
 use EmptyState from "exact:content"
+use HereTyping from "./teams-here.contract"
 
 members App
   // --- chat ---
@@ -345,6 +346,7 @@ component ChatScreen
         else if aside
           ChatFoot(face=true, words=`An old side chat, kept to read. Everything with ${name} now happens in its main chat.`, href=chatHref(page.agentId, mainChatId), label="Back to the main chat", dood=dood, route=route)
         // In a chat read here, the composer's place keeps only its way to the Dood's other chats.
+        HereTyping()
         ComposerBox(agentId=page.agentId, chatId=chat.chatId, name=nameOf(dood), draft=draft, ours=ours, sending=sending, busy=chat.busy, editDraft=editDraft, say=say)
       if wide and panelOpen
         DoodPanel(dood=dood, busy=(ours and chat.busy))

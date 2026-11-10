@@ -1,11 +1,12 @@
 import theme from './markdown-built/theme.js';
 
-// The app's own faces (app.contract's `font`s, from assets/fonts), as the React app's
-// --font-sans and --font-mono; a shadow tree sees the page's @font-face rules.
+// The app's own faces, as the React app's --font-sans and --font-mono. A shadow tree sees only
+// the page's faces, and Exact names the ones it declares for app.contract's `font`s itself
+// (ExactPlanStack…), so these are declared again under their own names (`faces`).
 export const css = theme + `
-:host{--font-sans:"Geist",ui-sans-serif,system-ui,sans-serif;--font-mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;display:block;min-width:0;max-width:100%;user-select:text}
+:host{--font-sans:"Do Geist",ui-sans-serif,system-ui,sans-serif;--font-mono:"Do Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;display:block;min-width:0;max-width:100%;user-select:text}
 .md{font:inherit;font-family:var(--font-sans);font-size:1rem;line-height:1.65;color:var(--foreground);overflow-wrap:anywhere;min-width:0}
-.md *{box-sizing:border-box}.md>:first-child{margin-top:0}.md>:last-child{margin-bottom:0}
+.md *{box-sizing:border-box}.md.doc{font-size:.96875rem;line-height:1.7}.md.doc :is(h1,h2,h3,h4){letter-spacing:-.025em}.md.doc h1{font-size:1.875rem;line-height:1.25}.md.doc h2{margin-top:36px;font-size:1.25rem}.md.doc h3{margin-top:24px;font-size:1rem}.md.doc ul,.md.doc ol{padding-left:24px}.md.doc a{color:var(--primary)}.md.doc blockquote{padding-left:16px}.md.doc img{border-radius:12px;border:1px solid var(--border)}.md.doc hr{margin:28px 0}.md>:first-child{margin-top:0}.md>:last-child{margin-bottom:0}
 p,ul,ol,blockquote,pre,table,details,hr,h1,h2,h3,h4,h5,h6{margin:14px 0 0}
 h1,h2,h3,h4,h5,h6{font-weight:600;line-height:1.4}h1{font-size:1.125rem}h2,h3{font-size:1rem}h4,h5,h6{font-size:.9375rem}
 ul,ol{padding-left:20px}ul{list-style-type:disc}li>ul,li>ol{margin-top:4px}li+li{margin-top:4px}li>p{margin-top:0}a{color:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
@@ -25,7 +26,20 @@ details{border-block:1px solid var(--border)}summary{cursor:pointer;font-weight:
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}img{max-width:100%;vertical-align:middle}img[data-alone][data-loading]:not([width]){aspect-ratio:16/9;width:min(100%,480px);background:var(--muted)}img[data-alone]{display:block;max-height:384px;width:auto;max-width:min(100%,480px);border:1px solid var(--hairline);border-radius:12px;cursor:zoom-in}.remote,.missing{display:inline-flex;align-items:center;flex-wrap:wrap;gap:8px;max-width:100%;border:1px dashed var(--input);border-radius:8px;padding:6px 10px;color:var(--muted-foreground);font-size:.875rem}.missing{border:1px solid var(--hairline);border-radius:6px;background:var(--muted);padding:1px 6px}.remote button{text-decoration:underline}audio,video{max-width:100%}
 `;
 
+// The same files the app's build serves for its own fonts (assets/fonts), added to the page once.
+let faces = false;
+function addFaces() {
+  if (faces || typeof FontFace === 'undefined') return;
+  faces = true;
+  for (const [family, file] of [['Do Geist', 'Geist-Variable.ttf'], ['Do Geist Mono', 'GeistMono-Variable.ttf']]) {
+    const face = new FontFace(family, `url(${new URL(`assets/fonts/${file}`, document.baseURI)})`, { weight: '100 900' });
+    document.fonts.add(face);
+    face.load().catch(() => {});
+  }
+}
+
 export function shell(element) {
+  addFaces();
   const root = element.shadowRoot ?? element.attachShadow({ mode: 'open' });
   const style = document.createElement('style'); style.textContent = css;
   const body = document.createElement('div'); body.className = 'md';

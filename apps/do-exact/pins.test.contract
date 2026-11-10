@@ -32,6 +32,17 @@ test "a pinned document opens over the chat and unpinning leaves its file in the
   clock data
   expect tree has "library-document-panel"
   expect text "library-file-name" == "Untitled.md"
+  // A change to the pinned file while the shelf is on screen says so for a moment.
+  tap "library-mode-edit"
+  clock data
+  type "library-editor" "# Changed\n\nWhile pinned."
+  clock +1000
+  clock data
+  expect text "library-save-state" == "Saved"
+  clock data
+  expect state libraryPinsFresh.length == 1
+  clock +4500
+  expect state libraryPinsFresh.length == 0
   tap "library-panel-close"
   expect tree missing "library-document-panel"
   tap "Unpin Untitled.md"

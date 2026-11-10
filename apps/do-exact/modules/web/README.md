@@ -151,7 +151,9 @@ These tags are web-only, selectable DOM, not canvases. Leave their height unset.
 `align-self="stretch" min-width=0 max-width="100%"` in a column; their shadow content gives
 its real height to browser layout. Code, tables and diagrams scroll sideways inside that
 width. `dark="true"` or `"false"` overrides appearance; otherwise they follow Exact and the
-browser. Fonts inherit from the host, with a monospace fallback for code. The syntax colors
+browser. Prose is in Geist and code in Geist Mono: the app's own font files (assets/fonts),
+added to the page once under names of their own (`Do Geist`, `Do Geist Mono`), since Exact
+renames the faces it declares. `variant="doc"` sets a library document's larger type. The syntax colors
 are generated from the React app's theme tokens, not a similar Shiki preset.
 
 The dispatcher loads these implementations only when one is created. A creature-only page
@@ -188,10 +190,11 @@ etc.). Heading links find a heading within this message; other links open a new 
 using the protocol's serializers. Unsafe HTML, scripts and unsafe URLs are removed.
 
 Pictures at another host make **no request until Show is pressed**, including images written
-in raw HTML. Show lasts for that picture instance; persistent per-host permission is not
-implemented. Approved video/audio URLs use browser controls. Responsive `<source srcset>`
-is deliberately skipped: it would bypass the image permission UI. `GAPS.md` lists the
-library previews, viewer and permission work that remains. React has no KaTeX/remark-math
+in raw HTML. Show lasts for that picture; "Always from <host>" keeps the host in the browser's
+`dc-shown-hosts`, the React app's own list, and the app's own host is always shown. Approved video/audio URLs use browser controls. Responsive `<source srcset>`
+is deliberately skipped: it would bypass the image permission UI. A press on a library file or
+a standalone picture is said as `file:<id>` or `image:<url>`, for the host to open. Alerts
+wear the React app's Phosphor icons, generated into `markdown-built/alert-icons.js`. React has no KaTeX/remark-math
 plugin here, and no Markdown mention widget: `$math$` and `@names` remain text in both.
 
 ### do-code
@@ -264,7 +267,7 @@ Mermaid's is 744,142 bytes before the diagram type's chunks. This is the availab
 not an initial download: parser/style load on first rich content, Shiki only for complete
 code, each grammar on first use, Mermaid only for a complete diagram and its renderer on
 first use. The unchanged mascot `engine.js` is another 790,023 bytes. No fonts are bundled by
-this piece; prose inherits the host's font, and monospace uses the system fallback.
+this piece: it uses the app's own Geist files from `assets/fonts`.
 
 `tests/markdown-gallery/README.md` gives the gallery commands, the browser interaction checks,
 React reference capture and the screenshot list. Its prepare step copies the complete module

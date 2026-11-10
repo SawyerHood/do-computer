@@ -96,7 +96,10 @@ try {
         baseURL: origin, viewport, colorScheme: scheme, storageState: state, deviceScaleFactor: 1,
         hasTouch: size === 'phone', isMobile: size === 'phone',
       });
-      const react = await (await context(false)).newPage();
+      const reactContext = await context(false);
+      // The React app's sidebar open, as the Exact app's always is (lib/atoms.ts SIDEBAR_OPEN_KEY).
+      await reactContext.addInitScript(() => localStorage.setItem('dc-chat-list', 'open'));
+      const react = await reactContext.newPage();
       const exactContext = await context(true);
       const exact = await exactContext.newPage();
       // /x/ picks the Exact app for this browser (apps/web/src/server/exact-app.ts).

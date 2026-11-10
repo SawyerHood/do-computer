@@ -54,12 +54,12 @@ component AutomationsScreen
     retryAutomations: action
   view
     DoodScreen(page=page, route="automations", lead="Things your Dood does on its own, once or on a schedule. To add one, ask in chat: “Every weekday at 9, tell me what is on my calendar.”")
-      column max-width="42rem" gap=12
+      column gap=12
         if automationsLoading
           progress aria-label="Loading automations" testId="automations-loading"
         if automationsFailed
           text "Could not load automations." role="alert" color="danger" testId="automations-failed"
-          button press=retryAutomations testId="automations-retry"
+          button press=retryAutomations class=OutlineButton align-self="start" testId="automations-retry"
             text "Try again"
         if not automationsLoading and automationItems.length == 0 and not automationsFailed
           text "Nothing scheduled yet." padding=24 border="1px dashed var(--hairline)" border-radius=16 text-align="center" class=PageLead testId="automations-empty"
@@ -90,7 +90,7 @@ component AutomationsScreen
               button press=changeAutomation(s.id, "remove", s.enabled) disabled=automationsBusy class=GhostButton margin-left="auto" aria-label=`Delete ${s.title}` testId=`automation-delete-${s.id}`
                 text "Delete"
         if automationItems.length > 0 and not automationsFailed
-          button press=retryAutomations align-self="start" testId="automations-retry"
+          button press=retryAutomations class=GhostButton align-self="start" testId="automations-retry"
             text "Refresh"
         if automationsError != ""
           text automationsError color="danger" role="alert" testId="automations-error"

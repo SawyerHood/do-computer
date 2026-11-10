@@ -98,6 +98,9 @@ component UserMessage
           if own and delivery != ""
             Delivery(delivered=(delivery == "delivered"), id=message.id)
 
+keyframes delivery-gone
+  to opacity=0
+
 // Whether a message of one's own has reached the Dood, as a message app says it: "Sending" with
 // a turning ring while it waits, "Delivered" with a check once the Dood has it, for a moment.
 component Delivery
@@ -106,6 +109,7 @@ component Delivery
     id: string
   view
     row gap=6 align-items="center" padding="0 4px" font-size="0.75rem" color="ink.muted" min-height=20
+      -exact-exit-animation="delivery-gone 300ms ease-in both"
       role="img" aria-label=(delivered ? "Delivered" : "Sending") title=(delivered ? "" : "Sent. It is read after the step under way.") testId=(delivered ? "delivered" : "sending")
       text (delivered ? "Delivered" : "Sending")
       if delivered
@@ -508,16 +512,24 @@ component UseLine
   action toggle
     open = not open
 
+// A light passing over words for work in progress: the React app's `animate-shine` sweeps a band
+// across them, which needs a gradient clipped to the text; here they breathe instead.
+keyframes working-shine
+  50% opacity=0.5
+
 // What the Dood is doing, under the transcript, while nothing else on screen says so.
 component Working
   props
     dood: Dood
     activity: string
+  inject
+    stillMotion: bool
   view
     column width="100%" align-items="center"
       row width="100%" max-width="45rem" padding="12px 20px 24px" box-sizing="border-box" gap=8 align-items="center" role="status" aria-live="polite"
         DoodFace(seed=dood.seed, color=dood.color, state="working", name=nameOf(dood), size=20)
-        text `${activity}…` font-size="0.875rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId="activity"
+        text `${activity}…` font-size="0.875rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+          animation=(stillMotion ? "none" : "working-shine 2s ease-in-out infinite") testId="activity"
 
 // What a chat holds while it is on its way: the shapes of messages, where they will be.
 component TranscriptPlaceholder

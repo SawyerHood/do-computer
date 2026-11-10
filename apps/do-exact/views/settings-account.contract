@@ -265,21 +265,22 @@ component WorkspacesListScreen
   derive ours = workspacesAbout.owner == session.owner
   view
     AccountSettings(page=page, route="workspacesList", title="Workspaces", lead="Your own, and the teams you are in. A workspace has the computers its Doods work on and the models they can run on; a team has its people too.", listing=false, admin=admin, waitlist=hasWaitlist, close=settingsReturn)
-      button press=teamNew class=OutlineButton align-self="flex-start" testId="workspaces-new-team"
-        image "symbol:icon.plus" aria-hidden=true
-        text "New team"
       column role="list"
         for w, i in workspaceList key=w.id
           link href=`/w/${w.id}/settings` role="listitem" aria-label=`${w.name}: workspace settings` display="flex" align-items="center" gap=12 padding="10px 6px"
             border-radius=8 border-top=(i == 0 ? "none" : "1px solid var(--border)") text-decoration="none" color="ink" testId=`workspaces-list-${w.kind == "personal" ? "personal" : w.id}`
             :hover
               background-color="wash"
-            column width="2rem" height="2rem" border-radius=8 background-color=w.color align-items="center" justify-content="center" flex-shrink=0
-              text w.name.slice(0, 1).toUpperCase() color="ink.on-color" font-size="0.8125rem" font-weight=600
+            // One's own is one's own face (the React app's PersonFace), a team its tile.
+            column width="2rem" height="2rem" border-radius=8 background-color=(w.kind == "personal" ? "ink.muted" : w.color) align-items="center" justify-content="center" flex-shrink=0
+              text (w.kind == "personal" ? session.initials : w.name.slice(0, 1).toUpperCase()) color=(w.kind == "personal" ? "canvas" : "ink.on-color") font-size=(w.kind == "personal" ? "0.75rem" : "0.8125rem") font-weight=600
             row flex=1 min-width=0 align-items="baseline" gap=12 flex-wrap="wrap"
               text w.name font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
               text (ours ? workspaceAboutOf(workspacesAbout.workspaces, w.id).about : "") margin-left="auto" font-size="0.875rem" color="ink.muted"
             image "symbol:icon.caret-right" aria-hidden=true color="ink.muted" font-size="0.875rem"
+      button press=teamNew class=OutlineButton align-self="flex-start" testId="workspaces-new-team"
+        image "symbol:icon.plus" aria-hidden=true
+        text "New team"
       if ours and workspacesAbout.invitations.length > 0
         column gap=6 testId="workspaces-invitations"
           text "Invitations" role="heading" aria-level=3 font-size="0.8125rem" font-weight=500 color="ink.muted" padding="0 6px"

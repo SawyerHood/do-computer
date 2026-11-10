@@ -6,9 +6,10 @@ use Session, Reply, Time, Viewport, Workspace, Workspaces, Dood, Doods, Page fro
 use Frame, Screen, PrimaryButton, ListHeading, SidebarRow, RowName, RowLine, RowTime, IconButton, Pill, PillButton, Menu, MenuItem, PageTitle, PageLead from "./styles.contract"
 use DoodFace from "./creature.contract"
 use EmptyState from "exact:content"
-use TeamInfo, TeamInbox, teamOf, TeamHint from "./teams.contract"
+use TeamInfo, TeamInbox, TeamMember, teamOf, TeamHint from "./teams.contract"
 use SidebarDoodMenu from "./teams-sidebar.contract"
 use AskCounts from "./chat-shapes.contract"
+use HerePlace, HereFaces, peopleIn, namesOf from "./teams-here.contract"
 
 // What a hatch answers: the new Dood, to open it.
 shape Hatched
@@ -132,14 +133,18 @@ component Sidebar
     teamFold: action
     teamReorder: action
     teamOrderError: string
+    hereTeam: string
+    hereOthers: HerePlace[]
+    hereMembers: TeamMember[]
   derive named = workspaceList.filter(w => w.kind == "team").length > 0
   derive shown = named ? workspaceList : workspaceList.filter(w => w.kind == "personal")
   view
     column navigationKey=key navigationSplit="288" navigationScroll="sidebar-list" position="absolute" inset=0
       display="flex" flex-direction="column" class=Frame border-right=(wide ? "1px solid var(--hairline)" : "none") testId="sidebar"
-      header appearance="none" display="flex" align-items="center" gap=2 min-height=36 padding="8px 8px 0 16px"
-        text "Doods" role="heading" aria-level=1 flex=1 class=ListHeading
+      // In no team, one list under "Doods"; in one, each workspace is under its own name instead.
+      header appearance="none" display="flex" align-items="center" gap=2 min-height=(named ? 8 : 36) padding=(named ? "0" : "8px 8px 0 16px")
         if not named
+          text "Doods" role="heading" aria-level=1 flex=1 class=ListHeading
           for w in shown key=w.id
             WorkspaceMenuButton(workspace=w)
             button press=hatch(w.id) disabled=hatching aria-label="New Dood" class=IconButton testId="new-dood"
@@ -155,13 +160,17 @@ component Sidebar
           column gap=2 testId=`workspace-${w.id}`
             if named
               row min-height=36 align-items="center" gap=6 padding="0 0 0 8px"
-                column width="1.125rem" height="1.125rem" border-radius=5 background-color=w.color align-items="center" justify-content="center"
-                  text w.name.slice(0, 1).toUpperCase() color="ink.on-color" font-size="0.625rem" font-weight=600
+                // The workspace's mark: one's own has one's initials (WorkspaceMark).
+                column width="1.125rem" height="1.125rem" border-radius=5 background-color=w.color align-items="center" justify-content="center" flex-shrink=0
+                  text (w.kind == "personal" ? session.initials : w.name.slice(0, 1).toUpperCase()) color="ink.on-color" font-size=(w.kind == "personal" ? "0.5rem" : "0.625rem") font-weight=600
                 button press=teamFold(w.id) aria-label=`${teamFolded.includes(w.id) ? "Expand" : "Collapse"} ${w.name}` aria-expanded=(not teamFolded.includes(w.id)) flex=1 min-width=0 class=IconButton justify-content="flex-start" gap=4 testId=`workspace-fold-${w.id}`
-                  text w.name class=ListHeading flex=1 min-width=0 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
-                  image "symbol:icon.caret-down" width="0.625rem" height="0.625rem" flex-shrink=0
+                  text w.name class=ListHeading flex="0 1 auto" min-width=0 text-align="start" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+                  image (teamFolded.includes(w.id) ? "symbol:icon.caret-right" : "symbol:icon.caret-down") width="0.625rem" height="0.625rem" flex-shrink=0
                 if teamFolded.includes(w.id) and doodList.filter(d => d.workspaceId == w.id and (d.unread or d.asking)).length > 0
                   text "New" color="notice" font-size="0.75rem"
+                // Folded, it still says who is in there (agent-list.tsx).
+                if teamFolded.includes(w.id) and w.id == hereTeam and peopleIn(hereOthers, hereMembers).length > 0
+                  text `${peopleIn(hereOthers, hereMembers).length} here` aria-label=`${peopleIn(hereOthers, hereMembers).length} here now: ${namesOf(peopleIn(hereOthers, hereMembers))}` color="ink.muted" font-size="0.75rem" testId=`workspace-here-${w.id}`
                 WorkspaceMenuButton(workspace=w)
                 button press=hatch(w.id) disabled=hatching aria-label=`New Dood in ${w.name}` class=IconButton testId=`new-dood-${w.id}`
                   image "symbol:icon.plus" color="ink.muted" font-size="1rem"
@@ -212,8 +221,10 @@ component WorkspaceMenuButton
           text "Workspace settings"
         if workspace.kind == "team" and workspace.role != "member"
           button press=invite role="menuitem" class=MenuItem testId=`workspace-invite-${tag}`
+            image "symbol:icon.user-plus" aria-hidden=true
             text "Invite people"
         button press=sort role="menuitem" class=MenuItem testId=`workspace-sort-${tag}`
+          image "symbol:icon.sort-ascending" aria-hidden=true
           text "Sort by latest"
         if workspace.kind == "team"
           link href=path("people", workspace.id) press=choose(path("people", workspace.id)) role="menuitem" class=MenuItem testId=`workspace-people-${tag}`
@@ -228,9 +239,18 @@ component DoodRow
     current: bool
     now: number
     utcOffset: number
+  inject
+    wide: bool
+    hereOthers: HerePlace[]
+    hereMembers: TeamMember[]
+  // Who else is with it now, in the team on screen (agent-list.tsx `with_`).
+  derive with = peopleIn(hereOthers.filter(p => p.agentId == dood.id), hereMembers)
   view
     row position="relative" align-items="center"
-      link href=path("dood", dood.id) aria-label=`Talk to ${nameOf(dood)}` aria-current=(current ? "page" : "false") aria-selected=current class=SidebarRow flex=1 min-width=0 testId=`dood-${dood.id}`
+      // The row's menu (and its grip, in a wide window) sit inside the row, over its end: the
+      // React app shows its menu there under a pointer, which Exact cannot (GAPS.md, "Hover").
+      link href=path("dood", dood.id) aria-label=`Talk to ${nameOf(dood)}` aria-current=(current ? "page" : "false") aria-selected=current class=SidebarRow flex=1 min-width=0
+        padding-right=(wide ? 56 : 36) testId=`dood-${dood.id}`
         column position="relative" flex-shrink=0
           DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=40)
           if dood.asking
@@ -241,6 +261,9 @@ component DoodRow
           row align-items="baseline" gap=8
             text nameOf(dood) flex=1 min-width=0 class=RowName font-weight=(dood.unread ? 600 : 500)
               overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`dood-name-${dood.id}`
+            if with.length > 0
+              row aria-label=`With ${nameOf(dood)} now: ${namesOf(with)}` role="img" flex-shrink=0 testId=`dood-here-${dood.id}`
+                HereFaces(people=with, size=16)
             if dood.working
               progress aria-label="Working" width=14 height=14 testId=`dood-working-${dood.id}`
             else if dood.latestAt > 0
@@ -251,8 +274,8 @@ component DoodRow
                 overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`dood-latest-${dood.id}`
               if dood.unread
                 column width=8 height=8 border-radius=4 background-color="notice" flex-shrink=0 role="img" aria-label="Something new" testId=`dood-unread-${dood.id}`
-
-      SidebarDoodMenu(dood=dood)
+      column position="absolute" top=0 bottom=0 right=4 justify-content="center"
+        SidebarDoodMenu(dood=dood)
 
 // The person's own menu, at the foot of the sidebar: signing out.
 component AccountButton
@@ -362,7 +385,8 @@ component DoodScreen
       class=Screen testId=`screen-${route}`
       DoodHeader(page=page, route=route)
       scroll id=`scroll-${page.key}` flex=1 min-height=0
-        column max-width="52rem" margin="0 auto" padding=(wide ? "28px 32px 48px" : "16px 16px 40px") gap=20 box-sizing="border-box" width="100%"
+        // The React app's page column (`max-w-2xl px-6`).
+        column max-width="42rem" margin="0 auto" padding=(wide ? "28px 24px 96px" : "16px 16px 40px") gap=24 box-sizing="border-box" width="100%"
           column gap=6
             text pageName(route) role="heading" aria-level=2 class=PageTitle hyphens="auto" overflow-wrap="break-word" testId=`heading-${route}`
             if lead != ""

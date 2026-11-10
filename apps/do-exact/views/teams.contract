@@ -1,5 +1,6 @@
 use Reply, Session, Dood, Workspace from "./shapes.contract"
 use PrimaryButton, Field, FieldLabel, MenuItem, IconButton from "./styles.contract"
+use Select, Choice from "./select.contract"
 
 shape TeamMember
   id: string
@@ -402,9 +403,7 @@ component TeamDialogs
               input value=teamInviteNote input=teamEditInviteNote maxlength=500 aria-label="Add a note" placeholder="Optional. Goes with the invitation." class=Field min-width=0 testId="team-invite-note"
             column gap=6 width="7rem" flex-shrink=0
               text "Role" class=FieldLabel
-              select value=teamInviteRole change=teamEditInviteRole aria-label="Role" testId="team-invite-role" class=Field width="100%"
-                option "Member" value="member"
-                option "Admin" value="admin"
+              Select(id="team-invite-role-menu", label="Role", value=teamInviteRole, choices=[Choice(value="member", label="Member"), Choice(value="admin", label="Admin")], placeholder="", choose=teamEditInviteRole, disabled=false, testId="team-invite-role")
           match teamSent
             case some(r)
               if r.error != "" and not teamSending

@@ -109,6 +109,13 @@ style DangerButton
   :disabled
     opacity=0.5
 
+// The act a confirmation asks for, where it destroys nothing: the app's filled button.
+style ConfirmButton
+  min-height="2.125rem" padding="0 14px" border-radius=8 font-size="0.875rem" font-weight=500
+  background-color="primary" color="primary.ink" border="none"
+  :disabled
+    opacity=0.5
+
 // A field: the React app's input, bordered and rounded, full width of its column.
 style SettingsField
   min-height="2.25rem" padding="0 10px" border-radius=8 border="1px solid var(--input)" font-size="0.875rem"
@@ -458,12 +465,14 @@ component Confirm
     confirm: action
     testId: string
   view
+    // The React app's AlertDialog: what will happen, then Cancel and the act, which is red where
+    // it destroys something.
     dialog id=id role="alertdialog" aria-label=title testId=testId
       text message
-      button press=confirm destructive=destructive commandfor=id command="close" testId=`${testId}-yes`
-        text action
-      button commandfor=id command="close" testId=`${testId}-no`
+      button commandfor=id command="close" class=OutlineButton testId=`${testId}-no`
         text "Cancel"
+      button press=confirm destructive=destructive commandfor=id command="close" class=(destructive ? DangerButton : ConfirmButton) testId=`${testId}-yes`
+        text action
 
 // A refusal in words, where it happened.
 component ErrorLine

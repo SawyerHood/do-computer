@@ -195,7 +195,12 @@ component ComposerBox
     threadsRefresh: action
   state entered = false
   state enteredAt = 0
+  // The attached picture open large, by its attachment's id; the arrows step through the others.
   state large = ""
+  derive pictures = composerAttachments.filter(f => f.preview != "")
+  derive largeAt = pictures.map(f => f.id).indexOf(large)
+  derive largePicture = match pictures.at(largeAt < 0 ? 0 : largeAt) { case some(f) => f.preview, case none => "" }
+  derive largeName = match pictures.at(largeAt < 0 ? 0 : largeAt) { case some(f) => f.name, case none => "" }
   state voice = "idle"
   state voiceCommand = ""
   state voiceSerial = 0
@@ -235,9 +240,17 @@ component ComposerBox
       pick()
     else
       voiceDo("cancel")
-  action openPicture(src: string)
-    large = src
+  action openPicture(id: string)
+    large = id
     showModal("composer-picture")
+  action stepPicture(by: number)
+    if pictures.length > 0
+      large = match pictures.at((largeAt + by + pictures.length) % pictures.length) { case some(f) => f.id, case none => large }
+  action pictureKey(k: string)
+    if k == "ArrowLeft"
+      stepPicture(-1)
+    else if k == "ArrowRight"
+      stepPicture(1)
   action voiceMessage(message: string)
     if message.startsWith("state:")
       voice = message.slice(6)
@@ -258,7 +271,7 @@ component ComposerBox
               for f in composerAttachments key=f.id
                 if f.preview != ""
                   column position="relative" padding=4 border-radius=10 background-color="surface" width=104 height=72 box-sizing="border-box"
-                    button press=openPicture(f.preview) aria-label=`Open ${f.name} large` class=IconButton testId=`preview-${f.id}`
+                    button press=openPicture(f.id) aria-label=`Open ${f.name} large` class=IconButton testId=`preview-${f.id}`
                       image f.preview width=96 height=64 object-fit="cover" border-radius=8 alt=f.name
                     button press=composerRemove(f.id) aria-label=`Remove ${f.name}` class=IconButton position="absolute" top=6 right=6
                       width=20 height=20 min-width=20 min-height=20 border-radius=999 background-color="ink" color="canvas" testId=`remove-${f.id}`
@@ -339,8 +352,16 @@ component ComposerBox
         text (composerSettings.levels.length == 0 ? "This model does not think before it answers." : composerSettings.levels.length == 1 ? "This model always thinks this much." : "How long it thinks before it answers. More is slower and costs more. Applies from its next reply.") font-size="0.75rem" color="ink.muted" padding=8
         if composerError != ""
           text composerError color="danger" font-size="0.75rem" role="alert" testId="composer-model-error"
-      dialog id="composer-picture" max-width="90vw" max-height="90vh" padding=12 border="none" border-radius=12 background-color="popover" aria-label="Attached picture"
+      dialog id="composer-picture" key=pictureKey max-width="90vw" max-height="90vh" padding=12 border="none" border-radius=12 background-color="popover" color="ink" aria-label="Attached picture"
         column gap=8
-          image large max-width="80vw" max-height="75vh" object-fit="contain" alt="Attached picture"
-          button command="close" commandfor="composer-picture" class=MenuItem testId="picture-close"
-            text "Close"
+          row gap=8 align-items="center"
+            text largeName flex=1 min-width=0 font-size="0.875rem" overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId="picture-name"
+            if pictures.length > 1
+              text `${largeAt + 1} of ${pictures.length}` font-size="0.8125rem" color="ink.muted" testId="picture-count"
+              button press=stepPicture(-1) aria-label="Previous picture" class=IconButton testId="picture-previous"
+                image "symbol:icon.caret-left" font-size="1rem"
+              button press=stepPicture(1) aria-label="Next picture" class=IconButton testId="picture-next"
+                image "symbol:icon.caret-right" font-size="1rem"
+            button command="close" commandfor="composer-picture" aria-label="Close" class=IconButton testId="picture-close"
+              image "symbol:icon.x" font-size="1rem"
+          image largePicture max-width="80vw" max-height="75vh" object-fit="contain" alt=largeName

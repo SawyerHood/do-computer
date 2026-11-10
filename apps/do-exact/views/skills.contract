@@ -106,8 +106,10 @@ component SkillsScreen
           text s.description font-size="0.875rem"
           row gap=8
             button press=openSkill(s.name) class=OutlineButton testId=`skill-read-${s.name}`
+              image (skillOpen == s.name ? "symbol:icon.caret-down" : "symbol:icon.caret-right") aria-hidden=true font-size="0.875rem"
               text (skillOpen == s.name ? "Hide" : "Read")
             button press=changeSkill(s.name, true, false) disabled=skillsBusy class=GhostButton margin-left="auto" testId=`skill-delete-${s.name}`
+              image "symbol:icon.trash" aria-hidden=true font-size="0.875rem"
               text "Delete"
           if skillOpen == s.name
             if skillReading

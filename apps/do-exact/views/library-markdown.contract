@@ -8,4 +8,4 @@ component LibraryMarkdown
     libraryLinks: string
     libraryMarkdownSaid: action
   view
-    do-markdown text=text streaming="false" files=libraryLinks message=libraryMarkdownSaid min-width=0 max-width="100%" align-self="stretch" aria-label="Document" testId="library-markdown"
+    do-markdown text=text variant="doc" streaming="false" files=libraryLinks message=libraryMarkdownSaid min-width=0 max-width="100%" align-self="stretch" aria-label="Document" testId="library-markdown"

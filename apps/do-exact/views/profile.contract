@@ -331,7 +331,7 @@ component MoveDood
             image "symbol:icon.caret-down" aria-hidden=true color="ink.muted" font-size="0.75rem"
           column id="move-to-menu" popover="auto" role="menu" aria-label="Move to" class=Menu
             for w in elsewhere key=w.id
-              button role="menuitem" press=chooseMove(w.id) popovertarget="move-to-menu" popovertargetaction="hide" class=MenuItem testId=`profile-move-to-${w.id}`
+              button role="menuitem" press=chooseMove(w.id) popovertarget="move-to-menu" popovertargetaction="hide" aria-label=`Move to ${w.name}` class=MenuItem testId=`profile-move-to-${w.id}`
                 text w.name flex=1
                 if w.id == moveTarget
                   image "symbol:icon.check" aria-hidden=true
