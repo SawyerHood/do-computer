@@ -3,6 +3,8 @@
 import type { Answer, Sources } from './app.contract.d.ts';
 import { setApi } from './data/api.ts';
 import { chatSources } from './data/chat.ts';
+import { careSources } from './data/care.ts';
+import { doodSources } from './data/dood.ts';
 import { sessionSources } from './data/session.ts';
 import { shellSources } from './data/shell.ts';
 
@@ -17,6 +19,8 @@ const sources: Sources = {
   ...sessionSources,
   ...shellSources,
   ...chatSources,
+  ...careSources,
+  ...doodSources,
   // A new area spreads its sources here.
 };
 

@@ -1,0 +1,267 @@
+// Looking after a Dood's creature (components/creature/care.tsx, box-window.tsx): a treat given
+// by pressing the pile beside it, as often as anyone likes, one at a time; and the box at its
+// other side, which fills with the hours until the next turns up (BOX_EVERY_MS after the last
+// was opened) and once it has, is pressed to open over the page. data/care.ts answers it.
+use Reply, Dood from "./shapes.contract"
+use Art, artOf, boxGrayArt from "./care-pixels.contract"
+
+// One thing to wear, as the wardrobe lists it (data/care.ts `thingsOf`).
+shape Thing
+  id: string
+  // hat, glasses, face or neck.
+  slot: string
+  name: string
+  // Its rarity, as it is called, and that rarity's colour.
+  rarity: string
+  color: string
+  // Whether the workspace's wardrobe has it, and which of its Doods found it.
+  owned: bool
+  foundBy: string
+
+// What the open Dood's creature has been given and has on, with its workspace's wardrobe.
+shape Creature
+  owner: string
+  agentId: string
+  loaded: bool
+  // Treats it has had, ever; treats others gave it on its own page toward a box.
+  fed: number
+  joy: number
+  // The workspace's boxes waiting, and how many of those others' treats made.
+  boxes: number
+  shared: number
+  // When the next box turns up (ms since the epoch); 0 while one of its own waits.
+  nextBoxAt: number
+  // How long after a box is opened the next turns up.
+  every: number
+  // How many things the wardrobe has, of how many there are.
+  owned: number
+  total: number
+  everything: bool
+  // The treat it is handed next: cookie, riceball, apple or donut.
+  treat: string
+  // What it has on: the Outfit in JSON, and each place's thing ("" for nothing).
+  outfit: string
+  hat: string
+  glasses: string
+  face: string
+  neck: string
+  things: Thing[]
+  // Every rarity, commonest first, for the wardrobe's key.
+  rarities: Thing[]
+
+// What opening a box answers: what was inside.
+shape BoxOpened
+  ok: bool
+  error: string
+  item: string
+  name: string
+  slot: string
+  rarity: string
+  color: string
+
+members App
+  // --- care ---
+  // Asked while a hatched Dood is open, and again when its event stream says its creature changed.
+  resource creature = loadCreature(session.owner, openDood.hatched ? openAgentId : "") with pulse.changes as shape Creature else empty()
+  mutation fed as shape Reply refreshes creature
+  mutation boxOpened as shape BoxOpened refreshes creature then afterOpen
+  mutation worn as shape Reply refreshes creature, doods
+  // Treats given here, counted: each one is a treat at its mouth (do-creature `feed`).
+  state treatCount = 0
+  state eating = false
+  // The box window: shut, opening (it rattles while the server is asked), burst, shown; a fresh
+  // box for each round.
+  state boxStage = "shut"
+  state boxRound = 0
+  derive careOf = creature.owner == session.owner and creature.agentId == openAgentId ? creature : noCreature()
+  derive boxFound = match boxOpened { case some(r) => r, case none => BoxOpened(ok=false, error="", item="", name="", slot="hat", rarity="", color="") }
+  derive boxProblem = pending(boxOpened) ? "" : boxFound.error
+  derive careFeed = `${openAgentId}:${treatCount}`
+
+  // It eats one treat at a time: the next waits until this one is gone (care.tsx `busy`).
+  task chewing key=treatCount
+    after(1140, swallowed)
+  // A box that is due is asked for when it is, so that it turns up while the page is open.
+  task boxDue when careOf.loaded and careOf.nextBoxAt > 0
+    every(15000, boxMaybeDue)
+
+  action giveTreat
+    if careOf.loaded and not eating
+      eating = true
+      treatCount = treatCount + 1
+      send fed = feedCreature(careOf.agentId)
+  action swallowed
+    eating = false
+  action boxMaybeDue
+    if time.epochAtZero + performanceNow() > careOf.nextBoxAt + 500 and not pending(creature)
+      refresh creature
+  action openBoxWindow
+    if careOf.boxes > 0
+      boxStage = "shut"
+      boxRound = boxRound + 1
+      showModal("box-window")
+  action pressBox
+    if boxStage == "shut" and not pending(boxOpened) and careOf.boxes > 0
+      boxStage = "opening"
+      send boxOpened = openBox(careOf.agentId)
+  action afterOpen
+    if not boxFound.ok
+      boxStage = "shut"
+  action boxHeard(word: string)
+    if word == "pop"
+      boxStage = "burst"
+    if word == "shown"
+      boxStage = "shown"
+  action wearFound
+    send worn = wearThing(careOf.agentId, careOf.outfit, boxFound.slot, boxFound.item)
+  action anotherBox
+    boxStage = "shut"
+    boxRound = boxRound + 1
+
+fn noCreature(): Creature = Creature(owner="", agentId="", loaded=false, fed=0, joy=0, boxes=0, shared=0, nextBoxAt=0, every=21600000, owned=0, total=0, everything=false, treat="cookie", outfit="{}", hat="", glasses="", face="", neck="", things=[], rarities=[])
+
+// How far along the next box is, 0 to 1 (lib/creature.ts `boxProgress`).
+fn boxPart(c: Creature, now: number): number = c.boxes > 0 ? 1 : c.nextBoxAt == 0 ? 0 : max(0, min(1, 1 - (c.nextBoxAt - now) / c.every))
+// About how long is left, in words.
+fn boxLeft(c: Creature, now: number): string = boxLeftIn(max(0, (c.nextBoxAt == 0 ? now + c.every : c.nextBoxAt) - now))
+fn boxLeftIn(ms: number): string = ms < 3600000 ? plural(max(1, round(ms / 60000)), "minute") : plural(round(ms / 3600000), "hour")
+fn plural(n: number, word: string): string = `${n} ${n == 1 ? word : `${word}s`}`
+fn boxComing(c: Creature, now: number): string = c.everything ? "The wardrobe has everything there is" : `The next box turns up in about ${boxLeft(c, now)}`
+fn boxLabel(c: Creature, name: string, now: number): string = c.boxes > 1 ? `Open one of ${name}'s ${c.boxes} boxes` : c.boxes == 1 ? `Open ${name}'s box` : boxComing(c, now)
+fn slotName(slot: string): string = slot == "hat" ? "Hat" : slot == "glasses" ? "Glasses" : slot == "face" ? "Face" : "Neck"
+
+// One of the little pictures, in squares, at the width it is given.
+component Pixels
+  props
+    art: Art
+    width: number
+  view
+    svg width=width height=(width * art.height / art.width) viewBox=`0 0 ${art.width} ${art.height}` aria-hidden=true flex-shrink=0
+      for ink in art.inks key=ink.fill
+        path d=ink.d fill=ink.fill
+
+// The creature with what it is looked after with: treats at one corner and its next box at the
+// other. Wraps the creature's own drawing (the use's children). Nothing beside an egg.
+component CreatureCare
+  props
+    dood: Dood
+    // Its name, as it is said ("it" where it has none).
+    name: string
+  slot
+  inject
+    care: Creature
+    eating: bool
+    now: number
+    giveTreat: action
+    openBoxWindow: action
+  derive ready = care.loaded and care.agentId == dood.id and dood.hatched
+  derive part = boxPart(care, now)
+  view
+    column position="relative" align-items="center" testId="creature-care"
+      children
+      if ready
+        button press=giveTreat aria-label=`Give ${name} a treat` aria-busy=eating title="Press to give it a treat"
+          position="absolute" left=-40 bottom=-8 width=44 height=44 border-radius=12 display="flex" align-items="center" justify-content="center"
+          background-color="transparent" border="none" padding=0 testId="give-treat"
+          :hover
+            background-color="wash"
+          Pixels(art=artOf(care.treat), width=30)
+        button press=openBoxWindow aria-label=boxLabel(care, name, now) aria-disabled=(care.boxes == 0) title=boxLabel(care, name, now)
+          position="absolute" right=-40 bottom=-8 width=44 height=44 border-radius=12 display="flex" align-items="center" justify-content="center"
+          background-color="transparent" border="none" padding=0 testId="open-box"
+          animation=(care.boxes > 0 ? "box-hop 0.9s steps(4, end) infinite" : "none")
+          :hover
+            background-color="wash"
+          column position="relative" width=34 height=32
+            column position="absolute" inset=0 opacity=0.3
+              Pixels(art=boxGrayArt(), width=34)
+            // The same picture in its colours, as much of it from the bottom as the wait is over.
+            column position="absolute" left=0 right=0 bottom=0 height=`${round(part * 100)}%` overflow="hidden" testId="box-fill"
+              column position="absolute" left=0 bottom=0
+                Pixels(art=artOf("box"), width=34)
+          if care.boxes > 1
+            text `${care.boxes}` position="absolute" top=0 right=0 min-width=16 height=16 padding="0 4px" border-radius=8 background-color="ink" color="canvas"
+              font-size="0.625rem" font-weight=700 text-align="center" line-height="16px" testId="box-count"
+          else if care.boxes == 1
+            column position="absolute" top=2 right=2 animation="box-twinkle 1.1s steps(3, end) infinite"
+              Pixels(art=artOf("spark"), width=10)
+
+keyframes box-hop
+  50% translate="0px -5px"
+keyframes box-twinkle
+  50% opacity=0.15 scale=0.6
+
+// A box being opened (box-window.tsx), over the page: it waits to be pressed; pressed, it rattles
+// while the server is asked what is inside, and then opens on it, the rarer the longer. What was
+// inside can be put on there and then, or kept for later; another opened if there is one.
+component BoxWindow
+  props
+    dood: Dood
+    name: string
+  inject
+    care: Creature
+    boxStage: string
+    boxRound: number
+    boxFound: BoxOpened
+    boxProblem: string
+    pressBox: action
+    boxHeard: action
+    wearFound: action
+    anotherBox: action
+  view
+    dialog id="box-window" closedby="any" aria-label=(boxStage == "shown" ? boxFound.name : `${name} found a box`) class=Window
+      max-width="28rem" width="calc(100% - 2rem)" padding=24 align-items="center" text-align="center" testId="box-window"
+      column position="relative" width=256 height=256 max-width="100%" margin="8px auto 32px"
+        if boxStage == "burst" or boxStage == "shown"
+          column position="absolute" inset="-18%" border-radius=999 opacity=0.34 background-color=boxFound.color animation="box-glow 0.5s steps(5, end)"
+        for round in [boxRound] key=round
+          do-gift seed=dood.seed colour=dood.color outfit=care.outfit side="256" item=boxFound.item
+            shake=(boxStage == "opening" ? "true" : "false") open=(boxStage != "shut" and boxFound.item != "" ? "true" : "false")
+            message=boxHeard width=256 height=256 aria-label="The box" testId="box-gift"
+        if boxStage == "shut"
+          button press=pressBox aria-label="Open the box" position="absolute" inset=0 border-radius=24 background-color="transparent" border="none" testId="box-press"
+      if boxStage == "shown"
+        row gap=16 align-items="center" text-align="start"
+          do-wardrobe seed=dood.seed colour=dood.color item=boxFound.item side="72" width=72 height=72 aria-label=boxFound.name
+          column align-items="flex-start"
+            text boxFound.rarity.toUpperCase() margin-bottom=6 padding="2px 8px" border-width=1 border-style="solid" border-color=boxFound.color color=boxFound.color
+              font-size="0.6875rem" font-weight=700 letter-spacing="0.1em" testId="box-rarity"
+            text boxFound.name role="heading" aria-level=2 font-size="1.125rem" font-weight=600 testId="box-item"
+            text `${slotName(boxFound.slot)} · ${care.owned} of ${care.total} in the wardrobe` font-size="0.875rem" color="ink.muted" margin-top=4
+        row gap=8 margin-top=20 flex-wrap="wrap" justify-content="center"
+          button press=wearFound commandfor="box-window" command="close" class=WindowPrimary testId="box-wear"
+            text "Wear it"
+          button commandfor="box-window" command="close" class=WindowOutline testId="box-keep"
+            text "Keep it for later"
+          if care.boxes > 0
+            button press=anotherBox class=WindowGhost testId="box-another"
+              text "Open another"
+      else
+        text `${name} found a box` role="heading" aria-level=2 font-size="1.125rem" font-weight=600
+        text (boxProblem != "" ? boxProblem : boxStage == "shut" ? "Press it to open." : "…") font-size="0.875rem" color=(boxProblem != "" ? "danger" : "ink.muted") margin-top=4 min-height=20
+          testId="box-said"
+        column height=60
+
+keyframes box-glow
+  from opacity=0 scale=0.4
+
+// A window over the page (the wardrobe, a box): the React app's dialog.
+style Window
+  background-color="popover" color="ink" font-family="Geist" border-radius=16 border="none"
+  box-shadow="0 0 0 1px var(--hairline), 0 24px 64px -16px rgb(0 0 0 / 0.35)"
+
+style WindowPrimary
+  min-height="2.25rem" padding="0 14px" border-radius=8 font-size="0.875rem" font-weight=500
+  background-color="primary" color="primary.ink" border="none"
+
+style WindowOutline
+  min-height="2.25rem" padding="0 14px" border-radius=8 font-size="0.875rem" font-weight=500
+  background-color="transparent" color="ink" border="1px solid var(--border)"
+  :hover
+    background-color="wash"
+
+style WindowGhost
+  min-height="2.25rem" padding="0 14px" border-radius=8 font-size="0.875rem" font-weight=500
+  background-color="transparent" color="ink" border="none"
+  :hover
+    background-color="wash"

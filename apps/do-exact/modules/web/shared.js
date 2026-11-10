@@ -57,7 +57,7 @@ export function outfit(props) {
 export function surface(element) {
   const root = element.shadowRoot ?? element.attachShadow({ mode: 'open' });
   const style = document.createElement('style');
-  style.textContent = ':host{display:block} .box{position:relative;width:100%;height:100%;overflow:hidden;display:grid;place-items:center} canvas,img{display:block;image-rendering:pixelated;max-width:100%;max-height:100%;pointer-events:none} canvas{width:100%;height:100%;object-fit:contain} .hearts{position:absolute;inset:0;pointer-events:none} .heart{position:absolute;color:#ed7396;font:22px system-ui;line-height:1;pointer-events:none}';
+  style.textContent = ':host{display:block} .box{position:relative;width:100%;height:100%;overflow:hidden;display:grid;place-items:center} canvas,img{display:block;image-rendering:pixelated;max-width:100%;max-height:100%;pointer-events:none} canvas{width:100%;height:100%;object-fit:contain} .hearts{position:absolute;inset:0;pointer-events:none} .heart{position:absolute;width:10%;min-width:14px;pointer-events:none;filter:drop-shadow(0 1px 0 rgb(0 0 0 / .22))}';
   const box = document.createElement('div'); box.className = 'box';
   const canvas = document.createElement('canvas'); box.append(canvas);
   root.replaceChildren(style, box);

@@ -24,7 +24,7 @@ test "a wide window shows the sidebar beside a Dood's chat, and its panel beside
   expect tree missing "back-dood"
   tap "panel-toggle-dood"
   expect tree has "dood-panel"
-  expect text "panel-status" == "Ready"
+  expect text "panel-status" == "About to hatch"
   tap "panel-toggle-dood"
   expect tree missing "dood-panel"
 

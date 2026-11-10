@@ -82,7 +82,7 @@ members App
 
 fn doodOf(doods: Dood[], id: string): Dood = match first(doods.filter(d => d.id == id)) {
   case some(d) => d,
-  case none => Dood(id=id, name="", workspaceId="", latest="", latestAt=0, working=false, asking=false, unread=false, seed=id, color="#5b6672", hatched=false)
+  case none => Dood(id=id, name="", workspaceId="", latest="", latestAt=0, working=false, asking=false, unread=false, seed=id, color="#5b6672", hatched=false, outfit="{}")
 }
 fn nameOf(d: Dood): string = d.name == "" ? "New Dood" : d.name
 fn stateOf(d: Dood): string = d.asking ? "asking" : d.working ? "working" : "idle"
