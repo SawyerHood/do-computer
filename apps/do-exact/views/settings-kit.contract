@@ -339,11 +339,14 @@ component WorkspaceSettingsFrame
     listing: bool
   slot
   inject
+    session: Session
     workspaceList: Workspace[]
   derive w = workspaceOf(workspaceList, page.workspaceId)
+  // One's own workspace is marked with one's own face, a team's with its tile (WorkspaceMark).
+  derive own = w.kind != "team"
   view
     SettingsFrame(page=page, route=route, title=title, lead=lead, listing=listing, entries=workspaceEntries(w),
-      name=w.name, kind=(w.kind == "team" ? "Team" : "Only you"), seed="", color=w.color, letter=w.name.slice(0, 1).toUpperCase(),
+      name=w.name, kind=(own ? "Only you" : "Team"), seed="", color=(own ? "" : w.color), letter=(own ? session.initials : w.name.slice(0, 1).toUpperCase()),
       home=`/w/${w.id}/settings`, up="/settings/workspaces", upLabel="Workspaces", close=`/w/${w.id}`, dood=false)
       children
 

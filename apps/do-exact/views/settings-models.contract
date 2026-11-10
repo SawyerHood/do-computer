@@ -1,0 +1,399 @@
+// The models a workspace's Doods can run on (`/w/:workspaceId/models`), and those the deployment
+// offers everyone (`/settings/server`, for whoever looks after it), as the React app's
+// ModelsSettings and ServerModelsSettings (apps/web/src/components/settings/models.tsx): the
+// deployment's own, the providers there are, signing in to one with a subscription or a key,
+// and signing out. data/settings-models.ts answers it. A key typed here lives in `loginTyped`,
+// a state that is never kept, and is cleared once it has been sent.
+use Session, Reply, Page, Workspace from "./shapes.contract"
+use dayOf from "./shell.contract"
+use AccountSettings, WorkspaceSettingsFrame, SettingsSection, SettingsList, Confirm, ErrorLine, workspaceOf from "./settings-kit.contract"
+use SettingsField, FieldName, Hint, SmallHint, OutlineButton, GhostButton, StatusWords from "./settings-kit.contract"
+use PrimaryButton from "./styles.contract"
+
+shape LoginMethodView
+  // "oauth" or "api_key".
+  type: string
+  // As a button names it ("Claude Pro or Max"), and as pi does.
+  short: string
+  label: string
+  subscription: bool
+
+shape ProviderView
+  id: string
+  name: string
+  // Listed before "N more": the ones most asked for, and any signed in to.
+  first: bool
+  signedIn: bool
+  byMe: bool
+  // What it offers, or how it is signed in to; who signed in, when, and how many models it gave.
+  words: string
+  by: string
+  at: number
+  models: string
+  methods: LoginMethodView[]
+
+shape ProvidersView
+  owner: string
+  scopeId: string
+  // The deployment's own models, in a sentence, and how many.
+  own: string
+  ownCount: number
+  providers: ProviderView[]
+
+shape LoginStarted
+  ok: bool
+  error: string
+  loginId: string
+
+shape LoginOption
+  id: string
+  label: string
+  description: string
+
+// A sign-in as it stands: what it asks (a choice, a key, what a provider's page ended with), a
+// page to open or a code to enter, and how it ended.
+shape LoginView
+  owner: string
+  scopeId: string
+  loginId: string
+  rev: number
+  // "waiting", "done", "failed" or "cancelled".
+  status: string
+  promptId: string
+  // "text", "secret", "select" or "manual_code".
+  promptType: string
+  promptLabel: string
+  placeholder: string
+  pasted: string
+  address: bool
+  options: LoginOption[]
+  authUrl: string
+  deviceCode: string
+  deviceUri: string
+  progress: string
+  notes: string[]
+  error: string
+
+// Whose Doods these are, in a sentence: a team's by its name, one's own as "your".
+fn whose(scopeId: string, w: Workspace): string = scopeId == "deployment" ? "everyone's" : w.kind == "team" ? `${w.name}'s` : "your"
+
+members App
+  // --- settings: models ---
+  derive settingsWorkspaceId = match stack(nav).filter(e => e.params.workspaceId != "").at(-1) { case some(e) => e.params.workspaceId, case none => "" }
+  derive modelsScopeId = onRoute == "workspaceModels" ? settingsWorkspaceId : onRoute == "serverModels" ? "deployment" : ""
+  resource modelProviders = loadModelProviders(session.owner, modelsScopeId, session.userId) as shape ProvidersView else empty()
+  derive providersOurs = modelProviders.owner == session.owner and modelProviders.scopeId == modelsScopeId and modelsScopeId != ""
+  state moreProviders = false
+  state providerAim = ""
+  mutation providerSignedOut as shape Reply refreshes modelProviders, doodModels, allModels
+  derive providerSignOutError = pending(providerSignedOut) ? "" : match providerSignedOut { case some(r) => r.error, case none => "" }
+
+  // Signing in: which provider and how, the sign-in the server started, and following it.
+  state signingProvider = ""
+  state signingProviderName = ""
+  state signingType = ""
+  state signingShort = ""
+  state signingSubscription = false
+  state signingScope = ""
+  state signingChose = false
+  state loginId = ""
+  state loginPulls = 0
+  // What is typed in answer: a key, or what a provider's page ended with. Never kept.
+  state loginTyped = ""
+  mutation loginStarted as shape LoginStarted then afterLoginStart
+  derive loginStartError = pending(loginStarted) ? "" : match loginStarted { case some(r) => r.error, case none => "" }
+  derive signingTitle = signingType == "api_key" ? signingShort : `Sign in with ${signingShort}`
+  resource modelLogin = loadModelLogin(session.owner, signingScope, loginId, signingTitle) with loginPulls as shape LoginView else empty()
+  derive loginOurs = modelLogin.owner == session.owner and modelLogin.loginId == loginId and loginId != ""
+  mutation loginAnswered as shape Reply then afterLoginAnswer
+  derive loginAnswerError = pending(loginAnswered) ? "" : match loginAnswered { case some(r) => r.error, case none => "" }
+  mutation loginCancelled as shape Reply
+  // A sign-in that is waiting is asked after every second (the React app holds a request open
+  // for the next change, which would keep this app's data from ever settling in a test).
+  task loginTick when loginOurs and modelLogin.status == "waiting"
+    every(1000, pullLogin)
+  task loginEnd key=`${modelLogin.loginId}:${modelLogin.status}`
+    after(1, endLogin)
+
+  action toggleMoreProviders
+    moreProviders = not moreProviders
+  action askSignOutProvider(providerId: string)
+    providerAim = providerId
+    showModal("provider-sign-out")
+  action signOutProviderNow
+    send providerSignedOut = signOutOfProvider(modelsScopeId, providerAim)
+  action startSignIn(providerId: string, name: string, type: string, short: string, subscription: bool)
+    signingProvider = providerId
+    signingProviderName = name
+    signingType = type
+    signingShort = short
+    signingSubscription = subscription
+    signingScope = modelsScopeId
+    signingChose = false
+    loginId = ""
+    loginTyped = ""
+    send loginStarted = startModelLogin(modelsScopeId, providerId, type)
+    showModal("model-sign-in")
+  action afterLoginStart
+    match loginStarted
+      case some(r)
+        if r.ok
+          loginId = r.loginId
+      case none
+        loginId = loginId
+  action pullLogin
+    loginPulls = loginPulls + 1
+  // A finished sign-in closes the window and asks again for what the workspace can run on.
+  action endLogin
+    if loginOurs and modelLogin.status == "done"
+      loginId = ""
+      loginTyped = ""
+      close("model-sign-in")
+      refresh modelProviders
+      refresh doodModels
+      refresh allModels
+  action typeLogin(v: string)
+    loginTyped = v
+  action answerLogin
+    if loginOurs and modelLogin.promptId != "" and loginTyped.trim() != "" and not pending(loginAnswered)
+      send loginAnswered = answerModelLogin(signingScope, loginId, modelLogin.promptId, loginTyped)
+  action chooseLogin(optionId: string)
+    signingChose = true
+    send loginAnswered = answerModelLogin(signingScope, loginId, modelLogin.promptId, optionId)
+  action afterLoginAnswer
+    match loginAnswered
+      case some(r)
+        if r.ok
+          loginTyped = ""
+          loginPulls = loginPulls + 1
+      case none
+        loginTyped = loginTyped
+  // Starting over: the same provider, a new sign-in, which asks again how.
+  action retryLogin
+    startSignIn(signingProvider, signingProviderName, signingType, signingShort, signingSubscription)
+  // Left before it was done: the server need not go on waiting for it.
+  action cancelLogin
+    if loginOurs and modelLogin.status == "waiting"
+      send loginCancelled = cancelModelLogin(signingScope, loginId)
+    loginId = ""
+    loginTyped = ""
+    close("model-sign-in")
+
+component WorkspaceModelsScreen
+  props
+    page: Page
+  inject
+    workspaceList: Workspace[]
+  derive w = workspaceOf(workspaceList, page.workspaceId)
+  view
+    WorkspaceSettingsFrame(page=page, route="workspaceModels", title="Models", lead=`What ${whose(page.workspaceId, w)} Doods can run on. Sign in with a subscription or a key, and every Dood of the workspace can be set to its models.`, listing=false)
+      ModelsBody(scopeId=page.workspaceId, w=w)
+
+component ServerModelsScreen
+  props
+    page: Page
+  inject
+    session: Session
+    admin: bool
+    settingsReturn: string
+    workspaceList: Workspace[]
+  derive own = match first(workspaceList.filter(x => x.kind == "personal")) { case some(x) => x.id, case none => "" }
+  view
+    AccountSettings(page=page, route="serverModels", title="Global models", lead="", listing=false, admin=admin, close=settingsReturn)
+      row flex-wrap="wrap" gap=4 margin-top=-20
+        text "What everyone's Doods can run on without signing in to anything. A subscription or a key signed in here is shared with every workspace on this server. For your own Doods only, sign in under" class=Hint
+        link href=`/w/${own}/models` font-size="0.875rem" color="ink" text-decoration="underline" testId="server-models-own"
+          text "Models"
+        text "in your workspace's settings." class=Hint
+      ModelsBody(scopeId="deployment", w=workspaceOf(workspaceList, ""))
+
+// The deployment's own models, the providers, and the window that signs in to one (models.tsx `Section`).
+component ModelsBody
+  props
+    scopeId: string
+    w: Workspace
+  inject
+    session: Session
+    utcOffset: number
+    now: number
+    modelProviders: ProvidersView
+    providersOurs: bool
+    moreProviders: bool
+    providerAim: string
+    providerSignOutError: string
+    providerSigningOut: bool
+    toggleMoreProviders: action
+    askSignOutProvider: action
+    signOutProviderNow: action
+    startSignIn: action
+  derive server = scopeId == "deployment"
+  derive firsts = modelProviders.providers.filter(p => p.first)
+  derive rest = modelProviders.providers.filter(p => not p.first)
+  derive shown = moreProviders ? firsts.concat(rest) : firsts
+  derive aimed = match first(modelProviders.providers.filter(p => p.id == providerAim)) { case some(p) => p.name, case none => "" }
+  view
+    column gap=24
+      if not providersOurs
+        progress aria-label="Loading"
+      else
+        row align-items="center" gap=12 padding=14 border-radius=16 border="1px solid var(--border)" testId="models-own"
+          column width="2rem" height="2rem" border-radius=8 background-color="secondary" align-items="center" justify-content="center" flex-shrink=0
+            image "symbol:icon.cpu" aria-hidden=true color="ink.muted"
+          column flex=1 min-width=0
+            text "Do Computer's models" font-weight=500
+            text modelProviders.own class=Hint testId="models-own-words"
+        section aria-label="Model providers" display="flex" flex-direction="column" gap=8
+          text "Model providers" role="heading" aria-level=3 font-size="0.8125rem" font-weight=500 color="ink.muted"
+          SettingsList(label="Model providers", testId="providers")
+            for p, i in shown key=p.id
+              row role="listitem" flex-wrap="wrap" align-items="center" gap=12 padding=14 border-top=(i == 0 ? "none" : "1px solid var(--border)") testId=`provider-${p.id}`
+                column width="2rem" height="2rem" border-radius=8 background-color="secondary" align-items="center" justify-content="center" flex-shrink=0
+                  text p.name.slice(0, 1) font-size="0.875rem" font-weight=600 color="ink.muted" aria-hidden=true
+                column flex="1 1 8rem" min-width=0
+                  row align-items="center" gap=8
+                    text p.name font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+                    if p.signedIn
+                      text "Signed in" font-size="0.75rem" font-weight=500 padding="1px 8px" border-radius=999 background-color="secondary" color="notice" testId=`provider-signed-in-${p.id}`
+                  text (p.signedIn ? `${p.words} · ${p.by}, ${formatDate(p.at, utcOffset, "iso") == formatDate(now, utcOffset, "iso") ? "today" : `on ${dayOf(p.at, utcOffset)}`} · ${p.models}` : p.words) class=Hint
+                row flex-wrap="wrap" align-items="center" gap=6
+                  if p.signedIn
+                    // Whoever signed in can sign out, since it is theirs, and so can an admin of the team.
+                    if server or w.role != "member" or p.byMe
+                      button press=askSignOutProvider(p.id) disabled=providerSigningOut class=GhostButton color="danger" testId=`provider-sign-out-${p.id}`
+                        text "Sign out"
+                  else
+                    for m in p.methods key=m.type
+                      if m.type == "oauth"
+                        button press=startSignIn(p.id, p.name, m.type, m.short, m.subscription) class=OutlineButton testId=`provider-oauth-${p.id}`
+                          text `Sign in with ${m.short}`
+                      else
+                        button press=startSignIn(p.id, p.name, m.type, m.label, m.subscription) aria-label=`Use a key for ${p.name}` class=GhostButton testId=`provider-key-${p.id}`
+                          image "symbol:icon.key" aria-hidden=true
+                          text "Use a key"
+            if rest.length > 0
+              button press=toggleMoreProviders aria-expanded=moreProviders display="flex" align-items="center" gap=6 padding="10px 14px" border="none"
+                border-top="1px solid var(--border)" background-color="transparent" color="ink.muted" font-size="0.875rem" text-align="start" testId="providers-more"
+                image (moreProviders ? "symbol:icon.caret-down" : "symbol:icon.caret-right") aria-hidden=true
+                text (moreProviders ? "Fewer" : `${rest.length} more`)
+          ErrorLine(text=providerSignOutError, testId="provider-sign-out-error")
+          text `${server ? "A sign-in here is for everyone: the Doods of every workspace on this server can then be set to its models, and what they use counts against whoever signed in. Where the server's settings name the models it offers, only those of them are." : w.kind == "team" ? `A sign-in belongs to the workspace: everyone in ${w.name} can then set Doods to its models, and what the Doods use counts against whoever signed in.` : "A sign-in belongs to this workspace: your Doods here can then be set to its models."} Nobody is shown a key or a token again, and Doods never see one.` class=SmallHint
+      Confirm(id="provider-sign-out", title=`Sign out of ${aimed}?`, message=(server ? "Doods set to one of its models stop answering until they are set to another." : "A Dood set to one of its models stops answering until it is set to another."), action="Sign out", destructive=true, confirm=signOutProviderNow, testId="provider-sign-out-confirm")
+      ModelSignIn(scopeId=scopeId, w=w)
+
+// Signing a workspace in to a provider, in a window over its models (models.tsx `ModelSignIn`):
+// what the provider asks, a step at a time.
+component ModelSignIn
+  props
+    scopeId: string
+    w: Workspace
+  inject
+    signingProviderName: string
+    signingProvider: string
+    signingType: string
+    signingShort: string
+    signingSubscription: bool
+    signingChose: bool
+    signingTitle: string
+    loginStarting: bool
+    loginStartError: string
+    modelLogin: LoginView
+    loginOurs: bool
+    loginTyped: string
+    loginAnswering: bool
+    loginAnswerError: string
+    typeLogin: action
+    answerLogin: action
+    chooseLogin: action
+    retryLogin: action
+    cancelLogin: action
+  derive key = signingType == "api_key"
+  derive problem = loginStartError != "" ? loginStartError : (loginOurs and modelLogin.status == "failed" ? (modelLogin.error == "" ? "It failed." : modelLogin.error) : "")
+  derive description = key ? `Paid for by the token, on your account with ${signingProviderName}.` : signingSubscription ? `Use a ${signingShort} subscription for ${whose(scopeId, w)} Doods.` : `Use your own ${signingProviderName} account for ${whose(scopeId, w)} Doods.`
+  derive shared = scopeId == "deployment" ? "Everyone on this server can then set Doods to these models, and what the Doods use counts against your account there." : w.kind == "team" ? `Everyone in ${w.name} can then set Doods to these models, and what the Doods use counts against your account there.` : "Your Doods can then be set to these models, and what they use counts against your account there."
+  derive asks = loginOurs and modelLogin.promptId != "" and modelLogin.promptType != "select"
+  view
+    dialog id="model-sign-in" aria-label=signingTitle closedby="none" width="min(28rem, calc(100vw - 32px))" padding=24 border-radius=16
+      background-color="popover" color="ink" testId="model-sign-in"
+      column gap=20
+        column gap=4
+          text signingTitle role="heading" aria-level=2 font-size="1.125rem" font-weight=600 testId="model-sign-in-title"
+          text description class=Hint
+        if problem != ""
+          text problem role="alert" font-size="0.875rem" color="danger" testId="model-sign-in-problem"
+          row justify-content="flex-end" gap=8
+            button press=cancelLogin class=OutlineButton testId="model-sign-in-cancel"
+              text "Cancel"
+            button press=retryLogin class=PrimaryButton testId="model-sign-in-retry"
+              text "Try again"
+        else if not loginOurs or loginStarting
+          row align-items="center" gap=8
+            progress aria-label="Starting" width=16 height=16
+            text "Starting…" color="ink.muted" font-size="0.875rem"
+          row justify-content="flex-end"
+            button press=cancelLogin class=OutlineButton testId="model-sign-in-cancel"
+              text "Cancel"
+        else if modelLogin.promptType == "select"
+          column role="group" aria-label="How" gap=8
+            for o in modelLogin.options key=o.id
+              button press=chooseLogin(o.id) disabled=loginAnswering display="flex" flex-direction="column" align-items="flex-start" gap=2 padding="12px 14px"
+                border-radius=12 border="1px solid var(--border)" background-color="transparent" color="ink" text-align="start" testId=`model-sign-in-option-${o.id}`
+                :hover
+                  background-color="wash"
+                text o.label font-weight=500
+                if o.description != ""
+                  text o.description class=Hint
+          row justify-content="flex-end"
+            button press=cancelLogin class=OutlineButton testId="model-sign-in-cancel"
+              text "Cancel"
+        else
+          column gap=20
+            if modelLogin.authUrl != ""
+              column gap=8
+                if asks
+                  text `1. Sign in at ${signingProviderName}` font-weight=500
+                  text `${signingProviderName}'s page opens in a new tab. Sign in there and allow access.` class=Hint
+                link href=modelLogin.authUrl target="_blank" class=OutlineButton align-self="flex-start" text-decoration="none" testId="model-sign-in-open"
+                  text "Open the sign-in page"
+            if asks
+              column gap=6
+                if modelLogin.authUrl != ""
+                  text `2. Paste ${(modelLogin.pasted == "" ? "what it ends with" : modelLogin.pasted).toLowerCase()}` font-weight=500
+                else if modelLogin.promptType != "manual_code"
+                  text modelLogin.promptLabel class=FieldName
+                if modelLogin.promptType == "secret"
+                  input type="password" value=loginTyped input=typeLogin submit=answerLogin autocomplete="off" placeholder=modelLogin.placeholder
+                    aria-label=(modelLogin.promptLabel == "" ? "Key" : modelLogin.promptLabel) class=SettingsField font-family="Geist Mono" testId="model-sign-in-typed"
+                else
+                  input value=loginTyped input=typeLogin submit=answerLogin autocomplete="off" placeholder=modelLogin.placeholder
+                    aria-label=(modelLogin.pasted == "" ? modelLogin.promptLabel : modelLogin.pasted) class=SettingsField font-family="Geist Mono" testId="model-sign-in-typed"
+                if modelLogin.promptType == "secret"
+                  text "Kept on the server and never shown again. Doods never see it." class=SmallHint
+                else if modelLogin.promptType == "manual_code" and modelLogin.address
+                  text "The page will not load: that is expected. Copy its whole address from the address bar." class=SmallHint
+            if modelLogin.deviceCode != ""
+              column gap=12
+                text modelLogin.deviceCode aria-label="The code to enter" padding="16px 0" border-radius=12 border="1px solid var(--border)" background-color="surface"
+                  text-align="center" font-family="Geist Mono" font-size="1.875rem" font-weight=600 letter-spacing="0.1em" testId="model-sign-in-code"
+                link href=modelLogin.deviceUri target="_blank" class=OutlineButton align-self="flex-start" text-decoration="none"
+                  text "Open the page to enter it"
+                row align-items="center" gap=8
+                  progress aria-label="Waiting" width=16 height=16
+                  text "Waiting for you to enter it there. This closes by itself." class=Hint
+            for n in modelLogin.notes key=n
+              text n class=Hint
+            if modelLogin.promptId == "" and modelLogin.deviceCode == ""
+              row align-items="center" gap=8
+                progress aria-label="Working" width=16 height=16
+                text (modelLogin.progress == "" ? "Working…" : modelLogin.progress) class=Hint
+            ErrorLine(text=loginAnswerError, testId="model-sign-in-error")
+            text `${shared}${signingProvider == "anthropic" and not key ? " Anthropic decides how use outside its own apps is billed; it may count as extra usage." : ""}` class=SmallHint
+            row align-items="center" gap=8
+              if signingChose
+                button press=retryLogin class=GhostButton testId="model-sign-in-again"
+                  text "Choose another way"
+              column flex=1
+              button press=cancelLogin class=OutlineButton testId="model-sign-in-cancel"
+                text "Cancel"
+              if asks
+                button press=answerLogin disabled=(loginAnswering or loginTyped.trim() == "") class=PrimaryButton testId="model-sign-in-submit"
+                  text (loginAnswering ? "Checking…" : key ? "Save" : "Sign in")
