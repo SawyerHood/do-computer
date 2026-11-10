@@ -38,7 +38,7 @@ members App
   resource earlier = loadEarlier(session.owner, openAgentId, openChatId, (ours ? chat.firstId : ""), (earlierOf == `${openChatId}:${chat.firstId}` ? earlierPages : 0)) as shape Earlier else empty()
   resource secretAsks = loadSecretAsks(session.owner, openAgentId) with asks.secrets as shape SecretAsks else empty()
   resource signIns = loadSignIns(session.owner, openAgentId) with asks.connectors as shape SignIns else empty()
-  resource computerAsks = loadComputerAsks(session.owner, openAgentId) with asks.approvals as shape ComputerAsks else empty()
+  resource computerAsks = loadComputerAsks(session.owner, onRoute == "dood" or onRoute == "chat" ? openAgentId : "") with asks.approvals as shape ComputerAsks else empty()
   mutation computerAnswered as shape Reply refreshes computerAsks
   mutation retried as shape Reply then toEnd
   mutation allowed as shape Reply refreshes approvals
@@ -134,7 +134,7 @@ members App
     earlierPages = earlierOf == key ? earlierPages + 1 : 1
     earlierOf = key
   action pullComputerAsks
-    if openAgentId != "" and session.signedIn
+    if (onRoute == "dood" or onRoute == "chat") and openAgentId != "" and session.signedIn
       refresh computerAsks
   action answerComputer(requestId: string, approve: bool)
     if not pending(computerAnswered)

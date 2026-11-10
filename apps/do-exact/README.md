@@ -57,6 +57,15 @@ what Exact cannot do yet.
 - The sidebar folds workspaces, opens their people/settings, renames/moves/deletes Doods and
   saves their order to the deployment. Drag a grip with a mouse in a wide window, use Move
   up/down on a phone, or give up a custom order with Sort by latest. Deleting a Dood here keeps its computers.
+- Skills: install from a URL, read all the files, enable/disable and delete, in the shared
+  settings frame. Automations: schedule/check/run metadata, pause/resume, run now, delete and
+  links to the last run; creating and editing happens in chat, as in React.
+- Connectors: MCP URL/token/client credentials, tool lists, reconnect, switches and removal;
+  the apps gateway and its OAuth sign-in; Slack setup, connection/removal and a 1024 px bot
+  picture download. Credentials are password fields, not persisted form state or returned data.
+- Computers: the workspace's machines and paired computers, adapter diagnostics, access,
+  ownership transfer, Dood grants, requests, daemon update/removal, add-machine kinds and the
+  install/read-only commands. `/pair?code=…` verifies the daemon's code, owner and Dood selection.
 - Settings, in the React app's settings window's card (`views/settings-kit.contract`): a Dood's
   profile (name, tagline, colour, a new look, voice, personality, moving it, deleting it),
   memory (with starting the main chat fresh), model and thinking with its computers, usage and
@@ -71,7 +80,6 @@ what Exact cannot do yet.
   conflicts, rename/move/download/delete, revision revert and deleted-file restore. Pins open
   a document over chat. Files/folders can be shared with the workspace or anyone with a link.
   [LIBRARY-PORT.md](LIBRARY-PORT.md) records the scope and integration seams.
-- The remaining automations, skills, connectors and computer-management bodies are placeholders.
 - Every `*.test.contract` beside the app drives the real server. `server.ts` turns saved logins
   and cards on (`DC_SECRETS=on`) so Passwords can be tested. The teams screenshot tools compare
   React and Exact; `tools/teams-integration-shots.sh` captures the merged sidebar, settings and
@@ -127,6 +135,11 @@ React app (`apps/web/src/server/exact-app.ts`). Node only for now. `tools/same-o
   app's `fetch` has no cookie jar on a native host, and a browser sends none across origins.
 - **`DC_CLIENT_ORIGINS`.** Origins of client apps served from somewhere else. They get CORS
   headers (without credentials) and may sign in. See `apps/web/src/server/client-origins.ts`.
+- **A connector OAuth return for bearer clients.** A validated `client_return` registers the
+  Exact origin's `/a/:id/connectors` as the place to return. The gateway sends the browser back there, and Exact finishes once with its bearer session (`dc_client=1`).
+  Only success/error comes back, never connector credentials. Both an allowed development
+  origin and the server's own origin are accepted; unrelated origins and non-connector paths
+  are refused. The existing React-cookie and desktop callback paths are unchanged.
 - **Socket tickets.** A browser's WebSocket carries no header and, across origins, no cookie. So
   a client with a bearer session asks `POST /api/auth/socket/tickets` for a few tickets, and opens
   each socket with one as `?ticket=`: good once, for five minutes, while the session lasts, kept
@@ -137,8 +150,7 @@ React app (`apps/web/src/server/exact-app.ts`). Node only for now. `tools/same-o
 
 In the order it would be built:
 
-1. **The remaining pages.** Automations, skills, connectors and computer-management bodies
-   remain placeholders. Claiming a Dood hatched in a post, the waiting list's own first run and
+1. **The remaining pages.** Claiming a Dood hatched in a post, the waiting list's own first run and
    the public Dood page (`/dood/:id`, `/hatch`) remain outside this signed-in client.
 2. **The rest of a chat.** Slash commands, MCP apps, authenticated screen pictures, visual
    message bridging and what GAPS.md's "Chat transcript" lists.
@@ -171,3 +183,86 @@ In the order it would be built:
 - An import of a file outside the app's folder is refused unless it is mounted, and a mount
   works well: `./protocol/chat.ts` is `packages/protocol/src/chat.ts`, so the app applies chat
   events with the same `reduceChat` as every other client.
+
+## Initial tools-area checks (2026-11-10, before integration)
+
+`skills.test.contract`, `connectors.test.contract`, `computers.test.contract` and
+`automations.test.contract` use the real echo server. They cover tool-created skills and
+schedules, read/toggle/delete, pause/resume/run/history, validation, browser preference,
+invalid pairing and recovery from failed HTTP loads. The OAuth bridge has seven server tests
+in `apps/web/src/server/connectors-client.test.ts`. A supplemental real-browser run also
+checked multi-Dood pairing with a lowercase code, grants, request denial/approval, ownership
+transfer, daemon-update command receipt (a protocol fixture, not installation on a real
+computer), MCP token/tools/toggle/OAuth, Slack PNG export and paired-computer revocation.
+Typechecking `apps/web` passed. The shared settings kit was copied unchanged from
+`exact-settings` at `941da6f`.
+
+The initial tools pass temporarily used API port 3927 because another app occupied 3917.
+The merge validation uses slot 6's normal API 3917 and Exact 8772; no unrelated server is
+changed. The browser harness now lives in `tools/tools-check.mjs` and reads `API_BASE_URL`,
+`TOOLS_EXACT_URL`, `TOOLS_SAME_ORIGIN` and `TOOLS_OUT` for reproducible integration checks.
+
+The supplemental browser check and reference photographs are kept under `.exact/` in that
+worktree (not committed): `.exact/integration.mjs` and `.exact/shots/tools/`. It starts local
+MCP/OAuth and daemon-protocol fixtures, but drives the real Do Computer API and Exact page.
+External Slack/apps credentials and real cloud-machine provisioning are not used.
+
+The pre-merge verifier passed all 11 tests and ordinary phone/wide, light/dark and reload checks;
+three findings remain only at its largest text size, in the shared heading/pill (GAPS.md).
+Forty comparison screenshots (five sections × two sizes × two schemes × two apps) were read:
+the settings layout, typography, cards and dark colours are recognisable against React.
+Exact keeps a route rather than the dimmed-chat overlay, a fixed sidebar rather than React's
+rail, a default rather than per-Dood accent, and slightly roomier computer rows. On a phone
+Slack's picture explanation/download wraps rather than squeezing its text into a narrow column.
+
+## Merged client validation (2026-11-10)
+
+This branch joins `35595f7`, `687f84a` and `3d3af6f`: the final settings kit, library,
+composer, Markdown, creature/first-run/care/wardrobe and complete rich chat transcript.
+The teams-worker branch is not included; workspace home and people remain placeholders.
+The incoming transcript and thread UI were retained rather than the former basic message row.
+
+There is one shell Dood socket for the transcript **and** tools. Its shared counters include
+skills, connectors, schedules and computers and are retained over reconnects. The workspace
+Computers route uses the existing directory refresh without selecting a Dood from that list:
+`doods` itself refreshes from `pulse`, so selecting `pulse` from `doodList` would be cyclic.
+The real panel contains the shared connected-computer directory and pinned shelf. Computer
+requests have one canonical above-composer chat card (including on a phone); jobs retain the
+composer controls and transcript chips, not a duplicate panel UI. The panel-only directory
+does not fetch computer requests. Chat-specific requests/threads are inactive on tools routes.
+
+Validation and evidence:
+
+- The final `./x test web` run passed **65/65 tests in all 23 files**, including all 14 new
+  rich-transcript tests. The eight focused settings/shell navigation tests also pass after
+  removing the cyclic workspace-stream selection.
+- The previous server build's **22 tests** (OAuth returns, socket tickets and Exact serving)
+  and the web TypeScript check passed. This transcript merge changes no server/package code.
+- The browser tools checks passed on both the development origin and the app served by the
+  server at `/x/`: real fixture OAuth redirect/return, MCP tools, live changes from another
+  client, pairing, daemon update receipt, ownership transfer, chat-card denial/approval,
+  revocation, Slack PNG and absence of bearer secrets in localStorage.
+- Fresh comparison evidence for each origin is in `.exact/shots/tools-merged/` and
+  `.exact/shots/tools-same-origin/`: 40 Exact/React section images in each, wide/phone and
+  light/dark, four `compare-*.jpg` sheets, panel images, `exact-wide-light-chat-request.png`,
+  `pico-slack.png` and `result.txt`. Both sets of sheets and the new chat/panel placement were
+  opened for inspection. These are real browser renders, not mock-ups or a pixel-parity claim.
+
+**Verifier status is not green.** The latest completed full verifier is from before the
+transcript merge: 51 tests passed, then **9 problems** (1 driver failure, 8 findings). Its
+first-screen drive collided with slot 6's occupied fixed Exact port 8772. Seven findings were
+aggressive `overflow-wrap="anywhere"` declarations; these now use emergency `break-word`
+wrapping instead (the affected settings/shell source has zero aggressive-word-breaking
+findings). The remaining finding was an inactive threads query caught by the automations
+fault test; that query is now chat-route-only. That verifier's largest-text tour reported
+nothing spilling. There is no completed post-transcript full verifier result, no font
+shrinking and no accessibility waiver. The requested final merge is not held for another
+verifier/port-collision cycle. Lean is unavailable here; seeded model walks are not a
+full real-host proof.
+
+External Slack/Composio credentials, paid/shared cloud provisioning and a real daemon install
+were not exercised. The local fixtures drive the real server/browser paths but are not those
+external services. Browser-native OAuth uses an explicit same-window Continue step rather
+than React's popup; Electron-only local daemon controls/native OAuth presentation remain
+unwired. Automation creation/editing remains chat-based. See GAPS.md and the incoming port
+documents for the remaining native, deployment and other-area limitations.

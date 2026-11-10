@@ -45,7 +45,8 @@
     "do-push",
     "do-library-download",
     "do-library-format",
-    "do-library-frame"
+    "do-library-frame",
+    "do-slack-picture"
   ],
   "env": [
     "API_BASE_URL",

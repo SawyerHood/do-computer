@@ -107,6 +107,7 @@ shape Earlier
 // What the open Dood's event stream said changed, counted, for what the chat shows of it: each
 // count asks again for what it is about. The shell's stream carries it (DoodPulse `asks`).
 shape AskCounts
+  tools: number
   jobs: number
   pins: number
   approvals: number

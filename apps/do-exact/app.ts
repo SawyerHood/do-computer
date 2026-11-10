@@ -11,6 +11,10 @@ import { doodSources } from './data/dood.ts';
 import { sessionSources } from './data/session.ts';
 import { shellSources } from './data/shell.ts';
 import { teamsSources } from './data/teams.ts';
+import { automationsSources } from './data/automations.ts';
+import { skillsSources } from './data/skills.ts';
+import { connectorsSources } from './data/connectors.ts';
+import { computersSources } from './data/computers.ts';
 import { transportSources } from './data/transport.ts';
 import { doodSettingsSources } from './data/settings-dood.ts';
 import { accountSettingsSources } from './data/settings-account.ts';
@@ -30,13 +34,17 @@ export const API = import.meta.env.API_BASE_URL ?? 'http://127.0.0.1:3911';
 export const SOCKETS = import.meta.env.API_SOCKET_URL ?? 'ws://127.0.0.1:3911';
 setApi(API, SOCKETS);
 // What the module may reach: the deployment, its sockets, the session in the secret store and the files a person picks.
-export const grants = `net.fetch ${API}\nnet.websocket ${SOCKETS}\nsecret.keep session\nfs.read app:/tmp\nfs.write app:/tmp\nfs.read doc:/`;
+export const grants = `auth.session ${API}\nnet.fetch ${API}\nnet.websocket ${SOCKETS}\nsecret.keep session\nfs.read app:/tmp\nfs.write app:/tmp\nfs.read doc:/`;
 
 const sources: Sources = {
   ...sessionSources,
   ...shellSources,
   ...chatSources,
   ...teamsSources,
+  ...automationsSources,
+  ...skillsSources,
+  ...connectorsSources,
+  ...computersSources,
   ...transportSources,
   ...composerSources,
   ...composerJobSources,

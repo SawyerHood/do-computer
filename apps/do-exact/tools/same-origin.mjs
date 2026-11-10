@@ -47,7 +47,13 @@ try {
     check(await page.getByTestId('sign-submit').count() === 0, 'the Exact app is signed in as the React app is');
 
     // A Dood made in the Exact app, opened by a deep link under /x/ and by its own address after a reload.
-    await page.getByTestId('new-dood').click();
+    // The final first run owns an empty account, rather than the old New Dood button.
+    await page.getByTestId('welcome-skip').click();
+    await page.getByTestId('welcome-hello').click();
+    await page.getByTestId('welcome-name').fill('Pip');
+    await page.getByTestId('welcome-named').click();
+    await page.getByTestId('welcome-think').click();
+    await page.getByTestId('welcome-start').click();
     await page.getByTestId('screen-dood').waitFor({ timeout: 20000 });
     const dood = new URL(page.url()).pathname;
     check(/^\/a\/[^/]+$/.test(dood), `a Dood opens at ${dood}`);

@@ -32,7 +32,7 @@ shape ThreadListing
 
 members App
   // --- threads ---
-  resource threads = loadThreads(session.owner, openAgentId) with `${pulse.changes}:${pulse.asks.chats}:${lastId}:${chat.busy}` as shape ThreadListing else empty()
+  resource threads = loadThreads(session.owner, onRoute == "dood" or onRoute == "chat" ? openAgentId : "") with `${pulse.changes}:${pulse.asks.chats}:${lastId}:${chat.busy}` as shape ThreadListing else empty()
   derive threadsListing = threads.owner == session.owner and threads.agentId == openAgentId ? threads : ThreadListing(owner="", agentId="", name="", tagline="", chats=[])
   derive threadsReadOnly = chatEntryId != "" and (opened.owner != session.owner or opened.agentId != openAgentId or chatEntryId != opened.chatId)
   action threadsRefresh

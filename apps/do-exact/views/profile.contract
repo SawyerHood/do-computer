@@ -507,7 +507,7 @@ component ModelScreen
                     text c.folder margin-left="auto" min-width=0 font-family="Geist Mono" font-size="0.75rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
           row flex-wrap="wrap" gap=4
             text "Computers are added, removed and shared under" class=Hint
-            link href=`/w/${w.id}/settings` font-size="0.875rem" color="ink" text-decoration="underline" testId="model-workspace-computers"
+            link href=`/w/${w.id}/computers` font-size="0.875rem" color="ink" text-decoration="underline" testId="model-workspace-computers"
               text "Computers"
             text "in the workspace's settings." class=Hint
         SaveBar()

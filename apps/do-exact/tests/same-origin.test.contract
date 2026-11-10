@@ -24,16 +24,19 @@ test "served by the server itself, the app signs in with a cookie and follows a 
   type "composer" "Say something long"
   tap "send"
   clock data
+  clock +1500 real
+  expect state chat.busy == true
+  expect state chat.activity == "Thinking"
   clock until state chat.busy == false within 20000
   expect state chat.lost == false
-  expect state chat.messages.1 .blocks.0 .kind == "thinking"
+  expect state chat.thought.endsWith("Word120") == true
   expect state doodList.0 .working == false
   reload
   clock data
   clock settle
   clock data
   expect state session.signedIn == true
-  expect state chat.messages.length == 3
+  expect state chat.messages.length == 2
   tap "account"
   tap "sign-out"
   clock data

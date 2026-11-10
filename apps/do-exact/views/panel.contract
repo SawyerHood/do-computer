@@ -3,8 +3,9 @@
 // its wardrobe; and the sections about this chat that fold under their headings. Here too is
 // its hatch, watched once (chat-view.tsx `useHatch`). What its creature is doing everywhere it is
 // drawn is panel-mood.contract's.
-use PinsShelf from "./pins.contract"
 use Reply, Dood from "./shapes.contract"
+use Computer from "./computers.contract"
+use PinsShelf from "./pins.contract"
 use nameOf from "./shell.contract"
 use Face, Hatchling from "./creature.contract"
 use Creature, CreatureCare from "./care.contract"
@@ -79,6 +80,11 @@ component DoodPanel
     // Its chat is being answered.
     busy: bool
   inject
+    computerItems: Computer[]
+    computersLoading: bool
+    computersFailed: bool
+    computersError: string
+    retryComputers: action
     liveFaces: Face[]
     care: Creature
     careFeed: string
@@ -89,6 +95,7 @@ component DoodPanel
   derive face = faceOf(liveFaces, dood)
   derive name = nameOf(dood)
   derive doing = moodWords(face)
+  derive connected = computerItems.filter(c => c.agentIds.includes(dood.id))
   view
     aside aria-label=`About ${name}` width="20rem" flex-shrink=0 position="relative" display="flex" flex-direction="column" overflow="hidden"
       border-left="1px solid var(--hairline)" background-color="panel" testId="dood-panel"
@@ -110,10 +117,30 @@ component DoodPanel
           // The line in the transcript is the one announced; this repeats it beside the creature.
           text doing font-size="0.875rem" color="ink.muted" testId="panel-status"
           // --- call --- (a call with the Dood is placed here, under its name: CallButton)
-        // --- pinned --- what is pinned to the Dood (pins.contract)
+        // --- pinned --- (the library shelf scrolls with the creature, not over other sections)
         PinsShelf()
+        // --- computers --- (the workspace's directory is shared with Computers, not fetched twice)
+        PanelSection(id="computers", title="Computers", count=connected.length, said="", startsFolded=false)
+          column gap=10 padding="0 16px 16px" testId="panel-computers"
+            if computersLoading
+              progress aria-label="Loading computers"
+            if computersFailed
+              text "Computers could not be loaded." color="danger" font-size="0.8125rem"
+              button press=retryComputers testId="panel-computers-retry"
+                text "Try again"
+            if not computersLoading and not computersFailed and connected.length == 0
+              text "No computers connected." color="ink.muted" font-size="0.8125rem"
+            for c in connected key=c.id
+              column gap=3 testId=`panel-computer-${c.id}`
+                text c.name font-size="0.8125rem" font-weight=500 hyphens="auto"
+                text (c.online ? "Online" : "Offline") font-size="0.75rem" color="ink.muted"
+                text c.folders.filter(f => f.agentId == dood.id).map(f => f.path).join(", ") font-family="Geist Mono" font-size="0.75rem" hyphens="auto"
+            if computersError != ""
+              text computersError role="alert" color="danger" font-size="0.8125rem"
+            link href=`/w/${dood.workspaceId}/computers` font-size="0.8125rem" color="ink" testId="panel-manage-computers"
+              text "Manage computers"
         // --- screen --- (the screen it last used here: UseNow)
-        // --- running --- PanelSection(id="running", title="Running in the background", …)
+        // Running commands and computer asks use their one canonical chat/composer UI.
         // --- subagents --- PanelSection(id="subagents", title="Sub-agents at work", …)
         // --- doods --- PanelSection(id="doods", title="From other Doods", startsFolded=true, …)
         // --- slack --- PanelSection(id="slack", title="From Slack", startsFolded=true, …)
@@ -138,8 +165,8 @@ component PanelSection
   derive shut = folded(panelFolds, id, startsFolded)
   view
     section aria-label=title flex-shrink=0 border-top="1px solid var(--hairline)" testId=`panel-section-${id}`
-      h3 margin=0 font-size="0.8125rem" font-weight=500
-        button press=foldPanelSection(id, shut) aria-expanded=(not shut) display="flex" width="100%" min-width=0 align-items="center" gap=6
+      column role="heading" aria-level=3 margin=0 font-size="0.8125rem" font-weight=500
+        button press=foldPanelSection(id, shut) aria-expanded=(not shut) display="flex" width="100%" box-sizing="border-box" min-width=0 align-items="center" gap=6
           padding=(shut ? "14px 16px" : "14px 16px 8px") background-color="transparent" border="none" color="ink.muted" font-size="0.8125rem" font-weight=500
           text-align="start" testId=`panel-fold-${id}`
           image "symbol:icon.caret-right" aria-hidden=true font-size="0.75rem" rotate=(shut ? "0deg" : "90deg") transition="rotate 150ms"

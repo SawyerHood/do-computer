@@ -1,0 +1,110 @@
+test "tools sections share the final settings frame and the model links to workspace computers"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "tools-settings-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-settings-dood"
+  clock settle
+  clock data
+  tap "settings-go-skills-settings"
+  clock settle
+  clock data
+  expect tree has "settings-nav-skills"
+  expect text "heading-skills" == "Skills"
+  tap "settings-go-connectors-skills"
+  clock settle
+  clock data
+  expect tree has "settings-nav-connectors"
+  expect text "heading-connectors" == "Connectors"
+  tap "settings-go-model-connectors"
+  clock settle
+  clock data
+  tap "model-workspace-computers"
+  clock settle
+  clock data
+  expect state onRoute == "workspaceComputers"
+  expect tree has "computer-install"
+  expect tree has "settings-nav-workspaceComputers"
+  tap "settings-go-workspaceModels-workspaceComputers"
+  clock settle
+  clock data
+  tap "settings-go-workspaceComputers-workspaceModels"
+  clock settle
+  clock data
+  expect state onRoute == "workspaceComputers"
+  expect tree has "computer-install"
+  resize 390x844
+  clock settle
+  tap "settings-home-workspaceComputers"
+  clock settle
+  clock data
+  expect state onRoute == "workspaceSettings"
+  expect tree has "settings-nav-workspaceComputers"
+  tap "settings-go-workspaceComputers-workspaceComputers"
+  clock settle
+  clock data
+  expect state onRoute == "workspaceComputers"
+  expect tree has "computer-install"
+
+test "on a phone a tools section goes back to the Dood's settings list"
+  size 390x844
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "tools-settings-2@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-skills-dood"
+  clock settle
+  clock data
+  expect tree has "title-skills"
+  expect tree missing "back-skills"
+  tap "settings-home-skills"
+  clock settle
+  clock data
+  expect state onRoute == "settings"
+  tap "settings-go-connectors-settings"
+  clock settle
+  clock data
+  expect text "heading-connectors" == "Connectors"
+  tap "close-connectors"
+  clock settle
+  clock data
+  expect state onRoute == "dood"
+
+test "the Dood panel lists its connected computers and opens their workspace settings"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "tools-settings-3@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "hello-face"
+  clock data
+  tap "panel-toggle-dood"
+  clock data
+  expect tree has "panel-computers"
+  expect state computerItems.length == 1
+  tap "panel-manage-computers"
+  clock settle
+  clock data
+  expect state onRoute == "workspaceComputers"
+  expect tree has "computer-install"

@@ -299,12 +299,12 @@ component DoodHeader
   derive dood = doodOf(doodList, page.agentId)
   derive menu = `pages-${page.key}`
   view
-    header appearance="none" display="flex" align-items="center" gap=8 padding="4px 10px" min-height=52 flex-shrink=0
+    header appearance="none" display="flex" flex-wrap="wrap" align-items="center" gap=8 padding="4px 10px" min-height=52 flex-shrink=0
       if not wide
         button id="back" press=back aria-label="Your Doods" class=IconButton min-width="2.25rem" min-height="2.25rem" border-radius=999
           box-shadow="0 0 0 1px var(--hairline)" testId=`back-${route}`
           image "symbol:icon.sidebar"
-      row flex=1 min-width=0 justify-content="center"
+      row flex="1 1 12rem" min-width=0 justify-content="center"
         row class=Pill max-width="100%" min-width=0
           if wide
             button press=togglePanel aria-label=(panelOpen ? `Hide ${nameOf(dood)}'s panel` : `Show ${nameOf(dood)}'s panel`) aria-pressed=panelOpen
@@ -313,15 +313,15 @@ component DoodHeader
           else
             button press=openWardrobe disabled=(not dood.hatched) aria-label=`${nameOf(dood)}'s wardrobe` padding=2 border-radius=999 background-color="transparent" border="none" testId=`pill-wardrobe-${route}`
               DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=28)
-          button popovertarget=menu aria-label=`${nameOf(dood)}: pages and settings` class=PillButton min-width=0 testId=`pages-${route}`
+          button popovertarget=menu aria-label=`${nameOf(dood)}: pages and settings` class=PillButton min-width=0 flex-wrap="wrap" justify-content="center" testId=`pages-${route}`
             text nameOf(dood) role="heading" aria-level=1 font-size="0.875rem" font-weight=500
               overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`title-${route}`
             if route != "dood" and route != "chat" and route != "library"
-              text ` · ${pageName(route)}` font-size="0.875rem" color="ink.muted" white-space="pre"
+              text ` · ${pageName(route)}` font-size="0.875rem" color="ink.muted" min-width=0 overflow-wrap="break-word"
             image "symbol:icon.caret-down" aria-hidden=true color="ink.muted" font-size="0.75rem"
       // As wide as the way back, so the pill stays in the middle.
       if not wide
-        column min-width="2.25rem" aria-hidden=true
+        column flex="0 1 2.25rem" min-width=0 height=0 aria-hidden=true
       column id=menu popover="auto" role="menu" aria-label=`${nameOf(dood)}'s pages` class=Menu
         PageLink(href=path("dood", page.agentId), label="Chat", on=(route == "dood" or route == "chat"), testId=`go-chat-${route}`)
         PageLink(href=path("library", page.agentId), label="Library", on=(route == "library"), testId=`go-library-${route}`)
@@ -365,7 +365,7 @@ component DoodScreen
       scroll id=`scroll-${page.key}` flex=1 min-height=0
         column max-width="52rem" margin="0 auto" padding=(wide ? "28px 32px 48px" : "16px 16px 40px") gap=20 box-sizing="border-box" width="100%"
           column gap=6
-            text pageName(route) role="heading" aria-level=2 class=PageTitle testId=`heading-${route}`
+            text pageName(route) role="heading" aria-level=2 class=PageTitle hyphens="auto" overflow-wrap="break-word" testId=`heading-${route}`
             if lead != ""
               text lead class=PageLead
           children
@@ -394,7 +394,7 @@ component WorkspaceScreen
       scroll id=`scroll-${page.key}` flex=1 min-height=0
         column max-width="52rem" margin="0 auto" padding=(wide ? "28px 32px 48px" : "16px 16px 40px") gap=20 box-sizing="border-box" width="100%"
           column gap=6
-            text pageName(route) role="heading" aria-level=2 class=PageTitle testId=`heading-${route}`
+            text pageName(route) role="heading" aria-level=2 class=PageTitle hyphens="auto" overflow-wrap="break-word" testId=`heading-${route}`
             if lead != ""
               text lead class=PageLead
           children

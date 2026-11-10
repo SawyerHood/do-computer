@@ -48,6 +48,7 @@ function doodOf(agent: AgentSummary, me: string): Dood {
   };
 }
 
+let followed = { owner: '', agentId: '', changes: 0, asks: NO_ASKS };
 const NO_PULSE: Result<'followDood'> = { agentId: '', changes: 0, lost: false, asks: NO_ASKS };
 const NO_FEED: Result<'followFeed'> = { owner: NOBODY, changes: 0, lost: false };
 /** What the feed has said for whoever is signed in, kept across its sockets so the count only goes up. */
@@ -79,19 +80,19 @@ export const shellSources: Pick<Sources, 'loadWorkspaces' | 'loadDoods' | 'follo
   // asked before it may be behind) and a change to what the sidebar shows of it.
   followDood: ([owner, agentId], store): Result<'followDood'> | Promise<Result<'followDood'>> => {
     if (agentId === '' || !current(owner, store)) return NO_PULSE;
-    let changes = 0;
+    if (followed.owner !== owner || followed.agentId !== agentId) followed = { owner, agentId, changes: 0, asks: NO_ASKS };
+    const mine = followed;
     let lost = false;
     // What the chat shows of the Dood, counted on the same socket (data/chat-asks.ts).
-    let asks = NO_ASKS;
-    const now = () => ({ agentId, changes, lost, asks });
+    const now = () => ({ agentId, changes: mine.changes, lost, asks: mine.asks });
     return follow<Result<'followDood'>, AgentSocketMessage>(store, `/api/agents/${seg(agentId)}/socket`, {
-      open: now,
+      open: () => { lost = false; mine.changes++; mine.asks = countAsk(mine.asks, { type: 'ready' }); return now(); },
       each: (message) => {
         const event = message.type === 'agent' ? message.event : undefined;
         // Back from being put away, it may have changed meanwhile.
-        if (message.type === 'resumed' || event?.type === 'ready' || event?.what === 'identity' || event?.what === 'creature') changes++;
-        if (message.type === 'resumed') asks = countAsk(asks, { type: 'ready' });
-        else if (event !== undefined) asks = countAsk(asks, event);
+        if (message.type === 'resumed' || event?.type === 'ready' || event?.what === 'identity' || event?.what === 'creature') mine.changes++;
+        if (message.type === 'resumed') mine.asks = countAsk(mine.asks, { type: 'ready' });
+        else if (event !== undefined) mine.asks = countAsk(mine.asks, event);
         return now();
       },
       lost: () => {

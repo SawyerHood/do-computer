@@ -215,6 +215,65 @@ ports in a slot-specific range, with those origins trusted by the empty local te
 a fixed `EXACT_PORT` otherwise makes one initial viewport fail to start. No Exact patch was
 made.
 
+## Skills, connectors, computers and automations
+
+**Settings share the final frame, rather than overlaying a live chat.** Skills and connectors
+use the final `settings-kit.contract` from `exact-client`; Computers uses its workspace frame.
+The integration edits to that kit are the workspace Computers destination and real wrapping
+of long headings/navigation labels at the largest text size. The phone's workspace back link
+and close control share the available width instead of pushing the close control offscreen.
+The model's Computers link opens `/w/:workspaceId/computers`; `/w/:workspaceId/settings` is the
+section list, so a phone's back link opens navigation instead of looping back into Computers. Automations
+remains a Dood page, as in React, not a settings section. Filled buttons still use the app's
+default accent, not the Dood's (see Type and colour).
+
+**Tools and the transcript share one Dood socket.** `data/shell.ts`'s `followDood` carries
+`AskCounts.tools` alongside the transcript's asks, jobs and library counters. The previous
+`data/tools-live.ts` and its extra resource/socket were removed. Counters persist across
+reconnects for the current owner/Dood; open, ready and resumed refresh the data. Slack also uses this counter. The workspace-only Computers route has no open Dood
+and uses React's five-second directory refresh instead of adding another stream: no workspace
+socket publishes every daemon-liveness, preference or other-Dood request change. Empty
+workspaces still list, pair and manage computers without inventing a Dood to follow.
+
+**Connector sign-in is an explicit same-window step.** React starts a popup automatically
+(`components/settings/connectors.tsx`). “Continue sign-in” navigates in this window; the
+service returns to Exact, which finishes under the shared API session (a bearer at the dev
+origin, the browser's cookie when server-served), then removes code/state from the address.
+The gateway validates both configured development origins and the server's own origin.
+Native OAuth-session/popup presentation is not wired. `tools/tools-check.mjs` exercises a
+local MCP OAuth service in both hosting modes, not real Composio credentials.
+
+**Slack's picture exporter is web-native.** `modules/web/connectors-picture.js` makes a
+1024 px PNG using the bundled mascot/wardrobe engine and its flat-SVG fallback. Other hosts
+show an explanation, not an inert Download button. A real Slack workspace, Slack credentials
+and the external apps gateway were not exercised; their setup, validation and failure paths
+are implemented. The MCP OAuth fixture is not a claim of real-provider certification.
+
+**“This computer” is still desktop-only.** Like React in a plain browser, Exact cannot
+start/stop/configure Electron's local daemon. Install/read-only commands, pairing, update,
+removal and adapter diagnostics work through the remote API. A daemon fixture confirms
+receipt of the update command; installing a daemon on a real host was not exercised.
+
+**Computer asks and running jobs are unified with the transcript/composer.** The incoming
+chat cards now answer computer requests above the composer, including on a phone. Computers
+keeps its workspace request list. The panel keeps connected computers/folders and Manage
+computers, but its duplicate request cards and running-command UI were removed. One canonical
+composer job resource powers the running-command control and transcript chips. The directory
+does not request `/api/computers/requests` while used only by the panel, and the chat's request
+resource is inactive on tools pages, so the two placements do not duplicate that fetch.
+Model/default-computer settings are integrated as well. This closes the former phone request
+placement gap; it is no longer a pending composer seam.
+
+**Schedule creation/editing is in chat, as in React.** The page receives live schedule
+changes, shows checks, outcomes, counts and the run-chat link, and supports pause/resume,
+run now and deletion. Cloud-machine kinds/add/access are wired, but the local echo deployment
+offers only per-Dood built-in machines: provisioning a paid/shared cloud machine was not
+exercised. No bespoke automation form was invented.
+
+**The three old largest-text findings were fixed in integration.** Headings now hyphenate
+only when a word exceeds its line; the Dood page pill's section label wraps and shrinks
+instead of forcing a single unbounded line. No font shrinking or `verify.accept` waiver was
+added. See the integration report in README.md for the latest full-app verifier result.
 
 ## Teams and sidebar
 
@@ -440,14 +499,17 @@ persisted offline queue: keep a failed save open and retry it before closing the
 port. They are not mounted by this branch's basic transcript, so real chat tool-result
 file cards and multiple-picture keyboard navigation are not end-to-end tested here.
 `openLibraryPanel(fileId)` and `LibraryDocumentPanel` are mounted, and a real pinned file
-opens the panel over the chat (tested). `LibraryPinsDock` temporarily occupies the bottom
-of the existing wide Dood panel; the chat port should mount `PinsShelf` in its own scroll
-column and remove that dock. The document panel is a bounded overlay, not a draggable
+opens the panel over the chat (tested). `PinsShelf` is now mounted at the real Dood panel's pinned slot and scrolls with it; the
+temporary absolute `LibraryPinsDock` was removed when joining the creature panel, so it no
+longer covers Computers or other sections. The panel's padded folding buttons use border-box
+sizing. The page pill and long headings wrap at maximum body size; chat notices also stay
+within their column. None of these fixes reduces the user's chosen text size or hides a
+finding. The document panel is a bounded overlay, not a draggable
 split, and has a whole-screen presentation on a phone.
 
 **Pins have dates, not transient change flashes.** The first pin has an image, Markdown or
 sandboxed page preview; subsequent pins are title rows, and deleted pins stay with an
-unpin action. SSE refreshes them after writes and reconnects. The React shelf's live
+unpin action. The ticketed socket refreshes them after writes and reconnects. The React shelf's live
 "Just changed" label and timed highlight are not reproduced; the file's date is shown.
 A pinned page preview does not receive the host theme message (the full page viewer does).
 

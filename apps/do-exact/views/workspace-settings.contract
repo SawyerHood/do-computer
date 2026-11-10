@@ -1,8 +1,10 @@
 use Page, Workspace from "./shapes.contract"
-use WorkspaceSettingsFrame, workspaceOf, Hint from "./settings-kit.contract"
+use WorkspaceSettingsFrame, workspaceOf from "./settings-kit.contract"
 use TeamSettingsContent from "./people.contract"
+use ComputersContent, computersLead from "./computers.contract"
 
-// The workspace's section list on a phone, with its first section open on a wide window.
+// The workspace's section list on a phone, with its first section open beside it on a wide
+// window: People for a team, Computers for one's own, as the React app's dialog opens them.
 component WorkspaceSettingsScreen
   props
     page: Page
@@ -10,20 +12,8 @@ component WorkspaceSettingsScreen
     workspaceList: Workspace[]
   derive team = workspaceOf(workspaceList, page.workspaceId).kind == "team"
   view
-    WorkspaceSettingsFrame(page=page, route=(team ? "people" : "workspaceComputers"), title=(team ? "People" : "Computers"), lead=(team ? "Who is in this team, and who has been asked to join it." : "The computers its Doods work on."), listing=true)
+    WorkspaceSettingsFrame(page=page, route=(team ? "people" : "workspaceComputers"), title=(team ? "People" : "Computers"), lead=(team ? "Who is in this team, and who has been asked to join it." : computersLead()), listing=true)
       if team
         TeamSettingsContent(workspaceId=page.workspaceId, route="people")
       else
-        WorkspaceComputersNotice()
-
-// Computers remains a placeholder, as the unported Dood computers page is.
-component WorkspaceComputersScreen
-  props
-    page: Page
-  view
-    WorkspaceSettingsFrame(page=page, route="workspaceComputers", title="Computers", lead="The computers its Doods work on.", listing=false)
-      WorkspaceComputersNotice()
-
-component WorkspaceComputersNotice
-  view
-    text "Workspace computer management is not available in this client yet." class=Hint testId="workspace-computers-gap"
+        ComputersContent(page=page)
