@@ -15,6 +15,8 @@ use ComputersScreen from "./views/computers.contract"
 use PermissionsScreen from "./views/permissions.contract"
 use ProfileScreen, MemoryScreen, ModelScreen, UsageScreen from "./views/profile.contract"
 use DoodSettingsScreen from "./views/dood-settings.contract"
+use AccountScreen, GeneralScreen, DoodsListScreen, WorkspacesListScreen from "./views/settings-account.contract"
+use NotificationsScreen from "./views/settings-notifications.contract"
 use WorkspaceHomeScreen from "./views/workspace.contract"
 use PeopleScreen from "./views/people.contract"
 use WorkspaceSettingsScreen from "./views/workspace-settings.contract"
@@ -41,6 +43,12 @@ routes nav
       memory "/a/:agentId/memory"
       model "/a/:agentId/model"
       usage "/a/:agentId/usage"
+    // --- settings: the person's own ---
+    account "/settings"
+    general "/settings/general"
+    notifications "/settings/notifications"
+    doodsList "/settings/doods"
+    workspacesList "/settings/workspaces"
     workspace "/w/:workspaceId"
       people "/w/:workspaceId/people"
       workspaceSettings "/w/:workspaceId/settings"
@@ -51,7 +59,8 @@ fn segment(url: string, at: number): string = match url.split("?").at(0) {
   case none => ""
 }
 // The page a location's other pages hang from: a Dood's chat or a workspace's page, else the list.
-fn baseOf(url: string): string = url.startsWith("/a/") ? `/a/${segment(url, 2)}` : url.startsWith("/w/") ? `/w/${segment(url, 2)}` : "/"
+// The person's own settings (`/settings/…`) hang from the list, each in place of the other.
+fn baseOf(url: string): string = url.startsWith("/a/") ? `/a/${segment(url, 2)}` : url.startsWith("/w/") ? `/w/${segment(url, 2)}` : url.startsWith("/settings") ? url : "/"
 
 component App
   members "./views/sign-in.contract"
@@ -60,6 +69,7 @@ component App
   // --- settings ---
   members "./views/profile.contract"
   members "./views/permissions.contract"
+  members "./views/settings-account.contract"
   // A new area adds its members line here, in its own place, in the order of the routes.
 
   // What any screen may `inject` instead of taking it as a prop.
@@ -125,6 +135,27 @@ component App
     ruleTo
     ruleError
     setRule
+    // --- settings: the person's own ---
+    theme
+    chooseTheme
+    openAccountSettings
+    settingsReturn
+    admin
+    accountSetup
+    accountOurs
+    allModelList
+    defaultModelPicked
+    defaultModelSaving = pending(defaultModelSaved)
+    defaultModelError
+    defaultModelOk
+    pickDefaultModel
+    defaultComputerPicked
+    defaultComputerSaving = pending(defaultComputerSaved)
+    defaultComputerError
+    defaultComputerOk
+    pickDefaultComputer
+    doodsAbout
+    workspacesAbout
 
   // The Dood whose page is open (the deepest one in the stack), and the chat a `/c/` page names.
   derive openAgentId = match stack(nav).filter(e => e.params.agentId != "").at(-1) { case some(e) => e.params.agentId, case none => "" }
@@ -195,6 +226,17 @@ component App
             ModelScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
           if e.name == "usage"
             UsageScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          // --- settings: the person's own ---
+          if e.name == "account"
+            AccountScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
+          if e.name == "general"
+            GeneralScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
+          if e.name == "notifications"
+            NotificationsScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
+          if e.name == "doodsList"
+            DoodsListScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
+          if e.name == "workspacesList"
+            WorkspacesListScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
           // --- workspace ---
           if e.name == "workspace"
             WorkspaceHomeScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=e.params.workspaceId))

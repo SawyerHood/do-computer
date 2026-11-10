@@ -203,6 +203,7 @@ component AccountButton
     session: Session
   inject
     signOut: action
+    openAccountSettings: action
   view
     column padding="6px 8px"
       button popovertarget="account-menu" aria-label=`${session.name}: settings and signing out`
@@ -215,6 +216,10 @@ component AccountButton
         text session.name flex=1 min-width=0 font-size="0.875rem" text-align="start" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
         image "symbol:icon.caret-up-down" aria-hidden=true color="ink.muted"
       column id="account-menu" popover="auto" role="menu" aria-label=session.email class=Menu
+        // --- settings: the way into the person's own ---
+        button role="menuitem" press=openAccountSettings popovertarget="account-menu" popovertargetaction="hide" class=MenuItem testId="account-settings"
+          image "symbol:icon.gear" aria-hidden=true
+          text "Settings"
         button role="menuitem" press=signOut popovertarget="account-menu" popovertargetaction="hide" class=MenuItem testId="sign-out"
           image "symbol:icon.sign-out" aria-hidden=true
           text "Sign out"

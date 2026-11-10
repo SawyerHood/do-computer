@@ -6,6 +6,7 @@ import { chatSources } from './data/chat.ts';
 import { sessionSources } from './data/session.ts';
 import { shellSources } from './data/shell.ts';
 import { doodSettingsSources } from './data/settings-dood.ts';
+import { accountSettingsSources } from './data/settings-account.ts';
 
 // The deployment's address, a setting (app.json "env") that only this file may read: the
 // environment's value, else the server server.ts starts. `./x` sets it per checkout.
@@ -20,6 +21,7 @@ const sources: Sources = {
   ...chatSources,
   // --- settings ---
   ...doodSettingsSources,
+  ...accountSettingsSources,
   // A new area spreads its sources here.
 };
 

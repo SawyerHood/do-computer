@@ -1,0 +1,16 @@
+// Whether this browser is told when a Dood has something for the person, as the React app's
+// NotificationsSettings (apps/web/src/components/settings/notifications.tsx).
+use Page from "./shapes.contract"
+use AccountSettings, SettingsSection, Hint from "./settings-kit.contract"
+
+component NotificationsScreen
+  props
+    page: Page
+  inject
+    admin: bool
+    settingsReturn: string
+  view
+    AccountSettings(page=page, route="notifications", title="Notifications", lead="Hear from a Dood when it answers in a chat you do not have open, needs your OK, or reports on something it does on a schedule.", listing=false, admin=admin, close=settingsReturn)
+      SettingsSection(title="This browser", hint="", testId="notifications-browser")
+        text "This browser cannot show notifications from a website." role="status" class=Hint testId="notifications-state"
+      text "Each browser and phone is turned on by itself. On a phone, add Do Computer to the Home Screen first: it then opens as an app of its own and notifies you like one." class=Hint padding-top=24 border-top="1px solid var(--hairline)"
