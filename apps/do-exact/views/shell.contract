@@ -13,10 +13,16 @@ shape Hatched
   error: string
   agentId: string
 
-// The open Dood's own event stream (`/api/agents/:id/events`), counted: `changes` goes up when
+// The open Dood's own socket (`/api/agents/:id/socket`), counted: `changes` goes up when
 // something the sidebar shows changed, which asks for the Doods again.
 shape DoodPulse
   agentId: string
+  changes: number
+  lost: bool
+
+// The person's own feed (`/api/presence/personal:<user>`), counted the same way, for every Dood.
+shape Feed
+  owner: string
   changes: number
   lost: bool
 
@@ -30,7 +36,8 @@ members App
   state panelOpen = false persist
   resource workspaces = loadWorkspaces(session.owner) as shape Workspaces else empty()
   resource pulse = followDood(session.owner, openAgentId) as shape DoodPulse else empty()
-  resource doods = loadDoods(session.owner) with pulse.changes as shape Doods else empty()
+  resource feed = followFeed(session.owner, session.userId) as shape Feed else empty()
+  resource doods = loadDoods(session.owner) with pulse.changes, feed.changes as shape Doods else empty()
   mutation hatched as shape Hatched refreshes doods then afterHatch
   mutation seen as shape Reply refreshes doods
   // The sidebar beside the page: Exact's web host splits a list from its detail from 900 px.
@@ -43,11 +50,9 @@ members App
   derive hatchError = pending(hatched) ? "" : match hatched { case some(r) => r.error, case none => "" }
   derive seenKey = `${openAgentId}:${openDood.latestAt}`
 
-  // The other Doods' rows are asked for again now and then: the React app hears of them on a
-  // socket of the person's own, which cannot carry this app's session (GAPS.md). The open
-  // Dood's own changes arrive on its event stream, and its chat says when it starts and stops.
-  task poll mount
-    every(10000, pull)
+  // Every Dood's row is asked for again when the person's feed says it changed, as the React
+  // app's are; the open Dood's name and creature when its own socket does. A socket that ended
+  // is followed again.
   task clock mount
     every(30000, look)
   task mendPulse mount
@@ -63,6 +68,8 @@ members App
   action healPulse
     if pulse.lost and openAgentId != ""
       refresh pulse
+    if feed.lost and session.signedIn
+      refresh feed
   // The Dood on screen is being looked at, so nothing of its is new.
   action see
     if openDood.unread and not pending(seen)
@@ -93,7 +100,7 @@ fn dayOf(at: number, offset: number): string = match formatDate(at, offset, "med
 fn ago(at: number, now: number, offset: number): string =
   now - at < 60000 ? "now" : now - at < 3600000 ? `${floor((now - at) / 60000)}m` : now - at < 86400000 ? `${floor((now - at) / 3600000)}h` : now - at < 604800000 ? weekdayOf(at, offset) : dayOf(at, offset)
 
-fn pageName(route: string): string = route == "dood" ? "Chat" : route == "library" ? "Library" : route == "automations" ? "Automations" : route == "skills" ? "Skills" : route == "connectors" ? "Connectors" : route == "computers" ? "Computers" : route == "permissions" ? "Permissions" : route == "profile" ? "Profile" : route == "settings" ? "Settings" : route == "people" ? "People" : route == "workspaceSettings" ? "Workspace settings" : route == "workspace" ? "Workspace" : ""
+fn pageName(route: string): string = route == "dood" ? "Chat" : route == "library" ? "Library" : route == "automations" ? "Automations" : route == "skills" ? "Skills" : route == "connectors" ? "Connectors" : route == "computers" ? "Computers" : route == "permissions" ? "Permissions" : route == "profile" ? "Profile" : route == "settings" ? "Settings" : route == "memory" ? "Memory" : route == "model" ? "Model and computers" : route == "usage" ? "Usage" : route == "people" ? "People" : route == "workspaceSettings" ? "Workspace settings" : route == "workspace" ? "Workspace" : ""
 
 // The sidebar: every workspace's Doods, under its name where there is more than one, and the
 // account at the foot. It is the stack's first route, which a wide window shows beside the page.
@@ -203,6 +210,7 @@ component AccountButton
     session: Session
   inject
     signOut: action
+    openAccountSettings: action
   view
     column padding="6px 8px"
       button popovertarget="account-menu" aria-label=`${session.name}: settings and signing out`
@@ -215,6 +223,10 @@ component AccountButton
         text session.name flex=1 min-width=0 font-size="0.875rem" text-align="start" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
         image "symbol:icon.caret-up-down" aria-hidden=true color="ink.muted"
       column id="account-menu" popover="auto" role="menu" aria-label=session.email class=Menu
+        // --- settings: the way into the person's own ---
+        button role="menuitem" press=openAccountSettings popovertarget="account-menu" popovertargetaction="hide" class=MenuItem testId="account-settings"
+          image "symbol:icon.gear" aria-hidden=true
+          text "Settings"
         button role="menuitem" press=signOut popovertarget="account-menu" popovertargetaction="hide" class=MenuItem testId="sign-out"
           image "symbol:icon.sign-out" aria-hidden=true
           text "Sign out"
@@ -253,7 +265,7 @@ component DoodHeader
             text nameOf(dood) role="heading" aria-level=1 font-size="0.875rem" font-weight=500
               overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`title-${route}`
             if route != "dood" and route != "chat" and route != "library"
-              text ` · ${pageName(route)}` font-size="0.875rem" color="ink.muted" white-space="pre"
+              text ` · ${pageName(route)}` font-size="0.875rem" color="ink.muted" min-width=0 hyphens="auto"
             image "symbol:icon.caret-down" aria-hidden=true color="ink.muted" font-size="0.75rem"
       // As wide as the way back, so the pill stays in the middle.
       if not wide
@@ -301,7 +313,7 @@ component DoodScreen
       scroll id=`scroll-${page.key}` flex=1 min-height=0
         column max-width="52rem" margin="0 auto" padding=(wide ? "28px 32px 48px" : "16px 16px 40px") gap=20 box-sizing="border-box" width="100%"
           column gap=6
-            text pageName(route) role="heading" aria-level=2 class=PageTitle testId=`heading-${route}`
+            text pageName(route) role="heading" aria-level=2 class=PageTitle hyphens="auto" testId=`heading-${route}`
             if lead != ""
               text lead class=PageLead
           children
@@ -330,7 +342,7 @@ component WorkspaceScreen
       scroll id=`scroll-${page.key}` flex=1 min-height=0
         column max-width="52rem" margin="0 auto" padding=(wide ? "28px 32px 48px" : "16px 16px 40px") gap=20 box-sizing="border-box" width="100%"
           column gap=6
-            text pageName(route) role="heading" aria-level=2 class=PageTitle testId=`heading-${route}`
+            text pageName(route) role="heading" aria-level=2 class=PageTitle hyphens="auto" testId=`heading-${route}`
             if lead != ""
               text lead class=PageLead
           children

@@ -1,0 +1,86 @@
+test "tools sections share the final settings frame and the model links to workspace computers"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "tools-settings-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-settings-dood"
+  clock settle
+  clock data
+  tap "settings-go-skills-settings"
+  clock settle
+  clock data
+  expect tree has "settings-nav-skills"
+  expect text "heading-skills" == "Skills"
+  tap "settings-go-connectors-skills"
+  clock settle
+  clock data
+  expect tree has "settings-nav-connectors"
+  expect text "heading-connectors" == "Connectors"
+  tap "settings-go-model-connectors"
+  clock settle
+  clock data
+  tap "model-workspace-computers"
+  clock settle
+  clock data
+  expect state onRoute == "workspaceComputers"
+  expect tree has "computer-install"
+  expect tree has "settings-nav-computers"
+  tap "settings-go-workspaceModels-computers"
+  clock settle
+  clock data
+  tap "settings-go-computers-workspaceModels"
+  clock settle
+  clock data
+  expect state onRoute == "workspaceComputers"
+  expect tree has "computer-install"
+  resize 390x844
+  clock settle
+  tap "settings-home-computers"
+  clock settle
+  clock data
+  expect state onRoute == "workspaceSettings"
+  expect tree has "settings-nav-workspaceSettings"
+  tap "settings-go-computers-workspaceSettings"
+  clock settle
+  clock data
+  expect state onRoute == "workspaceComputers"
+  expect tree has "computer-install"
+
+test "on a phone a tools section goes back to the Dood's settings list"
+  size 390x844
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "tools-settings-2@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-skills-dood"
+  clock settle
+  clock data
+  expect tree has "title-skills"
+  expect tree missing "back-skills"
+  tap "settings-home-skills"
+  clock settle
+  clock data
+  expect state onRoute == "settings"
+  tap "settings-go-connectors-settings"
+  clock settle
+  clock data
+  expect text "heading-connectors" == "Connectors"
+  tap "close-connectors"
+  clock settle
+  clock data
+  expect state onRoute == "dood"

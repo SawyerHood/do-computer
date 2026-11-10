@@ -1,0 +1,6 @@
+// Swap this component for the rich Markdown port when it lands.
+component LibraryMarkdown
+  props
+    text: string
+  view
+    text text markup="markdown" font-size="1rem" line-height=1.6 overflow-wrap="break-word" testId="library-markdown"

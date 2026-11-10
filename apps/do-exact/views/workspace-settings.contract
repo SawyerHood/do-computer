@@ -1,14 +1,12 @@
-// A workspace's settings page: a PLACEHOLDER until its area is built. It will hold its name and colour, its saved logins and cards, its options for every Dood in it.
-// The React app's is apps/web/src/components/settings/team.tsx. To build it: give this file a `members App` block for its
-// resources, mutations and actions (listed in app.contract beside the others), and its data
-// sources in data/workspace-settings.ts (gathered in app.ts); then pass what the screen reads as props where
-// app.contract draws it. Keep the WorkspaceScreen frame: it is the header, the title and the lead.
+// The workspace's section list. On a phone its sections open over this list, as the Dood's do.
 use Page from "./shapes.contract"
-use WorkspaceScreen from "./shell.contract"
+use WorkspaceSettingsFrame, Hint, OutlineButton from "./settings-kit.contract"
 
 component WorkspaceSettingsScreen
   props
     page: Page
   view
-    WorkspaceScreen(page=page, route="workspaceSettings", lead="What this workspace is called, and what it has chosen for all its Doods.")
-      text "Not in this app yet." font-size="0.875rem" color="ink.muted" testId="placeholder-workspaceSettings"
+    WorkspaceSettingsFrame(page=page, route="workspaceSettings", title="Workspace settings", lead="Computers, models and saved logins for this workspace.", listing=true)
+      text "Choose a section to see or change what this workspace's Doods can use." class=Hint
+      link href=path("workspaceComputers", page.workspaceId) class=OutlineButton align-self="start" testId="workspace-open-computers"
+        text "Computers"

@@ -38,9 +38,18 @@
     "do-gift",
     "do-wardrobe",
     "do-sky",
+    "do-markdown",
+    "do-code",
+    "do-mermaid",
+    "do-dictation",
+    "do-push",
+    "do-library-download",
+    "do-library-format",
+    "do-library-frame",
     "do-slack-picture"
   ],
   "env": [
-    "API_BASE_URL"
+    "API_BASE_URL",
+    "API_SOCKET_URL"
   ]
 }

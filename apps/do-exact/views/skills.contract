@@ -27,7 +27,7 @@ shape SkillRead
 members App
   state skillUrl = ""
   state skillOpen = ""
-  resource skills = loadSkills(session.owner, onRoute == "skills" ? openAgentId : "") with pulse.changes as shape Skills else empty()
+  resource skills = loadSkills(session.owner, onRoute == "skills" ? openAgentId : "") with toolsPulse.changes as shape Skills else empty()
   resource skillRead = readSkill(session.owner, onRoute == "skills" ? openAgentId : "", skillOpen) as shape SkillRead else empty()
   mutation skillChanged as shape SkillReply refreshes skills, skillRead
   mutation skillInstalled as shape SkillReply refreshes skills then afterSkillInstall

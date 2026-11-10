@@ -5,7 +5,7 @@ A client for Do Computer written with [Exact](https://github.com/expo/exact): th
 and one source could run on the web, iOS, macOS and Linux; for now it is built for the web. It
 talks to a deployment (`apps/web`) over the HTTP API the web and phone apps use.
 
-It is the shell of the app and its chat, not a replacement for the React app yet.
+It has the shell, basic chat and library, not a replacement for the React app yet.
 [What is here](#what-is-here) and [what is not](#what-is-not) say where it stands;
 [PORTING.md](PORTING.md) says how it is laid out and how to add to it, and [GAPS.md](GAPS.md)
 what Exact cannot do yet.
@@ -20,12 +20,13 @@ what Exact cannot do yet.
 - The sidebar: your Doods under each workspace (one list when you are in no team), in the order
   you put them in, each with its creature (the React app's mascot, as a web native view), the
   last thing said and when, whether it is working or waiting on you, and a mark for something
-  new. A workspace's menu leads to its settings and people. Hatching a Dood opens it.
+  new, kept current by the person's feed socket, as the React app's is. A workspace's menu
+  leads to its settings and people. Hatching a Dood opens it.
 - A wide window has the sidebar beside the page; a phone has the list, then a Dood's chat over
   it. Every page has its address (`/a/:agentId`, `/a/:agentId/c/:chatId`,
   `/a/:agentId/library`, `/w/:workspaceId/people`, …): deep links, reload, Back and Forward work.
 - A Dood's main chat: the transcript, opened at its newest message and following it, with the
-  reply arriving as it is written over the chat's event stream. Text is drawn as Markdown;
+  reply arriving as it is written, every piece of it, over the Dood's WebSocket. Text is drawn as Markdown;
   thinking, tool calls and notices each have a plain row. Sending a message. Its panel beside
   the chat, from its face in the pill.
 - Skills: install from a URL, read all the files, enable/disable and delete, in the shared
@@ -37,12 +38,31 @@ what Exact cannot do yet.
 - Computers: the workspace's machines and paired computers, adapter diagnostics, access,
   ownership transfer, Dood grants, requests, daemon update/removal, add-machine kinds and the
   install/read-only commands. `/pair?code=…` verifies the daemon's code, owner and Dood selection.
-- The other pages remain placeholders here: library, permissions, profile and settings,
-  and a workspace's people/settings. Other Exact area branches fill those in.
 - Tests (`chat`, `shell`, `sign-in`, `skills`, `connectors`, `computers` and `automations`
   `.test.contract` files) that drive all
   of that against Do Computer's own server on the web host. `./x verify` also checks sizes,
   themes, largest text, reload and relaunch.
+- Settings, in the React app's settings window's card (`views/settings-kit.contract`): a Dood's
+  profile (name, tagline, colour, a new look, voice, personality, moving it, deleting it),
+  memory (with starting the main chat fresh), model and thinking with its computers, usage and
+  permissions; the person's own General (theme, which sets the app's scheme, default model and
+  computer), Notifications (this browser's web push, through the `do-push` view and a service
+  worker of its own), and the lists of Doods and workspaces; a workspace's Models (signing in
+  to a provider with a key, a subscription or a code) and Passwords (logins and cards); and for
+  whoever looks after the deployment, Global models and the waiting list. The account menu
+  leads to them.
+- The library: recent previews and folder tree, filtering, document creation, multi-upload,
+  image/page/PDF/media/table/text viewers, Markdown editing and split preview, autosave and
+  conflicts, rename/move/download/delete, revision revert and deleted-file restore. Pins open
+  a document over chat. Files/folders can be shared with the workspace or anyone with a link.
+  [LIBRARY-PORT.md](LIBRARY-PORT.md) records the scope and integration seams.
+- The composer and other chats from `exact-client`, including attachments, model/computer
+  pickers, running commands and thread navigation, plus its shared rich Markdown renderer.
+- Workspace home and people remain placeholders in this integration (teams is joining
+  separately). Workspace settings' old address is its section list, linked to Computers.
+- The whole app's `*.test.contract` files run against the real echo server; `./x verify`
+  additionally checks sizes, themes, reload/relaunch and largest text. Passwords are enabled
+  in `server.ts` so their tests can run.
 
 ## Run it
 
@@ -69,7 +89,23 @@ answers with the echo model. The address is the `API_BASE_URL` setting, read in 
 
 The web build is served from its own origin, so the server has to be told about it:
 `DC_CLIENT_ORIGINS=http://127.0.0.1:8766`, which `server.ts` sets and which is why the commands
-above pin `EXACT_PORT`.
+above pin `EXACT_PORT`. Its sockets' address is `API_SOCKET_URL` (`ws:` for `http:`), which `./x`
+makes from `API_BASE_URL`.
+
+### Served by the server itself
+
+The server can serve a web build of the app at its own origin, where the browser's session cookie
+is the session, shared with the React app:
+
+```sh
+DC_BASE_URL=https://agent.example.com pnpm --filter @do-computer/web build:exact   # into apps/web/dist/exact
+DC_EXACT_APP=apps/web/dist/exact DC_BASE_URL=https://agent.example.com pnpm --filter @do-computer/web start
+```
+
+Its files are at `/x/`. Exact reads a page's route from the whole path and knows no prefix, so
+`/x/` (or `/x/a/…`) sets a cookie that picks the Exact app and opens the page at its own address,
+`/`, `/a/…`, which from then on are the Exact app's for that browser; `/x/off` goes back to the
+React app (`apps/web/src/server/exact-app.ts`). Node only for now. `tools/same-origin.sh` tests it.
 
 ## What the server gained for it
 
@@ -83,34 +119,24 @@ above pin `EXACT_PORT`.
   Only success/error comes back, never connector credentials. Both an allowed development
   origin and the server's own origin are accepted; unrelated origins and non-connector paths
   are refused. The existing React-cookie and desktop callback paths are unchanged.
+- **Socket tickets.** A browser's WebSocket carries no header and, across origins, no cookie. So
+  a client with a bearer session asks `POST /api/auth/socket/tickets` for a few tickets, and opens
+  each socket with one as `?ticket=`: good once, for five minutes, while the session lasts, kept
+  only as a hash. See `apps/web/src/server/socket-tickets.ts` and `socketUser` in `auth.ts`.
+- **`DC_EXACT_APP`.** The server serving the app itself, above.
 
 ## What is not
 
-In the order it would be built:
-
-1. **The other pages' bodies.** Library, permissions, profile and account/team settings are
-   placeholders on this branch; skills, connectors, computers and automations have real bodies.
-   PORTING.md says how areas are joined. The creature is not petted, dressed or hatched here.
-2. **The rest of a chat.** Approvals, queued messages and Stop, earlier history, attachments and
-   pictures, side chats and sub-agents, code blocks with highlighting, tables.
-3. **The rest of the shell.** Naming and hatching with the egg, starting a team and answering
-   invitations, putting Doods in order by dragging, folding a workspace, calls, and the
-   React app's wide sidebar that folds to a column of faces.
-4. **Any deployment.** The address is a constant. A person should type it at sign-in, as on the
-   phone, which needs the grant `net.fetch https:` and the address kept in the store.
-5. **Apple hosts.** Nothing here was built for iOS or macOS yet: that needs a Mac with Xcode.
-   The native Linux build was the evidence, for the first slice, that the data module, the
-   secret store and the stream work off the web; it has not been run since the app was split
-   into areas. Sign-in with Google or GitHub would go through Exact's OAuth session. A
-   native launch opens at the list of Doods: the open chat is not kept across launches.
-6. **A lossless stream.** Exact drops server-sent events that arrive faster than it commits them
-   (`coalesced`), and a chat's events are deltas. The app notices and follows the chat again from
-   a fresh snapshot (`heal`). The real fix is following over the WebSocket the server already
-   has, which Exact delivers frame by frame, once a socket can carry a bearer session.
-7. **What Exact has no answer for yet.** Mermaid and Shiki (npm packages with DOM or wasm needs,
-   which would be web native views as the creature is), MCP app and visual embeds beyond a plain
-   `iframe`, remote push, and the desktop app's work: running the daemon and driving the screen
-   and browser. Windows is unfinished in Exact.
+- **Transcript and teams integration.** Their area branches are being joined separately.
+  This merge contains the composer, settings, library, Markdown and transport from `exact-client`,
+  not those other workers' pending transcript/team changes. The workspace home and people
+  pages are still placeholders here; see GAPS.md and COMPOSER.md for the chat seams.
+- **Shell parity.** Egg hatching, calls, drag ordering and the collapsing rail are not all
+  implemented. The creature native views exist; their presence does not claim the whole React shell.
+- **Deployment and native hosts.** The address is a build setting. Server-served Exact works on
+  Node via `DC_EXACT_APP`, not the Cloudflare Worker. Apple/Windows hosts and native push have
+  not been validated by this web-only port. Remote computers work; Electron's local daemon
+  controls do not exist in a plain browser. See GAPS.md for details and external-service limits.
 
 ## Things learned about Exact, 2026-11-09
 
@@ -127,7 +153,7 @@ In the order it would be built:
   works well: `./protocol/chat.ts` is `packages/protocol/src/chat.ts`, so the app applies chat
   events with the same `reduceChat` as every other client.
 
-## Tools-area checks (2026-11-10)
+## Initial tools-area checks (2026-11-10, before integration)
 
 `skills.test.contract`, `connectors.test.contract`, `computers.test.contract` and
 `automations.test.contract` use the real echo server. They cover tool-created skills and
@@ -140,15 +166,17 @@ computer), MCP token/tools/toggle/OAuth, Slack PNG export and paired-computer re
 Typechecking `apps/web` passed. The shared settings kit was copied unchanged from
 `exact-settings` at `941da6f`.
 
-For the tools worker on bee, slot 6's API port 3917 was occupied by an unrelated Do Code
-server. Checks used `API_BASE_URL=http://127.0.0.1:3927 ./x …` and the assigned Exact port 8772;
-no process on 3917 was changed. This is a local test override, not a new deployment address.
+The initial tools pass temporarily used API port 3927 because another app occupied 3917.
+The merge validation uses slot 6's normal API 3917 and Exact 8772; no unrelated server is
+changed. The browser harness now lives in `tools/tools-check.mjs` and reads `API_BASE_URL`,
+`TOOLS_EXACT_URL`, `TOOLS_SAME_ORIGIN` and `TOOLS_OUT` for reproducible integration checks.
+
 The supplemental browser check and reference photographs are kept under `.exact/` in that
 worktree (not committed): `.exact/integration.mjs` and `.exact/shots/tools/`. It starts local
 MCP/OAuth and daemon-protocol fixtures, but drives the real Do Computer API and Exact page.
 External Slack/apps credentials and real cloud-machine provisioning are not used.
 
-The final verifier passed all 11 tests and ordinary phone/wide, light/dark and reload checks;
+The pre-merge verifier passed all 11 tests and ordinary phone/wide, light/dark and reload checks;
 three findings remain only at its largest text size, in the shared heading/pill (GAPS.md).
 Forty comparison screenshots (five sections × two sizes × two schemes × two apps) were read:
 the settings layout, typography, cards and dark colours are recognisable against React.

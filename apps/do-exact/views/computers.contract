@@ -67,8 +67,8 @@ shape Pairing
   home: string
   readOnly: bool
 members App
-  derive computerWorkspaceId = openDood.workspaceId
-  resource computers = loadComputers(session.owner, onRoute == "computers" ? computerWorkspaceId : "") as shape Computers else empty()
+  derive computerWorkspaceId = onRoute == "workspaceComputers" or onRoute == "workspaceSettings" ? top(nav).params.workspaceId : openDood.workspaceId
+  resource computers = loadComputers(session.owner, onRoute == "computers" or onRoute == "workspaceComputers" ? computerWorkspaceId : "") with toolsPulse.changes as shape Computers else empty()
   resource pairingAddress = pairingCodeFromAddress(onRoute == "pair" ? top(nav).url : "") as shape PairingCode else empty()
   state pairingTypedCode = ""
   derive pairingCode = (pairingTypedCode != "" ? pairingTypedCode.trim() : pairingAddress.code).toUpperCase()
@@ -106,7 +106,7 @@ members App
   derive pairingOffered = doodList.filter(d => pairingWorkspace == "" or d.workspaceId == pairingWorkspace)
   derive pairingSelected = pairingChosenExplicit ? pairingChosen.filter(id => pairingOffered.filter(d => d.id == id).length > 0) : (doodList.length == 1 ? doodList.map(d => d.id) : [])
   task computerPoll mount
-    every(5000, retryComputers)
+    every(5000, healComputers)
   task pairingAddressChanged key=`${session.owner}:${pairingAddress.code}`
     after(1, resetPairingForm)
   action resetPairingForm
@@ -119,9 +119,11 @@ members App
     after(1, resetPairing)
   action resetPairing
     pairingDone = false
-  action retryComputers
-    if onRoute == "computers"
+  action healComputers
+    if onRoute == "computers" or onRoute == "workspaceComputers"
       refresh computers
+  action retryComputers
+    refresh computers
   action changeComputer(id: string, operation: string, value: string, approve: bool)
     if not computersBusy
       send computerChanged = changeComputer(session.owner, id, operation, value, approve)

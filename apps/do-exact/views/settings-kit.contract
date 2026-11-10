@@ -53,7 +53,7 @@ fn accountEntries(admin: bool, waitlist: bool): SettingsEntry[] = [
 fn workspaceEntries(w: Workspace): SettingsEntry[] = (w.kind == "team" ? [
   SettingsEntry(route="people", href=`/w/${w.id}/people`, label="People", icon="symbol:icon.users", group="")
 ] : []).concat([
-  SettingsEntry(route="workspaceSettings", href=`/w/${w.id}/settings`, label="Computers", icon="symbol:icon.desktop", group=""),
+  SettingsEntry(route="computers", href=`/w/${w.id}/computers`, label="Computers", icon="symbol:icon.desktop", group=""),
   SettingsEntry(route="workspaceModels", href=`/w/${w.id}/models`, label="Models", icon="symbol:icon.cpu", group=""),
   SettingsEntry(route="passwords", href=`/w/${w.id}/passwords`, label="Passwords", icon="symbol:icon.key", group="")
 ])
@@ -206,6 +206,12 @@ component SettingsFrame
         // dialog on a narrow screen. Back from a section goes to the list; the cross closes.
         header appearance="none" display="flex" align-items="center" gap=6 padding="6px 8px" min-height=52 flex-shrink=0
           background-color=(listing ? "frame" : "canvas") border-bottom="1px solid var(--hairline)"
+          // The list's own way up (to the list of Doods or workspaces) is here on a phone, beside the cross.
+          if listing and up != ""
+            link href=up aria-label=`Back to ${upLabel}` display="flex" align-items="center" gap=4 padding="6px 8px" border-radius=8
+              color="ink.muted" text-decoration="none" font-size="0.875rem" testId=`settings-up-${route}`
+              image "symbol:icon.caret-left" aria-hidden=true
+              text upLabel
           if not listing
             link href=home aria-label=`Back to ${name}` display="flex" align-items="center" gap=4 padding="6px 8px" border-radius=8 min-width=0
               color="ink.muted" text-decoration="none" font-size="0.875rem" testId=`settings-home-${route}`
@@ -229,9 +235,12 @@ component SettingsHeading
     route: string
     title: string
     lead: string
+  inject
+    wide: bool
   view
-    column gap=4 padding-right=32
-      text title role="heading" aria-level=2 class=SettingsTitle testId=`heading-${route}`
+    // Clear of the card's cross, which a phone has in its bar instead.
+    column gap=4 padding-right=(wide ? 32 : 0)
+      text title role="heading" aria-level=2 class=SettingsTitle hyphens="auto" testId=`heading-${route}`
       if lead != ""
         text lead class=SettingsLead
 
@@ -251,7 +260,7 @@ component SettingsNav
     phone: bool
   view
     nav aria-label=`${name}: sections` display="flex" flex-direction="column" gap=2 padding=10 testId=`settings-nav-${route}`
-      if up != ""
+      if up != "" and not phone
         link href=up aria-label=`Back to ${upLabel}` display="flex" align-items="center" gap=4 align-self="flex-start" padding="4px 8px"
           border-radius=8 color="ink.muted" text-decoration="none" font-size="0.875rem" testId=`settings-up-${route}`
           :hover
@@ -282,10 +291,10 @@ component SettingsNav
           background-color=(e.route == route and not phone ? "wash" : "transparent") testId=`settings-go-${e.route}-${route}`
           :hover
             background-color="wash"
-          image e.icon aria-hidden=true font-size="1rem"
-          text e.label flex=1
+          image e.icon aria-hidden=true font-size="1rem" flex-shrink=0
+          text e.label flex=1 min-width=0
           if phone
-            image "symbol:icon.caret-right" aria-hidden=true color="ink.muted" font-size="0.875rem"
+            image "symbol:icon.caret-right" aria-hidden=true color="ink.muted" font-size="0.875rem" flex-shrink=0
 
 // --- A frame for each whose ---
 
