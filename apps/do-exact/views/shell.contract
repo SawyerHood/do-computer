@@ -6,6 +6,7 @@ use Session, Reply, Time, Viewport, Workspace, Workspaces, Dood, Doods, Page fro
 use Frame, Screen, PrimaryButton, ListHeading, SidebarRow, RowName, RowLine, RowTime, IconButton, Pill, PillButton, Menu, MenuItem, PageTitle, PageLead from "./styles.contract"
 use DoodFace from "./creature.contract"
 use EmptyState from "exact:content"
+use AskCounts from "./chat-shapes.contract"
 
 // What a hatch answers: the new Dood, to open it.
 shape Hatched
@@ -19,6 +20,8 @@ shape DoodPulse
   agentId: string
   changes: number
   lost: bool
+  // --- chat transcript --- what the chat shows of the Dood, counted (data/chat-asks.ts).
+  asks: AskCounts
 
 members App
   // --- shell ---

@@ -85,7 +85,7 @@ component ApprovalCard
             // A sub-agent reads what it finds, and what it finds can ask for things in its name.
             text `Asked while working on: “${request.task}”. Allow it only if you expected it.` font-size="0.75rem" color="ink.muted"
       if request.detail != ""
-        text request.detail font-family="Geist Mono" font-size="0.75rem" white-space="pre-wrap" overflow-wrap="anywhere"
+        text request.detail font-family="Geist Mono" font-size="0.75rem" white-space="pre-wrap" overflow-wrap="break-word"
           max-height=160 overflow="auto" padding="8px 12px" border-radius=8 background-color="muted" testId=`approval-detail-${at}`
       if request.wants != ""
         column gap=6
@@ -152,7 +152,7 @@ component SecretCard
               text ask.name font-weight=500
           if ask.purpose != ""
             text `“${ask.purpose}”` font-size="0.875rem" color="ink.muted" testId=`secret-purpose-${at}`
-          text font-size="0.75rem" color="ink.muted" margin-top=4 overflow-wrap="anywhere"
+          text font-size="0.75rem" color="ink.muted" margin-top=4 overflow-wrap="break-word"
             if ask.kind == "connector"
               text "Kept with the connector at "
               text ask.place font-family="Geist Mono"
@@ -231,7 +231,7 @@ component LoginCard
       row gap=10 align-items="flex-start"
         image "symbol:icon.key" color="ink.muted" aria-hidden=true margin-top=2 flex-shrink=0
         column flex=1 min-width=0 gap=2
-          text font-size="0.875rem" overflow-wrap="anywhere"
+          text font-size="0.875rem" overflow-wrap="break-word"
             text name font-weight=500
             if ask.subagent != ""
               text "’s sub-agent "
@@ -289,7 +289,7 @@ component SignInCard
             text " added the connector "
             text connector.name font-weight=500
             text ", which needs you to sign in"
-          text font-size="0.75rem" color="ink.muted" overflow-wrap="anywhere"
+          text font-size="0.75rem" color="ink.muted" overflow-wrap="break-word"
             text "You sign in at "
             text connector.host font-family="Geist Mono"
             text ` and come back here. ${name} never sees your password.`

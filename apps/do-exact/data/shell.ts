@@ -6,6 +6,7 @@ import { avatarLook } from '../protocol/avatars.ts';
 import { inOrder, type DoodOrder } from '../protocol/order.ts';
 import { isPersonalWorkspace, workspaceColor, type WorkspacesState } from '../protocol/workspace.ts';
 import { current, follow, get, NOBODY, post, put, reply, seg } from './api.ts';
+import { countAsk, NO_ASKS } from './chat-asks.ts';
 
 type Dood = Result<'loadDoods'>['doods'][number];
 
@@ -45,7 +46,7 @@ function doodOf(agent: AgentSummary, me: string): Dood {
   };
 }
 
-const NO_PULSE: Result<'followDood'> = { agentId: '', changes: 0, lost: false };
+const NO_PULSE: Result<'followDood'> = { agentId: '', changes: 0, lost: false, asks: NO_ASKS };
 
 export const shellSources: Pick<Sources, 'loadWorkspaces' | 'loadDoods' | 'followDood' | 'hatchDood' | 'markSeen'> = {
   loadWorkspaces: async ([owner], store): Promise<Result<'loadWorkspaces'>> => {
@@ -75,10 +76,13 @@ export const shellSources: Pick<Sources, 'loadWorkspaces' | 'loadDoods' | 'follo
     if (agentId === '' || !current(owner, store)) return NO_PULSE;
     let changes = 0;
     let lost = false;
-    const now = () => ({ agentId, changes, lost });
+    // What the chat shows of the Dood, counted on the same stream (data/chat-asks.ts).
+    let asks = NO_ASKS;
+    const now = () => ({ agentId, changes, lost, asks });
     return follow<Result<'followDood'>, AgentEvent>(store, `/api/agents/${seg(agentId)}/events`, {
       each: (event) => {
         if (event.type === 'ready' || event.what === 'identity' || event.what === 'creature') changes++;
+        asks = countAsk(asks, event);
         return now();
       },
       lost: () => {

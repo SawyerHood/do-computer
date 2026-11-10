@@ -5,7 +5,7 @@ import type { Result, Sources } from '../app.contract.d.ts';
 // What a chat is and how an event changes it, from the protocol the server and every other
 // client share: types and one pure function, so nothing of the package's is run but that.
 import { EMPTY_CHAT, reduceChat, type ChatEvent, type ChatHistoryPage, type ChatMessage, type ChatState } from '../protocol/chat.ts';
-import type { AgentEvent, AgentSummary, ApprovalDecision, ApprovalsState, ChatSummary, ConnectorSummary, LibraryListing, SecretRequest } from '../protocol/agent.ts';
+import type { AgentSummary, ApprovalDecision, ApprovalsState, ChatSummary, ConnectorSummary, LibraryListing, SecretRequest } from '../protocol/agent.ts';
 import { LOGIN_PASSWORD, LOGIN_USERNAME, MAX_PASSWORD_CHARS, MAX_USERNAME_CHARS } from '../protocol/passwords.ts';
 import { siteHost } from '../protocol/screen.ts';
 import { jobOutcome, type JobSummary } from '../protocol/jobs.ts';
@@ -66,10 +66,8 @@ function chatInfo(chat: ChatSummary): ChatInfo {
   };
 }
 
-const NO_ASKS: Result<'followAsks'> = { agentId: '', jobs: 0, pins: 0, approvals: 0, secrets: 0, chats: 0, connectors: 0, library: 0, lost: false };
-
 export const chatSources: Pick<Sources,
-  'openChat' | 'followChat' | 'sendMessage' | 'stopChat' | 'loadEarlier' | 'loadChatContext' | 'followAsks' | 'loadApprovals' | 'answerApproval' |
+  'openChat' | 'followChat' | 'sendMessage' | 'stopChat' | 'loadEarlier' | 'loadChatContext' | 'loadApprovals' | 'answerApproval' |
   'loadSecretAsks' | 'answerSecret' | 'answerLogin' | 'declineSecret' | 'loadSignIns' | 'signInConnector' | 'dismissConnector' | 'loadLibraryView' | 'loadJobs' |
   'loadStanding' | 'pinFile' | 'unpinFile' | 'shareAgain'
 > = {
@@ -138,36 +136,6 @@ export const chatSources: Pick<Sources,
     if (agentId === '' || !current(owner, store)) return { owner: NOBODY, agentId: '', name: '', tagline: '', chats: [] };
     const state = await get<{ agent: AgentSummary; chats: ChatSummary[] }>(store, `/api/agents/${seg(agentId)}`);
     return { owner, agentId, name: state.agent.name ?? '', tagline: state.agent.tagline ?? '', chats: state.chats.map(chatInfo) };
-  },
-
-  // The open Dood's event stream, counted by what changed: each count asks again for what it is
-  // about. The shell follows the same stream for the sidebar (data/shell.ts `followDood`).
-  followAsks: ([owner, agentId], store): Result<'followAsks'> | Promise<Result<'followAsks'>> => {
-    if (agentId === '' || !current(owner, store)) return NO_ASKS;
-    const counts = { jobs: 0, pins: 0, approvals: 0, secrets: 0, chats: 0, connectors: 0, library: 0 };
-    let lost = false;
-    const now = () => ({ agentId, ...counts, lost });
-    return follow<Result<'followAsks'>, AgentEvent>(store, `/api/agents/${seg(agentId)}/events`, {
-      each: (event) => {
-        // `ready` is each connection's first word: whatever was asked before may be behind.
-        if (event.type === 'ready') for (const key of Object.keys(counts) as (keyof typeof counts)[]) counts[key]++;
-        else if (event.what === 'approvals') counts.approvals++;
-        else if (event.what === 'secrets') { counts.secrets++; counts.connectors++; }
-        else if (event.what === 'connectors') { counts.connectors++; counts.approvals++; }
-        else if (event.what === 'computers') counts.approvals++;
-        else if (event.what === 'chats' || event.what === 'identity') counts.chats++;
-        else if (event.what === 'library') { counts.library++; counts.pins++; }
-        else if (event.what === 'jobs') counts.jobs++;
-        // Sites are told of with the library: sharing one changes no file, and asks again anyway.
-        else if (event.what === 'pins') counts.pins++;
-        return now();
-      },
-      lost: () => {
-        lost = true;
-        return now();
-      },
-      now,
-    });
   },
 
   // What the Dood waits for someone to allow, in every chat of it.

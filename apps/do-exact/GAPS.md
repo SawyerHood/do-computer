@@ -73,10 +73,12 @@ screen while the Dood uses it (`uses.tsx`, `lib/use-live-view.ts`), are behind t
 use is a line, "Juniper used MacBook's screen · 4 steps", that unfolds to its steps in words; while
 it goes, it is the step under way. Pausing and stopping a use from its window are not here.
 
-**One stream more.** The open Dood's event stream (`/api/agents/:id/events`) is followed twice:
-by the shell for the sidebar (`followDood`) and by the chat (`followAsks`) for what it shows of
-approvals, secrets, sign-ins, sub-agents, jobs, pins and the library. The two could be one
-source with more counts once both areas are merged.
+**The Dood's event stream is counted for the chat on the shell's stream.** The React app
+refetches what an agent event names (`refreshAgent` in `lib/collections.ts`). Here the shell's
+`followDood` counts each kind (`data/chat-asks.ts`), and the chat's resources are asked again
+`with` their count. A stream of the chat's own would hold a third of the browser's six connections
+to the server, and a test's `reload`, which leaves the old page's streams open a while, ran the
+others out of connections (every read timed out after 20 s).
 
 **Hover reveals nothing.** Exact's `:hover` paints a box itself and cannot show a child, so a
 file card's download and a visual's corner button are always shown, as the React app shows them

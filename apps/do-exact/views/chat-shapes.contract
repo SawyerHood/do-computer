@@ -120,9 +120,9 @@ shape ChatContext
   tagline: string
   chats: ChatInfo[]
 
-// The open Dood's event stream, counted by what changed.
-shape AskPulse
-  agentId: string
+// What the open Dood's event stream said changed, counted, for what the chat shows of it: each
+// count asks again for what it is about. The shell's stream carries it (DoodPulse `asks`).
+shape AskCounts
   jobs: number
   pins: number
   approvals: number
@@ -130,7 +130,6 @@ shape AskPulse
   chats: number
   connectors: number
   library: number
-  lost: bool
 
 shape ApprovalAsk
   id: string

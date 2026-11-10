@@ -65,7 +65,7 @@ component UserMessage
         column max-width="80%" padding="8px 16px" border-radius=18 background-color="secondary" border="1px solid var(--border)" gap=2
           text (message.answered ? "You answered" : `${asker} asked`) font-size="0.75rem" color="ink.muted" testId=`asked-${message.id}`
           for b in message.blocks.filter(x => x.kind == "text") key=b.id
-            text b.text font-size="0.9375rem" white-space="pre-wrap" overflow-wrap="break-word" testId=`message-${message.id}`
+            text b.text font-size="0.9375rem" white-space="pre-wrap" overflow-wrap="break-word" max-width="100%" testId=`message-${message.id}`
     else
       row justify-content="flex-end" align-items="flex-end" gap=8
         if not own
@@ -94,9 +94,9 @@ component UserMessage
             if b.kind == "image"
               image b.src alt="Attached" max-height=256 border-radius=16
             else if own
-              text b.text class=UserBubble overflow-wrap="break-word" white-space="pre-wrap" testId=`message-${message.id}`
+              text b.text class=UserBubble overflow-wrap="break-word" white-space="pre-wrap" max-width="100%" min-width=0 box-sizing="border-box" testId=`message-${message.id}`
             else
-              text b.text padding="8px 16px" border-radius=18 background-color="secondary" font-size="0.9375rem" overflow-wrap="break-word" white-space="pre-wrap" testId=`message-${message.id}`
+              text b.text padding="8px 16px" border-radius=18 background-color="secondary" font-size="0.9375rem" overflow-wrap="break-word" white-space="pre-wrap" max-width="100%" min-width=0 box-sizing="border-box" testId=`message-${message.id}`
           if message.files.length > 0
             row flex-wrap="wrap" justify-content="flex-end" gap=6 role="list" aria-label="Sent files"
               for f in message.files key=f
@@ -136,7 +136,7 @@ component AssistantMessage
         // Its words were on screen as they were written; it says it did not go, and why.
         row gap=6 align-items="flex-start" padding="0 4px" font-size="0.875rem" color="danger" role="alert" testId=`not-sent-${message.id}`
           image "symbol:icon.warning-circle" aria-hidden=true margin-top=2
-          text `Not sent: ${message.notSent}` min-width=0 overflow-wrap="anywhere"
+          text `Not sent: ${message.notSent}` min-width=0 overflow-wrap="break-word"
       if message.status == "error"
         ReplyError(message=message, agentId=agentId, canRetry=canRetry)
       if message.stopped
@@ -164,7 +164,7 @@ component PartView
     else if block.kind == "kept"
       row gap=8 align-items="center" padding="0 4px" font-size="0.875rem" color=(block.outcome == "refused" ? "asking" : "ink.muted") role=(block.going ? "status" : "none") testId=`kept-${block.id}`
         image (block.outcome == "refused" ? "symbol:icon.warning-circle" : block.status == "pay" ? "symbol:icon.credit-card" : "symbol:icon.key") aria-hidden=true flex-shrink=0
-        text block.text overflow-wrap="anywhere"
+        text block.text overflow-wrap="break-word"
     else if block.kind == "file"
       FileCard(block=block, agentId=agentId, base=filesBase)
     else if block.kind == "visual"
@@ -223,7 +223,7 @@ component ReplyError
               for f in message.errorFacts key=f
                 text f font-family="Geist Mono" font-size="0.6875rem" color="ink.muted" background-color="muted" padding="0 6px" border-radius=4
           if message.errorDetail != ""
-            text message.errorDetail font-family="Geist Mono" font-size="0.75rem" color="ink.muted" white-space="pre-wrap" overflow-wrap="anywhere"
+            text message.errorDetail font-family="Geist Mono" font-size="0.75rem" color="ink.muted" white-space="pre-wrap" overflow-wrap="break-word"
               margin-top=8 padding="10px 12px" border-radius=8 border="1px solid var(--border)" background-color="surface" max-height=224 overflow="auto" testId=`error-detail-${message.id}`
   action toggleDetails
     details = not details
@@ -257,7 +257,7 @@ component NoticeRow
             DoodFace(seed=peer.seed, color=peer.color, state="idle", name=block.name, size=20)
           else
             image noticeIcon(block) aria-hidden=true flex-shrink=0 color=(block.status == "command" and block.outcome == "failed" ? "danger" : "ink.muted")
-          text min-width=0 overflow-wrap="anywhere" testId=`notice-text-${block.status}`
+          text min-width=0 overflow-wrap="break-word" testId=`notice-text-${block.status}`
             text block.text
             text (block.text != "" and block.name != "" ? " " : "")
             text block.name font-weight=500 color="ink" font-family=(block.mono ? "Geist Mono" : "Geist")
@@ -282,12 +282,12 @@ component Fold
   derive open = startOpen != flipped
   view
     column margin-top=4 align-items="flex-start" width="100%"
-      button press=flip aria-expanded=open class=QuietButton color="ink.muted" margin-left=-8 testId=`fold-${label}`
+      button press=flip aria-expanded=open class=QuietButton color="ink.muted" padding="0 8px 0 0" testId=`fold-${label}`
         image (open ? "symbol:icon.caret-down" : "symbol:icon.caret-right") aria-hidden=true font-size="0.75rem"
         text label
       if open
         if mono
-          text body font-family="Geist Mono" font-size="0.75rem" line-height=1.6 color="ink" white-space="pre-wrap" overflow-wrap="anywhere"
+          text body font-family="Geist Mono" font-size="0.75rem" line-height=1.6 color="ink" white-space="pre-wrap" overflow-wrap="break-word"
             margin-top=6 padding="8px 12px" border-radius=12 background-color="surface" max-height=384 overflow="auto" width="100%" box-sizing="border-box"
         else
           column margin-top=6 padding="8px 12px" border-radius=12 background-color="surface" width="100%" box-sizing="border-box"
@@ -314,7 +314,7 @@ component CallRecord
           for l in block.lines key=l
             row gap=10
               image "symbol:icon.check" color="ink.muted" aria-hidden=true margin-top=3 font-size="0.875rem"
-              text l min-width=0 overflow-wrap="anywhere"
+              text l min-width=0 overflow-wrap="break-word"
       if open
         text block.more padding="10px 16px 4px" border-top="1px solid var(--border)" font-size="0.875rem" white-space="pre-wrap"
       row padding="8px 12px 12px"
@@ -508,13 +508,13 @@ component UseLine
           text block.name font-weight=500 color="ink"
           text (block.going ? ` · ${block.detail}` : block.after)
       if block.lines.length > 0
-        button press=toggle aria-expanded=open class=QuietButton color="ink.muted" margin-left=-8 margin-top=4
+        button press=toggle aria-expanded=open class=QuietButton color="ink.muted" padding="0 8px 0 0" margin-top=4
           image (open ? "symbol:icon.caret-down" : "symbol:icon.caret-right") aria-hidden=true font-size="0.75rem"
           text "What it did"
         if open
           column gap=2 margin-top=4 padding="8px 12px" border-radius=12 background-color="surface" font-size="0.8125rem"
             for l in block.lines key=l
-              text l min-width=0 overflow-wrap="anywhere"
+              text l min-width=0 overflow-wrap="break-word"
   action toggle
     open = not open
 

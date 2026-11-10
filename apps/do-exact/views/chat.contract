@@ -10,7 +10,7 @@ use DoodHeader, doodOf, nameOf, stateOf from "./shell.contract"
 use DoodFace from "./creature.contract"
 use MessageRow, Working, TranscriptPlaceholder, Welcome from "./chat-rows.contract"
 use Asks from "./chat-asks.contract"
-use Block, Message, Chat, Opened, Earlier, ChatInfo, ChatContext, AskPulse, ApprovalAsk, Approvals, SecretField, SecretAsk, SecretAsks, SignInAsk, SignIns, SignInReply, LibraryView, Job, Jobs, Standing from "./chat-shapes.contract"
+use Block, Message, Chat, Opened, Earlier, ChatInfo, ChatContext, ApprovalAsk, Approvals, SecretField, SecretAsk, SecretAsks, SignInAsk, SignIns, SignInReply, LibraryView, Job, Jobs, Standing from "./chat-shapes.contract"
 use EmptyState from "exact:content"
 
 members App
@@ -26,7 +26,8 @@ members App
   derive lastId = match chat.messages.at(-1) { case some(m) => m.id, case none => "" }
 
   // --- chat transcript ---
-  resource asks = followAsks(session.owner, openAgentId) as shape AskPulse else empty()
+  // What changed on the open Dood, counted on the shell's stream of it, asks each of these again.
+  derive asks = pulse.asks
   resource chatContext = loadChatContext(session.owner, openAgentId) with asks.chats as shape ChatContext else empty()
   // Pages of what came before, asked for by "Show earlier messages", for the chat they were asked in.
   state earlierPages = 0
@@ -87,8 +88,6 @@ members App
   action heal
     if ours and chat.lost
       refresh chat
-    if asks.lost and openAgentId != ""
-      refresh asks
   action editDraft(v: string)
     draft = v
   // The id a send goes under, which the server takes once however often it arrives: the chat's
