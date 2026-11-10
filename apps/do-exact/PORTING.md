@@ -170,3 +170,20 @@ Native animation is culled offscreen by the mascot Runner, as in React: the gall
 and Open actions scroll their view into sight before starting it. `state` includes the last
 frame's mascot counts under `hatches.scopes.module.published.mascot` (64 orbs, 46 held in the
 full gallery); `at` is Exact time. These diagnostics do nothing in production.
+
+Content views can take **natural height** on the web: a `:host{display:block}` with an ordinary
+shadow DOM child participates in browser layout. `do-markdown`, `do-code` and `do-mermaid`
+leave height unset and use `align-self="stretch" min-width=0 max-width="100%"`. No intrinsic-size
+callback, estimated line count or message/resize feedback loop is needed. The gallery's
+browser check compares host and child heights, checks an 80-line block, and confirms that
+highlighting does not change a code block's height. This is a web result, not a native-host
+promise. Diagram completion and picture loading can still change their content's real height.
+
+Keep lazy dependencies lazy at the **dispatch** boundary too. `content-views.js` loads the
+rich implementation only when its tag is created, so a creature-only page does not load a
+Markdown parser (or require its chunk directory). A gallery using rich views must copy the
+whole module tree, not just top-level JS. Await a labelled `load=` state with
+`clock until state ready == true within 3000` before asserting its rendering; `clock data`
+waits for the page module, not every library's later dynamic import. Shadow DOM's internal
+controls and text need a browser probe while an official `./x agent` drive owns the host;
+`tests/markdown-gallery/run-browser.mjs` is the example. It never starts another server.

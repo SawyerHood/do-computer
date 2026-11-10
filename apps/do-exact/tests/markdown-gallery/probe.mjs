@@ -42,8 +42,10 @@ try {
   assert.equal(await page.locator('[data-testid="last"]').textContent(), 'copied');
   await rich.getByRole('button', { name: 'Wrap long lines', exact: true }).first().click();
   assert.equal(await rich.locator('pre.wrap').count(), 1);
+  await rich.getByRole('button', { name: 'Copy table', exact: true }).click();
   await rich.getByRole('button', { name: 'Copy as CSV' }).click();
   assert((await page.evaluate(() => navigator.clipboard.readText())).startsWith('Name,State,'));
+  await rich.getByRole('button', { name: 'Copied', exact: true }).last().click();
   await rich.getByRole('button', { name: 'Copy as Markdown' }).click();
   assert((await page.evaluate(() => navigator.clipboard.readText())).includes('| Name |'));
   checks.push('code copy emits copied; wrap, Markdown copy and CSV copy work');
@@ -62,7 +64,11 @@ try {
   await prose.locator('img').waitFor();
   await page.waitForFunction(() => [...document.querySelectorAll('do-markdown')].some(host => [...host.shadowRoot.querySelectorAll('img')].some(img => img.complete && img.naturalWidth > 0)));
   assert.equal(requested.length, 1);
-  checks.push('sanitization, GFM tasks, reference links, alerts, folding HTML and image consent work');
+  await prose.evaluate((host, props) => host.setAttribute('data-nativeviewprops', JSON.stringify(props)), { text: '![Library](pictures/a.png)', files: '[{"path":"pictures/a.png","href":"https://example.invalid/one.svg"}]' });
+  await prose.locator('img[src="https://example.invalid/one.svg"]').waitFor();
+  await prose.evaluate((host, props) => host.setAttribute('data-nativeviewprops', JSON.stringify(props)), { text: '![Library](pictures/a.png)', files: '[{"path":"pictures/a.png","href":"https://example.invalid/two.svg"}]' });
+  await prose.locator('img[src="https://example.invalid/two.svg"]').waitFor();
+  checks.push('sanitization, GFM tasks, reference links, alerts, folding HTML, image consent and refreshed file URLs work');
   // Change props through the host ABI, as Contract does, to isolate async replacement races.
   const set = (host, props) => host.setAttribute('data-nativeviewprops', JSON.stringify(props));
   await rich.evaluate(set, { text: '# Local heading\n\n[Go](#local-heading)\n\n[File](notes/hello.md)', files: '[{"path":"notes/hello.md","id":"hello"}]' });
@@ -89,7 +95,10 @@ try {
   await streamed.locator('code span').first().waitFor();
   const after = await streamed.evaluate(host => host.getBoundingClientRect().height);
   assert.equal(before, after);
-  checks.push('streaming keeps the text node and selection; final highlighting does not change height');
+  await streamed.evaluate(set, { code: 'x'.repeat(80_001), language: 'ts', streaming: 'false' });
+  await page.waitForFunction(() => document.querySelector('do-code').shadowRoot.querySelector('code').textContent.length === 80_001);
+  assert.equal(await streamed.locator('code span').count(), 0);
+  checks.push('streaming keeps text selection, highlighting keeps height, and blocks over 80,000 characters stay plain');
   // A malformed complete diagram is readable code, and a later valid one recovers.
   const diagram = page.locator('do-mermaid').first();
   await diagram.evaluate(set, { diagram: 'flowchart LR\n A[unfinished', streaming: 'false' });
@@ -102,6 +111,21 @@ try {
   await diagram.getByRole('button', { name: 'Show the diagram', exact: true }).click();
   assert(await diagram.locator('.diagram').isVisible());
   checks.push('invalid Mermaid falls back, recovers, switches to source and back');
+  const splitCollapsed = await page.evaluate(() => {
+    const outside = document.querySelector('[data-testid="split-prose"]');
+    const inside = document.querySelector('[data-testid="split-code"]').shadowRoot.querySelector('code');
+    const range = document.createRange(); range.selectNodeContents(outside); range.setEndAfter(inside.lastChild);
+    return range.collapsed;
+  });
+  assert.equal(splitCollapsed, true);
+  checks.push('split-prose trial cannot form a single DOM Range across the native shadow boundary');
+  const wide = page.locator('[data-testid="wide-table"]');
+  assert(await wide.evaluate(host => {
+    const scroll = host.shadowRoot.querySelector('.table-scroll');
+    return scroll.scrollWidth > scroll.clientWidth && host.getBoundingClientRect().width <= 390;
+  }));
+  assert(await page.locator('[data-testid="long-code"]').evaluate(host => host.getBoundingClientRect().height > 1500));
+  checks.push('six-column wide table scrolls locally and eighty-line code takes its full natural height');
   const errors = failures.filter(error => !error.includes('WebGL'));
   assert.deepEqual(errors, []);
   console.log(checks.map(name => `PASS ${name}`).join('\n'));

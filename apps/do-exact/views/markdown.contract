@@ -5,9 +5,10 @@ component MessageText
     streaming: bool
     files: string
     message: action
-  derive rich = text.includes("\n") or text.includes("[") or text.includes("<") or text.includes("```") or text.includes("~~~") or text.includes("://") or text.includes("www.") or text.includes("@")
+  derive start = text.trim()
+  derive rich = text.includes("\n") or text.includes("[") or text.includes("<") or text.includes("`") or text.includes("~~~") or text.includes("://") or text.includes("www.") or text.includes("@") or start.startsWith("#") or start.startsWith(">") or start.startsWith("- ") or start.startsWith("* ") or start.startsWith("+ ") or start == "---" or start == "***" or start == "___"
   view
     if rich
       do-markdown text=text streaming=streaming.toString() files=files message=message min-width=0 max-width="100%" align-self="stretch" aria-label="Message text"
     else
-      text text markup="markdown" user-select="text" overflow-wrap="anywhere" max-width="100%"
+      text text markup="markdown" user-select="text" overflow-wrap="break-word" max-width="100%"

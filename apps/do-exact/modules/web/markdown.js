@@ -10,21 +10,23 @@ const cleanURL = value => /^(https?:|mailto:|tel:|blob:)/i.test(value) || !/^\w[
 
 function attributes(element, props = {}) {
   const keep = new Set();
+  element.style.removeProperty('text-align');
   for (const [name, value] of Object.entries(props)) {
     if (value === undefined || value === null || value === false) continue;
     if (name === 'style' || name.toLowerCase().startsWith('on')) continue;
     if ((name === 'href' || name === 'src') && !cleanURL(String(value))) continue;
     const attr = attrName(name); keep.add(attr);
     element.setAttribute(attr, value === true ? '' : Array.isArray(value) ? value.join(' ') : String(value));
-    if (name === 'align' && ['left', 'center', 'right'].includes(value)) element.style.textAlign = value;
+    if (name === 'align' && ['left', 'center', 'right'].includes(value)) { element.style.textAlign = value; keep.add('style'); }
   }
-  for (const { name } of [...element.attributes]) if (!keep.has(name) && name !== 'style') element.removeAttribute(name);
+  for (const { name } of [...element.attributes]) if (!keep.has(name)) element.removeAttribute(name);
 }
 
 function picture(container, node, context) {
   let signature = '', mounted, alive = true;
   const dom = document.createElement('span'); container.append(dom);
-  const update = next => {
+  const update = (next, nextContext = context) => {
+    context = nextContext;
     const props = next.properties || {}, source = String(props.src || ''), alt = String(props.alt || 'A picture');
     const filePath = resolveLink('', source);
     const file = context.files.find(file => file.path === filePath);
@@ -39,7 +41,7 @@ function picture(container, node, context) {
       if (kind === 'img') {
         media.alt = alt; media.loading = 'lazy'; media.referrerPolicy = 'no-referrer';
         for (const name of ['width', 'height']) if (props[name]) media.setAttribute(name, props[name]);
-        if (props.dataAlone !== undefined) media.dataset.alone = '';
+        if (props.dataAlone !== undefined) { media.dataset.alone = ''; media.dataset.loading = ''; }
         media.addEventListener('click', () => {
           if (media.closest('a') || props.dataAlone === undefined) return;
           context.event(8, 'image:' + src);
@@ -48,7 +50,7 @@ function picture(container, node, context) {
         });
       } else { media.controls = true; media.preload = 'none'; }
       media.addEventListener('error', () => { if (alive && mounted === media) missing(); }, { once: true });
-      media.addEventListener('load', () => { if (alive) context.event(8, 'image-loaded'); }, { once: true });
+      media.addEventListener('load', () => { if (alive) { delete media.dataset.loading; context.event(8, 'image-loaded'); } }, { once: true });
       media.src = src; dom.append(media);
     };
     if (!source || !cleanURL(source)) return missing();
@@ -102,11 +104,17 @@ function reconcile(parent, records, nodes, context) {
         record.scroller = document.createElement('div'); record.scroller.className = 'table-scroll';
         record.target = document.createElement('table'); record.scroller.append(record.target);
         const tools = document.createElement('div'); tools.className = 'tools';
-        tools.append(button('Keep each row on one line', 'wrap', b => { b.setAttribute('aria-pressed', String(record.dom.classList.toggle('one-line'))); }),
-          ...['Markdown', 'CSV'].map(format => button(`Copy as ${format}`, '', b => {
-            const { rows, aligns } = rowData(record.target);
-            copy(format === 'CSV' ? tableCsv(rows) : tableMarkdown(rows, aligns), b, context.event);
-          })));
+        const menu = document.createElement('div'); menu.className = 'table-menu'; menu.hidden = true;
+        const copyTable = button('Copy table', 'copy', b => { menu.hidden = !menu.hidden; b.setAttribute('aria-expanded', String(!menu.hidden)); });
+        copyTable.setAttribute('aria-expanded', 'false');
+        menu.append(...['Markdown', 'CSV'].map(format => button(`Copy as ${format}`, '', b => {
+          const { rows, aligns } = rowData(record.target);
+          copy(format === 'CSV' ? tableCsv(rows) : tableMarkdown(rows, aligns), copyTable, context.event);
+          menu.hidden = true; copyTable.setAttribute('aria-expanded', 'false');
+        })));
+        tools.append(button('Keep each row on one line', 'wrap', b => { b.setAttribute('aria-pressed', String(record.dom.classList.toggle('one-line'))); }), copyTable, menu);
+        tools.addEventListener('focusout', e => { if (!tools.contains(e.relatedTarget)) { menu.hidden = true; copyTable.setAttribute('aria-expanded', 'false'); } });
+        tools.addEventListener('keydown', e => { if (e.key === 'Escape') { menu.hidden = true; copyTable.focus(); } });
         record.dom.append(record.scroller, tools);
       } else if (kind === 'alert') {
         record.dom = document.createElement('div'); record.dom.className = 'alert'; record.dom.setAttribute('role', 'note');
@@ -126,7 +134,7 @@ function reconcile(parent, records, nodes, context) {
       const code = words(node).replace(/\n$/, '');
       const streaming = context.writing && node.properties?.dataLast !== undefined;
       record.handle.setProps({ code, diagram: code, language, streaming: String(streaming), dark: String(context.body.classList.contains('dark')) });
-    } else if (kind === 'picture') record.handle.update(node);
+    } else if (kind === 'picture') record.handle.update(node, context);
     else {
       const target = record.target || record.dom;
       if (kind === 'alert') {
@@ -159,7 +167,7 @@ function reconcile(parent, records, nodes, context) {
 
 function read(props) {
   const files = JSON.parse(props.files || '[]');
-  if (!Array.isArray(files) || files.some(file => typeof file.path !== 'string' || (file.href !== undefined && typeof file.href !== 'string'))) throw new Error('files must be a JSON array of path, id and href records');
+  if (!Array.isArray(files) || files.some(file => !file || typeof file !== 'object' || typeof file.path !== 'string' || (file.id !== undefined && typeof file.id !== 'string') || (file.href !== undefined && typeof file.href !== 'string'))) throw new Error('files must be a JSON array of path, id and href records');
   return files;
 }
 

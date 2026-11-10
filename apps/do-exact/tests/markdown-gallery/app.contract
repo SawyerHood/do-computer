@@ -1,3 +1,6 @@
+theme
+  page="light-dark(#feffff, #181a1a)"
+
 use MessageText from "./views/markdown.contract"
 
 component App
@@ -50,10 +53,11 @@ component App
     scrollIntoView("diagram-stage")
   action mount
     shown = not shown
+    ready = false
   task simulate mount
     every(100, tick)
   view
-    scroll flex=1 min-height=0
+    scroll flex=1 min-height=0 background-color="page"
       column padding=16 gap=16 max-width="48.75rem" margin-left="auto" margin-right="auto"
         h1 "Message content"
         row gap=12 flex-wrap="wrap"
@@ -95,4 +99,8 @@ component App
           h2 "Long code" id="long"
           do-code code=longCode language="typescript" align-self="stretch" min-width=0 max-width="100%" aria-label="Eighty lines of code" testId="long-code"
           h2 "Exact's reader, for comparison" id="comparison"
-          text sample markup="markdown" user-select="text" overflow-wrap="anywhere" max-width="100%" testId="exact-reader"
+          text sample markup="markdown" user-select="text" overflow-wrap="break-word" max-width="100%" testId="exact-reader"
+
+          h2 "Split-prose trial"
+          text "Prose **before** a native block." markup="markdown" testId="split-prose"
+          do-code code="const split = true;" language="ts" align-self="stretch" min-width=0 max-width="100%" aria-label="Split trial code" testId="split-code"

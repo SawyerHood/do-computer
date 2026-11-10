@@ -28,14 +28,15 @@ export function block(container, props, event) {
   wrap.setAttribute('aria-pressed', 'false');
   const copyIt = button('Copy code', 'copy', b => copy(current.code || '', b, emit));
   head.append(label, wrap, copyIt); box.append(head, pre); container.append(box);
-  let current = {}, generation = 0, alive = true, loaded = false;
+  let current = {}, generation = 0, alive = true, loaded = false, initialized = false;
   const emit = (kind, value) => { if (alive) event(kind, value); };
   let ready = Promise.resolve();
   const setProps = next => {
     const old = current; current = next;
     label.textContent = next.language || '';
     box.dataset.language = next.language || '';
-    if (old.code === next.code && old.language === next.language && old.streaming === next.streaming) return;
+    if (initialized && old.code === next.code && old.language === next.language && old.streaming === next.streaming) return;
+    initialized = true;
     const version = ++generation;
     const value = next.code || '';
     copyIt.setAttribute('aria-label', 'Copy code'); copyIt.title = 'Copy code';

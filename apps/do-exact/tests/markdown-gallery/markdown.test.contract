@@ -1,5 +1,6 @@
 test "rich text and standalone blocks mount at natural height"
   clock data
+  clock until state ready == true within 3000
   expect tree has "rich"
   expect tree has "code"
   expect tree has "mermaid"
@@ -8,10 +9,12 @@ test "rich text and standalone blocks mount at natural height"
   expect tree missing "rich"
   tap "mount"
   clock data
+  clock until state ready == true within 3000
   expect tree has "rich"
 
 test "a reply streams prose, an open code fence and a completed block on Exact time"
   clock data
+  clock until state ready == true within 3000
   tap "start"
   clock +3600
   expect text "step" == "6"

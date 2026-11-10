@@ -42,7 +42,7 @@ function draw(source, body, live) {
 }
 
 export function diagram(container, props, event, body) {
-  let current = {}, generation = 0, alive = true, svg, asCode = false, failed = false, loaded = false;
+  let current = {}, generation = 0, alive = true, svg, asCode = false, failed = false, loaded = false, initialized = false;
   const emit = (kind, payload) => { if (alive) event(kind, payload); };
   const code = block(container, { code: props.diagram || '', language: 'mermaid', streaming: 'true' }, (kind, payload) => { if (kind !== 7) emit(kind, payload); });
   const picture = document.createElement('div'); picture.className = 'diagram';
@@ -57,8 +57,8 @@ export function diagram(container, props, event, body) {
   };
   let ready = Promise.resolve();
   const setProps = next => {
-    const changed = next.diagram !== current.diagram || next.dark !== current.dark || next.streaming !== current.streaming;
-    current = next;
+    const changed = !initialized || next.diagram !== current.diagram || next.dark !== current.dark || next.streaming !== current.streaming;
+    current = next; initialized = true;
     if (!changed) return;
     const version = ++generation; failed = false;
     code.setProps({ code: next.diagram || '', language: 'mermaid', streaming: 'true' }); show();
