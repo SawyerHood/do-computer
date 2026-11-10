@@ -30,6 +30,7 @@ members App
   action afterSign
     if signError == ""
       password = ""
+      joining = false
   action signOut
     send left = signOut()
     nav = go(nav, "/")

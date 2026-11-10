@@ -1,0 +1,132 @@
+// The shell: the sidebar beside the page on a wide window, a stack on a phone, a Dood's pages
+// reached from its pill, Back and Forward, and a page that is there after a reload.
+// Every test starts signed out, with empty storage, on a server the whole run shares: it makes
+// an account of its own first, with the same six lines and an address no other test uses.
+
+test "a wide window shows the sidebar beside a Dood's chat, and its panel beside that"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "shell-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  expect state onRoute == "doods"
+  expect tree has "first-dood"
+  tap "first-dood"
+  clock data
+  clock settle
+  clock data
+  expect state onRoute == "dood"
+  expect tree has "sidebar"
+  expect text "title-dood" == "New Dood"
+  expect tree has "panel-toggle-dood"
+  expect tree missing "back-dood"
+  tap "panel-toggle-dood"
+  expect tree has "dood-panel"
+  expect text "panel-status" == "Ready"
+  tap "panel-toggle-dood"
+  expect tree missing "dood-panel"
+
+test "a phone shows the list, a Dood's chat over it, and Back returns to the list"
+  size 390x844
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "shell-2@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  expect state onRoute == "doods"
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  expect state onRoute == "dood"
+  expect tree has "back-dood"
+  expect tree missing "panel-toggle-dood"
+  tap "back-dood"
+  clock settle
+  expect state onRoute == "doods"
+  tap "New Dood"
+  clock settle
+  clock data
+  expect state onRoute == "dood"
+  back
+  clock settle
+  expect state onRoute == "doods"
+
+test "a window narrowed to a phone's keeps the Dood open, with the way back to the list"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "shell-3@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  expect tree missing "back-dood"
+  resize 390x844
+  clock settle
+  expect state onRoute == "dood"
+  expect tree has "back-dood"
+  expect tree missing "panel-toggle-dood"
+
+test "a Dood's pages open from its pill, Back returns to its chat, and a page survives a reload"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "shell-4@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-library-dood"
+  clock settle
+  expect state onRoute == "library"
+  expect text "heading-library" == "Library"
+  expect text "title-library" == "New Dood"
+  tap "pages-library"
+  tap "go-skills-library"
+  clock settle
+  expect state onRoute == "skills"
+  expect text "heading-skills" == "Skills"
+  back
+  clock settle
+  expect state onRoute == "dood"
+  tap "pages-dood"
+  tap "go-skills-dood"
+  clock settle
+  expect state onRoute == "skills"
+  reload
+  clock data
+  clock settle
+  expect state onRoute == "skills"
+  expect text "heading-skills" == "Skills"
+  expect text "title-skills" == "New Dood"
+  tap "pages-skills"
+  tap "go-chat-skills"
+  clock settle
+  clock data
+  expect state onRoute == "dood"
+  expect tree has "composer"
+
+test "a workspace's settings open from its menu in the sidebar"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "shell-5@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "workspace-menu-personal"
+  tap "workspace-settings-personal"
+  clock settle
+  expect state onRoute == "workspaceSettings"
+  expect text "heading-workspaceSettings" == "Workspace settings"

@@ -124,7 +124,7 @@ component Sidebar
           for w in shown key=w.id
             WorkspaceMenuButton(workspace=w)
             button press=hatch(w.id) disabled=hatching aria-label="New Dood" class=IconButton testId="new-dood"
-              image "symbol:icon.plus"
+              image "symbol:icon.plus" color="ink.muted" font-size="1rem"
       scroll id="sidebar-list" flex=1 min-height=0 padding="2px 8px 12px"
         if doodList.length == 0 and session.signedIn
           column padding="24px 8px" gap=12 align-items="flex-start"
@@ -141,7 +141,7 @@ component Sidebar
                 text w.name role="heading" aria-level=2 flex=1 min-width=0 class=ListHeading overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
                 WorkspaceMenuButton(workspace=w)
                 button press=hatch(w.id) disabled=hatching aria-label=`New Dood in ${w.name}` class=IconButton testId=`new-dood-${w.id}`
-                  image "symbol:icon.plus"
+                  image "symbol:icon.plus" color="ink.muted" font-size="1rem"
             for d in doodList.filter(x => x.workspaceId == w.id) key=d.id
               DoodRow(dood=d, current=(d.id == current), now=now, utcOffset=utcOffset)
       AccountButton(session=session)
@@ -151,16 +151,18 @@ component Sidebar
 component WorkspaceMenuButton
   props
     workspace: Workspace
+  // Its test ids: "personal" for the person's own, which has an id of theirs, else the team's id.
+  derive tag = workspace.kind == "personal" ? "personal" : workspace.id
   view
     row
-      button popovertarget=`workspace-menu-${workspace.id}` aria-label=`${workspace.name}: workspace menu` class=IconButton testId=`workspace-menu-${workspace.id}`
-        image "symbol:icon.dots"
+      button popovertarget=`workspace-menu-${workspace.id}` aria-label=`${workspace.name}: workspace menu` class=IconButton testId=`workspace-menu-${tag}`
+        image "symbol:icon.dots" color="ink.muted" font-size="1rem"
       column id=`workspace-menu-${workspace.id}` popover="auto" role="menu" aria-label=workspace.name class=Menu
-        link href=path("workspaceSettings", workspace.id) role="menuitem" class=MenuItem testId=`workspace-settings-${workspace.id}`
+        link href=path("workspaceSettings", workspace.id) role="menuitem" class=MenuItem testId=`workspace-settings-${tag}`
           image "symbol:icon.gear" aria-hidden=true
           text "Workspace settings"
         if workspace.kind == "team"
-          link href=path("people", workspace.id) role="menuitem" class=MenuItem testId=`workspace-people-${workspace.id}`
+          link href=path("people", workspace.id) role="menuitem" class=MenuItem testId=`workspace-people-${tag}`
             image "symbol:icon.users" aria-hidden=true
             text "People"
 
@@ -235,38 +237,38 @@ component DoodHeader
   derive dood = doodOf(doodList, page.agentId)
   derive menu = `pages-${page.key}`
   view
-    header appearance="none" display="flex" align-items="center" justify-content="center" gap=8 padding="6px 10px" min-height=52
+    header appearance="none" display="flex" align-items="center" justify-content="center" gap=8 padding="4px 10px" min-height=52
       position="relative" flex-shrink=0
       if not wide
         button id="back" press=back aria-label="Your Doods" class=IconButton position="absolute" left=10 width=36 height=36 border-radius=18
-          box-shadow="0 0 0 1px var(--hairline)" testId=`back-${page.key}`
+          box-shadow="0 0 0 1px var(--hairline)" testId=`back-${route}`
           image "symbol:icon.sidebar"
       row class=Pill max-width="100%" min-width=0
         if wide
           button press=togglePanel aria-label=(panelOpen ? `Hide ${nameOf(dood)}'s panel` : `Show ${nameOf(dood)}'s panel`) aria-pressed=panelOpen
-            padding=2 border-radius=999 background-color="transparent" border="none" testId=`panel-toggle-${page.key}`
+            padding=2 border-radius=999 background-color="transparent" border="none" testId=`panel-toggle-${route}`
             DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=28)
         else
           column padding=2
             DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=28)
-        button popovertarget=menu aria-label=`${nameOf(dood)}: pages and settings` class=PillButton min-width=0 testId=`pages-${page.key}`
+        button popovertarget=menu aria-label=`${nameOf(dood)}: pages and settings` class=PillButton min-width=0 testId=`pages-${route}`
           text nameOf(dood) role="heading" aria-level=1 font-size="0.875rem" font-weight=500
-            overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`title-${page.key}`
+            overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`title-${route}`
           if route != "dood" and route != "chat" and route != "library"
             text ` · ${pageName(route)}` font-size="0.875rem" color="ink.muted" white-space="pre"
           image "symbol:icon.caret-down" aria-hidden=true color="ink.muted" font-size="0.75rem"
       column id=menu popover="auto" role="menu" aria-label=`${nameOf(dood)}'s pages` class=Menu
-        PageLink(href=path("dood", page.agentId), label="Chat", on=(route == "dood" or route == "chat"), testId=`go-chat-${page.key}`)
-        PageLink(href=path("library", page.agentId), label="Library", on=(route == "library"), testId=`go-library-${page.key}`)
-        PageLink(href=path("automations", page.agentId), label="Automations", on=(route == "automations"), testId=`go-automations-${page.key}`)
+        PageLink(href=path("dood", page.agentId), label="Chat", on=(route == "dood" or route == "chat"), testId=`go-chat-${route}`)
+        PageLink(href=path("library", page.agentId), label="Library", on=(route == "library"), testId=`go-library-${route}`)
+        PageLink(href=path("automations", page.agentId), label="Automations", on=(route == "automations"), testId=`go-automations-${route}`)
         hr
-        PageLink(href=path("skills", page.agentId), label="Skills", on=(route == "skills"), testId=`go-skills-${page.key}`)
-        PageLink(href=path("connectors", page.agentId), label="Connectors", on=(route == "connectors"), testId=`go-connectors-${page.key}`)
-        PageLink(href=path("computers", page.agentId), label="Computers", on=(route == "computers"), testId=`go-computers-${page.key}`)
-        PageLink(href=path("permissions", page.agentId), label="Permissions", on=(route == "permissions"), testId=`go-permissions-${page.key}`)
+        PageLink(href=path("skills", page.agentId), label="Skills", on=(route == "skills"), testId=`go-skills-${route}`)
+        PageLink(href=path("connectors", page.agentId), label="Connectors", on=(route == "connectors"), testId=`go-connectors-${route}`)
+        PageLink(href=path("computers", page.agentId), label="Computers", on=(route == "computers"), testId=`go-computers-${route}`)
+        PageLink(href=path("permissions", page.agentId), label="Permissions", on=(route == "permissions"), testId=`go-permissions-${route}`)
         hr
-        PageLink(href=path("profile", page.agentId), label="Profile", on=(route == "profile"), testId=`go-profile-${page.key}`)
-        PageLink(href=path("settings", page.agentId), label=`${nameOf(dood)}'s settings`, on=(route == "settings"), testId=`go-settings-${page.key}`)
+        PageLink(href=path("profile", page.agentId), label="Profile", on=(route == "profile"), testId=`go-profile-${route}`)
+        PageLink(href=path("settings", page.agentId), label=`${nameOf(dood)}'s settings`, on=(route == "settings"), testId=`go-settings-${route}`)
 
 // One of a Dood's pages in its pill's menu, ticked when it is the one open.
 component PageLink
@@ -321,9 +323,9 @@ component WorkspaceScreen
       header appearance="none" display="flex" align-items="center" gap=6 padding="6px 10px" min-height=52 flex-shrink=0
         if not wide
           button id="back" press=back aria-label="Your Doods" class=IconButton width=36 height=36 border-radius=18
-            box-shadow="0 0 0 1px var(--hairline)" testId=`back-${page.key}`
+            box-shadow="0 0 0 1px var(--hairline)" testId=`back-${route}`
             image "symbol:icon.sidebar"
-        text name role="heading" aria-level=1 font-size="0.9375rem" font-weight=600 padding="0 4px" testId=`title-${page.key}`
+        text name role="heading" aria-level=1 font-size="0.9375rem" font-weight=600 padding="0 4px" testId=`title-${route}`
       scroll id=`scroll-${page.key}` flex=1 min-height=0
         column max-width="52rem" margin="0 auto" padding=(wide ? "28px 32px 48px" : "16px 16px 40px") gap=20 box-sizing="border-box" width="100%"
           column gap=6

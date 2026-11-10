@@ -99,36 +99,37 @@ component ChatScreen
     panelOpen: bool
   derive dood = doodOf(doodList, page.agentId)
   view
-    column navigationKey=page.key navigationScroll="transcript" position="absolute" inset=0 display="flex" flex-direction="column"
+    row navigationKey=page.key navigationScroll="transcript" navigationBar="none" position="absolute" inset=0
       class=Screen testId=`screen-${route}`
-      DoodHeader(page=page, route=route)
-      row flex=1 min-height=0
-        column flex=1 min-width=0 display="flex" flex-direction="column"
-          if not ours
-            if loading
-              column flex=1 justify-content="center" align-items="center"
-                progress aria-label="Loading" testId="chat-loading"
-            else
-              EmptyState(symbol="symbol:alert", title="Can’t Open This Chat", message="The server didn’t answer. Check your connection and try again.")
-                button press=heal testId="chat-retry"
-                  text "Try Again"
+      column flex=1 min-width=0 display="flex" flex-direction="column"
+        DoodHeader(page=page, route=route)
+        if not ours
+          if loading
+            column flex=1 justify-content="center" align-items="center"
+              progress aria-label="Loading" testId="chat-loading"
           else
-            list id="transcript" appearance="none" virtualized=true scroll-start="end" scrollFollowEnd=true flex=1 min-height=0
+            EmptyState(symbol="symbol:alert", title="Can’t Open This Chat", message="The server didn’t answer. Check your connection and try again.")
+              button press=heal testId="chat-retry"
+                text "Try Again"
+        else
+          // Short, the transcript sits on the composer, as the React app's does.
+          column flex=1 min-height=0 justify-content="flex-end"
+            list id="transcript" appearance="none" virtualized=true scroll-start="end" scrollFollowEnd=true flex="0 1 auto" min-height=0 max-height="100%"
               aria-label="Messages" testId="transcript"
               for m in chat.messages key=m.id
                 MessageRow(message=m)
-            if sayError != ""
-              text sayError font-size="0.8125rem" color="danger" padding="0 16px" max-width="45rem" margin="0 auto" testId="say-error"
-          column width="100%" max-width="45rem" margin="0 auto" padding="4px 16px 16px" box-sizing="border-box" flex-shrink=0
-            row class=Composer
-              textarea id="composer" value=draft input=editDraft rows=1 field-sizing="content" max-height=200
-                placeholder=`Message ${nameOf(dood)}` aria-label="Message" flex=1 min-width=0 padding="7px 6px 7px 12px"
-                border="none" background-color="transparent" color="ink" font-family="Geist" font-size="1rem" line-height=1.5
-                testId="composer"
-              button press=say disabled=(draft.trim() == "" or sending or not ours) retainFocus=true aria-label="Send" class=SendButton testId="send"
-                image "symbol:icon.arrow-up"
-        if wide and panelOpen
-          DoodPanel(dood=dood, busy=(ours and chat.busy))
+          if sayError != ""
+            text sayError font-size="0.8125rem" color="danger" padding="0 16px" max-width="45rem" margin="0 auto" testId="say-error"
+        column width="100%" max-width="45rem" margin="0 auto" padding="4px 16px 16px" box-sizing="border-box" flex-shrink=0
+          row class=Composer
+            textarea id="composer" value=draft input=editDraft rows=1 field-sizing="content" max-height=200
+              placeholder=`Message ${nameOf(dood)}` aria-label="Message" flex=1 min-width=0 padding="7px 6px 7px 12px"
+              border="none" outline="none" background-color="transparent" color="ink" font-family="Geist" font-size="1rem" line-height=1.5
+              testId="composer"
+            button press=say disabled=(draft.trim() == "" or sending or not ours) retainFocus=true aria-label="Send" class=SendButton testId="send"
+              image "symbol:icon.arrow-up"
+      if wide and panelOpen
+        DoodPanel(dood=dood, busy=(ours and chat.busy))
 
 // One message: yours in a bubble on the right, the Dood's as what it wrote, thought and did.
 component MessageRow

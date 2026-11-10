@@ -1,12 +1,13 @@
 // A Dood's chat against Do Computer's own server (server.ts), empty for each run, with no model
 // key, so the Dood answers with the built-in echo model ("You said: …").
-// Every test starts signed out with an empty server: it makes its own account first, with the
-// same five lines (sign-in.test.contract has the sign-in itself).
+// Every test starts signed out, with empty storage, on a server the whole run shares: it makes
+// an account of its own first, with the same six lines and an address no other test uses
+// (sign-in.test.contract tests the sign-in itself).
 
 test "a Dood is hatched, answers what is said to it, and its chat is there after a reload"
   tap "sign-toggle"
   type "sign-name" "Ada"
-  type "sign-email" "ada@example.com"
+  type "sign-email" "chat-1@example.com"
   type "sign-password" "correct horse"
   tap "sign-submit"
   clock data

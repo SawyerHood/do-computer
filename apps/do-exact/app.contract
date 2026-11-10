@@ -74,18 +74,21 @@ component App
   // The Dood whose page is open (the deepest one in the stack), and the chat a `/c/` page names.
   derive openAgentId = match stack(nav).filter(e => e.params.agentId != "").at(-1) { case some(e) => e.params.agentId, case none => "" }
   derive chatEntryId = match stack(nav).filter(e => e.name == "chat").at(-1) { case some(e) => e.params.chatId, case none => "" }
-  derive chatKey = match stack(nav).filter(e => e.name == "chat" or e.name == "dood").at(-1) { case some(e) => `${e.id}`, case none => "" }
+  // The route on top, for tests and for what reads which page is showing.
+  derive onRoute = top(nav).name
 
   // Every link, and the browser's Forward and a typed address, come here. The stack is always
   // the list, then the page a location hangs from (a Dood's chat, a workspace's page), then the
   // location: so a phone's Back goes up one, a wide window shows the location beside the list,
-  // and a Dood's chat that is already open is kept, with its scroll, under its other pages.
+  // and a Dood's chat that is already open is kept, with its scroll, under its other pages. One
+  // of a Dood's pages in place of another replaces it, so the browser's Forward finds it again.
   action follow(url: string)
     let base = baseOf(url)
     let home = go(nav, "/")
     let held = stack(nav).filter(e => e.url == base).length > 0
     let under = base == "/" ? home : (held ? go(nav, base) : push(home, base))
-    nav = base == "/" or url == base or top(under).url == url ? under : push(under, url)
+    let sibling = base != "/" and url != base and top(nav).url != base and baseOf(top(nav).url) == base
+    nav = sibling ? replace(nav, url) : (base == "/" or url == base or top(under).url == url ? under : push(under, url))
   action back
     nav = back(nav)
 
