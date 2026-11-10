@@ -13,8 +13,13 @@ use SkillsScreen from "./views/skills.contract"
 use ConnectorsScreen from "./views/connectors.contract"
 use ComputersScreen from "./views/computers.contract"
 use PermissionsScreen from "./views/permissions.contract"
-use ProfileScreen from "./views/profile.contract"
+use ProfileScreen, MemoryScreen, ModelScreen, UsageScreen from "./views/profile.contract"
 use DoodSettingsScreen from "./views/dood-settings.contract"
+use AccountScreen, GeneralScreen, DoodsListScreen, WorkspacesListScreen from "./views/settings-account.contract"
+use WorkspaceModelsScreen, ServerModelsScreen from "./views/settings-models.contract"
+use PasswordsScreen from "./views/settings-passwords.contract"
+use WaitlistScreen from "./views/settings-waitlist.contract"
+use NotificationsScreen from "./views/settings-notifications.contract"
 use WorkspaceHomeScreen from "./views/workspace.contract"
 use PeopleScreen from "./views/people.contract"
 use WorkspaceSettingsScreen from "./views/workspace-settings.contract"
@@ -37,9 +42,24 @@ routes nav
       permissions "/a/:agentId/permissions"
       profile "/a/:agentId/profile"
       settings "/a/:agentId/settings"
+      // --- settings: a Dood's other sections ---
+      memory "/a/:agentId/memory"
+      model "/a/:agentId/model"
+      usage "/a/:agentId/usage"
+    // --- settings: the person's own ---
+    account "/settings"
+    general "/settings/general"
+    notifications "/settings/notifications"
+    doodsList "/settings/doods"
+    workspacesList "/settings/workspaces"
+    serverModels "/settings/server"
+    waitlist "/settings/waitlist"
     workspace "/w/:workspaceId"
       people "/w/:workspaceId/people"
       workspaceSettings "/w/:workspaceId/settings"
+      // --- settings: a workspace's sections ---
+      workspaceModels "/w/:workspaceId/models"
+      passwords "/w/:workspaceId/passwords"
 
 // A segment of a path, "" past its end.
 fn segment(url: string, at: number): string = match url.split("?").at(0) {
@@ -47,7 +67,8 @@ fn segment(url: string, at: number): string = match url.split("?").at(0) {
   case none => ""
 }
 // The page a location's other pages hang from: a Dood's chat or a workspace's page, else the list.
-fn baseOf(url: string): string = url.startsWith("/a/") ? `/a/${segment(url, 2)}` : url.startsWith("/w/") ? `/w/${segment(url, 2)}` : "/"
+// The person's own settings (`/settings/…`) hang from the list, each in place of the other.
+fn baseOf(url: string): string = url.startsWith("/a/") ? `/a/${segment(url, 2)}` : url.startsWith("/w/") ? `/w/${segment(url, 2)}` : url.startsWith("/settings") ? url : "/"
 
 component App
   members "./views/sign-in.contract"
@@ -57,6 +78,14 @@ component App
   members "./views/composer.contract"
   members "./views/composer-jobs.contract"
   members "./views/threads.contract"
+  // --- settings ---
+  members "./views/profile.contract"
+  members "./views/permissions.contract"
+  members "./views/settings-account.contract"
+  members "./views/settings-models.contract"
+  members "./views/settings-passwords.contract"
+  members "./views/settings-notifications.contract"
+  members "./views/settings-waitlist.contract"
   // A new area adds its members line here, in its own place, in the order of the routes.
 
   // What any screen may `inject` instead of taking it as a prop.
@@ -107,6 +136,167 @@ component App
     threadsLoading = pending(threads)
     threadsFailed = failed(threads)
     threadsRefresh
+    // --- settings: a Dood's ---
+    doodSetup
+    setupOurs
+    shownForm
+    doodFormDirty
+    formOver
+    doodSaving = pending(doodSaved)
+    doodSaveError
+    doodSavedOk
+    doodModelList
+    doodComputers
+    doodComputersOurs
+    doodVoice
+    voicePicked
+    voiceError
+    voiceBusy = pending(voiceSet)
+    moveTarget
+    moveError
+    moving = pending(doodMoved)
+    deleteOpen
+    deleteTyped
+    deleteComputers
+    deleteError
+    deleting = pending(doodDeleted)
+    freshError
+    freshOk
+    freshBusy = pending(freshStarted)
+    doodUsage
+    usageLoading = pending(doodUsage)
+    editDood
+    rollLook
+    saveDoodForm
+    pickVoice
+    chooseMove
+    move
+    openDelete
+    cancelDelete
+    typeDelete
+    toggleDeleteComputers
+    deleteDoodNow
+    askFresh
+    startFreshNow
+    approvals
+    ruling = pending(ruled)
+    ruleFor
+    ruleTo
+    ruleError
+    setRule
+    // --- settings: the person's own ---
+    theme
+    chooseTheme
+    openAccountSettings
+    settingsReturn
+    admin
+    hasWaitlist
+    accountSetup
+    accountOurs
+    allModelList
+    defaultModelPicked
+    defaultModelSaving = pending(defaultModelSaved)
+    defaultModelError
+    defaultModelOk
+    pickDefaultModel
+    defaultComputerPicked
+    defaultComputerSaving = pending(defaultComputerSaved)
+    defaultComputerError
+    defaultComputerOk
+    pickDefaultComputer
+    doodsAbout
+    workspacesAbout
+    // --- settings: models ---
+    modelProviders
+    providersOurs
+    moreProviders
+    providerAim
+    providerSignOutError
+    providerSigningOut = pending(providerSignedOut)
+    toggleMoreProviders
+    askSignOutProvider
+    signOutProviderNow
+    startSignIn
+    signingProviderName
+    signingProvider
+    signingType
+    signingShort
+    signingSubscription
+    signingChose
+    signingTitle
+    loginStarting = pending(loginStarted)
+    loginStartError
+    modelLogin
+    loginOurs
+    loginTyped
+    loginAnswering = pending(loginAnswered)
+    loginAnswerError
+    typeLogin
+    answerLogin
+    chooseLogin
+    retryLogin
+    cancelLogin
+    loginCodeCopied
+    copyLoginCode
+    // --- settings: passwords ---
+    savedLogins
+    savedCards
+    loginRemoving = pending(loginRemoved)
+    loginRemoveError
+    loginAimName
+    openLogin
+    askRemoveLogin
+    removeLoginNow
+    loginEditing
+    loginEditName
+    lName
+    lUsername
+    lPassword
+    lShowPassword
+    lSites
+    lSite
+    loginError
+    loginSaving = pending(loginSaved)
+    editLoginField
+    toggleShowPassword
+    addSiteNow
+    removeSite
+    saveLoginNow
+    closeLogin
+    cardRemoving = pending(cardRemoved)
+    cardRemoveError
+    cardAimName
+    openCard
+    askRemoveCard
+    removeCardNow
+    cNumber
+    cExpires
+    cHolder
+    cPostal
+    cName
+    cardError
+    cardSaving = pending(cardSaved)
+    editCardField
+    saveCardNow
+    closeCard
+    // --- settings: notifications ---
+    pushKey
+    pushState
+    pushCommand
+    pushError
+    pushTested
+    pushBusy
+    pushSaid
+    enablePush
+    disablePush
+    testPushNow
+    // --- settings: waiting list ---
+    waitlist
+    waitlistFailed = failed(waitlist)
+    lettingIn
+    letInBusy = pending(letInDone)
+    letInError
+    letInNow
 
   // The Dood whose page is open (the deepest one in the stack), and the chat a `/c/` page names.
   derive openAgentId = match stack(nav).filter(e => e.params.agentId != "").at(-1) { case some(e) => e.params.agentId, case none => "" }
@@ -166,10 +356,32 @@ component App
             PermissionsScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
           // --- profile ---
           if e.name == "profile"
-            ProfileScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+            ProfileScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""), route="profile")
           // --- dood settings ---
           if e.name == "settings"
             DoodSettingsScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          // --- settings: a Dood's other sections ---
+          if e.name == "memory"
+            MemoryScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          if e.name == "model"
+            ModelScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          if e.name == "usage"
+            UsageScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          // --- settings: the person's own ---
+          if e.name == "account"
+            AccountScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
+          if e.name == "general"
+            GeneralScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
+          if e.name == "notifications"
+            NotificationsScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
+          if e.name == "doodsList"
+            DoodsListScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
+          if e.name == "workspacesList"
+            WorkspacesListScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
+          if e.name == "waitlist"
+            WaitlistScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
+          if e.name == "serverModels"
+            ServerModelsScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
           // --- workspace ---
           if e.name == "workspace"
             WorkspaceHomeScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=e.params.workspaceId))
@@ -179,3 +391,8 @@ component App
           // --- workspace settings ---
           if e.name == "workspaceSettings"
             WorkspaceSettingsScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=e.params.workspaceId))
+          // --- settings: a workspace's sections ---
+          if e.name == "workspaceModels"
+            WorkspaceModelsScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=e.params.workspaceId))
+          if e.name == "passwords"
+            PasswordsScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=e.params.workspaceId))

@@ -1,14 +1,638 @@
-// A Dood's profile page: a PLACEHOLDER until its area is built. It will hold its name, its creature's colour and seed, its memory, its model and thinking.
-// The React app's is apps/web/src/components/settings/profile.tsx. To build it: give this file a `members App` block for its
-// resources, mutations and actions (listed in app.contract beside the others), and its data
-// sources in data/profile.ts (gathered in app.ts); then pass what the screen reads as props where
-// app.contract draws it. Keep the DoodScreen frame: it is the header, the title and the lead.
-use Page from "./shapes.contract"
-use DoodScreen from "./shell.contract"
+// A Dood's own settings, as the React app's ProfileSettings (apps/web/src/components/settings/
+// profile.tsx): its profile (name, tagline, look, voice, personality, workspace, deleting it),
+// its memory, its model and computers, and its usage. Profile, memory and model are one form,
+// kept while another of them is showing, saved together. data/settings-dood.ts answers it.
+use Session, Reply, Dood, Page, Workspace from "./shapes.contract"
+use PrimaryButton, Menu, MenuItem from "./styles.contract"
+use doodOf, nameOf from "./shell.contract"
+use DoodFace from "./creature.contract"
+use DoodSettings, SettingsSection, SettingsCard, SettingsList, SettingsItem, Confirm, ErrorLine, workspaceOf from "./settings-kit.contract"
+use SettingsField, SettingsTextArea, FieldName, Hint, SmallHint, OutlineButton, GhostButton, DangerButton, Choices, ChoiceButton, StatusWords from "./settings-kit.contract"
 
+// What is typed into a Dood's settings: everything that is saved with "Save changes".
+shape DoodForm
+  name: string
+  tagline: string
+  // One of AVATAR_COLORS' ids, and the seed its creature grows from ("" for its id).
+  color: string
+  seed: string
+  soul: string
+  user: string
+  memory: string
+  model: string
+  thinking: string
+
+// A Dood as its settings read it.
+shape DoodSetup
+  owner: string
+  agentId: string
+  // Its name, "" for none yet.
+  named: string
+  hatched: bool
+  // The team that shares it, "" for none.
+  team: string
+  memoryLimit: number
+  userLimit: number
+  mainChatId: string
+  form: DoodForm
+
+// A model to choose, with what it costs in one line and where it comes from ("" where they all
+// come from one place).
+shape ModelChoice
+  id: string
+  name: string
+  detail: string
+  source: string
+  recommended: bool
+  // The thinking levels it offers, least first.
+  thinking: string[]
+
+shape ModelChoices
+  owner: string
+  workspaceId: string
+  models: ModelChoice[]
+
+shape DoodComputer
+  id: string
+  name: string
+  kind: string
+  folder: string
+
+shape DoodComputers
+  owner: string
+  agentId: string
+  usable: DoodComputer[]
+  // The names of machines only this Dood can use, deleted with it unless it is said otherwise.
+  alone: string[]
+
+shape DoodVoice
+  owner: string
+  agentId: string
+  available: bool
+  voices: string[]
+  voice: string
+
+shape UsageRow
+  model: string
+  tokens: string
+  cost: string
+
+shape DoodUsage
+  owner: string
+  agentId: string
+  used: bool
+  cost: string
+  read: string
+  written: string
+  models: UsageRow[]
+  scheduled: string
+
+// The creature's colours (packages/protocol/src/avatars.ts AVATAR_COLORS).
+shape AvatarColor
+  id: string
+  label: string
+  hex: string
+
+fn avatarColors(): AvatarColor[] = [
+  AvatarColor(id="clay", label="Clay", hex="#b8674a"),
+  AvatarColor(id="moss", label="Moss", hex="#5f8a4e"),
+  AvatarColor(id="tide", label="Tide", hex="#3f7f9c"),
+  AvatarColor(id="plum", label="Plum", hex="#7d5a9a"),
+  AvatarColor(id="honey", label="Honey", hex="#c9952c"),
+  AvatarColor(id="slate", label="Slate", hex="#5b6672"),
+  AvatarColor(id="rose", label="Rose", hex="#c0607a"),
+  AvatarColor(id="ink", label="Ink", hex="#2f3a52")
+]
+fn hexOf(id: string, fallback: string): string = match first(avatarColors().filter(c => c.id == id)) { case some(c) => c.hex, case none => fallback }
+
+// The thinking levels, least first, and what each is called (thinking-picker.tsx).
+fn thinkingLevels(): string[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"]
+fn thinkingLabel(level: string): string = level == "off" ? "Off" : level == "minimal" ? "Minimal" : level == "low" ? "Low" : level == "medium" ? "Medium" : level == "high" ? "High" : level == "xhigh" ? "Extra high" : level == "max" ? "Max" : level
+// The level a model uses when asked for `wanted`: that one if it has it, else the next one up,
+// else the next one down (protocol `nearestThinking`). "" for a model that offers none.
+fn nearestThinking(offered: string[], wanted: string): string = match first(thinkingLevels().filter(l => offered.includes(l) and thinkingLevels().indexOf(l) >= thinkingLevels().indexOf(wanted))) {
+  case some(l) => l,
+  case none => match offered.filter(l => thinkingLevels().indexOf(l) < thinkingLevels().indexOf(wanted)).at(-1) { case some(l) => l, case none => "" }
+}
+fn modelOf(models: ModelChoice[], id: string): ModelChoice = match first(models.filter(m => m.id == id)) {
+  case some(m) => m,
+  case none => ModelChoice(id=id, name="", detail="", source="", recommended=false, thinking=[])
+}
+fn listWords(words: string[]): string = words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${match words.at(-1) { case some(w) => w, case none => "" }}`
+
+// The pages that are a Dood's settings, whose data is asked for while one is open.
+fn isDoodSettings(route: string): bool = route == "settings" or route == "profile" or route == "memory" or route == "model" or route == "usage" or route == "permissions"
+
+members App
+  // --- profile ---
+  derive doodSettingsOn = isDoodSettings(onRoute)
+  resource doodSetup = loadDoodSetup(session.owner, doodSettingsOn ? openAgentId : "") as shape DoodSetup else empty()
+  derive setupOurs = doodSetup.owner == session.owner and doodSetup.agentId == openAgentId and openAgentId != ""
+  derive setupDood = doodOf(doodList, openAgentId)
+  resource doodModels = loadModelChoices(session.owner, setupDood.workspaceId, doodSettingsOn and setupDood.workspaceId != "") as shape ModelChoices else empty()
+  derive doodModelList = doodModels.owner == session.owner and doodModels.workspaceId == setupDood.workspaceId ? doodModels.models : []
+  resource doodComputers = loadDoodComputers(session.owner, (onRoute == "settings" or onRoute == "profile" or onRoute == "model") ? openAgentId : "") as shape DoodComputers else empty()
+  derive doodComputersOurs = doodComputers.owner == session.owner and doodComputers.agentId == openAgentId
+  resource doodVoice = loadDoodVoice(session.owner, (onRoute == "settings" or onRoute == "profile") ? openAgentId : "") as shape DoodVoice else empty()
+  resource doodUsage = loadDoodUsage(session.owner, onRoute == "usage" ? openAgentId : "") as shape DoodUsage else empty()
+
+  // The form follows the Dood's own edits until something is typed into it, and is then kept,
+  // for that Dood, until it is saved.
+  state doodForm = DoodForm(name="", tagline="", color="", seed="", soul="", user="", memory="", model="", thinking="")
+  state doodFormFor = ""
+  derive doodFormDirty = doodFormFor != "" and doodFormFor == openAgentId
+  derive shownForm = doodFormDirty ? doodForm : doodSetup.form
+  derive formOver = shownForm.user.length > doodSetup.userLimit or shownForm.memory.length > doodSetup.memoryLimit
+  mutation doodSaved as shape Reply refreshes doodSetup, doods then afterDoodSave
+  derive doodSaveError = pending(doodSaved) ? "" : match doodSaved { case some(r) => r.error, case none => "" }
+  derive doodSavedOk = not pending(doodSaved) and not doodFormDirty and match doodSaved { case some(r) => r.ok, case none => false }
+  // Rolls of a new look, which with the clock make a seed.
+  state rolls = 0
+
+  mutation voiceSet as shape Reply refreshes doodVoice
+  state voicePicked = ""
+  derive voiceError = pending(voiceSet) ? "" : match voiceSet { case some(r) => r.error, case none => "" }
+
+  state moveTarget = ""
+  mutation doodMoved as shape Reply refreshes workspaces, doods, doodSetup, doodModels then afterMove
+  derive moveError = pending(doodMoved) ? "" : match doodMoved { case some(r) => r.error, case none => "" }
+
+  state deleteOpen = false
+  state deleteTyped = ""
+  state deleteComputers = true
+  mutation doodDeleted as shape Reply refreshes doods then afterDelete
+  derive deleteError = pending(doodDeleted) ? "" : match doodDeleted { case some(r) => r.error, case none => "" }
+
+  mutation freshStarted as shape Reply
+  derive freshError = pending(freshStarted) ? "" : match freshStarted { case some(r) => r.error, case none => "" }
+  derive freshOk = not pending(freshStarted) and match freshStarted { case some(r) => r.ok, case none => false }
+
+  action editDood(field: string, v: string)
+    let f = shownForm
+    doodForm = field == "name" ? DoodForm(f, name=v) : field == "tagline" ? DoodForm(f, tagline=v) : field == "color" ? DoodForm(f, color=v) : field == "seed" ? DoodForm(f, seed=v) : field == "soul" ? DoodForm(f, soul=v) : field == "user" ? DoodForm(f, user=v) : field == "memory" ? DoodForm(f, memory=v) : field == "model" ? DoodForm(f, model=v) : DoodForm(f, thinking=v)
+    doodFormFor = openAgentId
+  action rollLook
+    let r = rolls + 1
+    rolls = r
+    editDood("seed", `${openAgentId.slice(0, 4)}${round(time.epochAtZero) % 1000000}${r}`.slice(0, 12))
+  action saveDoodForm
+    if doodFormDirty and not formOver and not pending(doodSaved)
+      send doodSaved = saveDood(openAgentId, DoodForm(shownForm, thinking=(nearestThinking(modelOf(doodModelList, shownForm.model).thinking, shownForm.thinking) == "" ? shownForm.thinking : nearestThinking(modelOf(doodModelList, shownForm.model).thinking, shownForm.thinking))))
+  action afterDoodSave
+    match doodSaved
+      case some(r)
+        if r.ok
+          doodFormFor = ""
+      case none
+        rolls = rolls
+  action pickVoice(v: string)
+    voicePicked = v
+    send voiceSet = setDoodVoice(openAgentId, v)
+  action chooseMove(v: string)
+    moveTarget = v
+  action move
+    if moveTarget != "" and not pending(doodMoved)
+      send doodMoved = moveDood(openAgentId, moveTarget)
+  action afterMove
+    match doodMoved
+      case some(r)
+        if r.ok
+          moveTarget = ""
+      case none
+        moveTarget = moveTarget
+  action openDelete
+    deleteOpen = true
+  action cancelDelete
+    deleteOpen = false
+    deleteTyped = ""
+  action typeDelete(v: string)
+    deleteTyped = v
+  action toggleDeleteComputers(on: bool)
+    deleteComputers = on
+  action deleteDoodNow
+    if not pending(doodDeleted)
+      send doodDeleted = deleteDood(openAgentId, doodComputers.alone.length > 0 and not deleteComputers)
+  action afterDelete
+    match doodDeleted
+      case some(r)
+        if r.ok
+          deleteOpen = false
+          deleteTyped = ""
+          follow("/")
+      case none
+        deleteOpen = deleteOpen
+  action askFresh
+    showModal("start-fresh")
+  action startFreshNow
+    if doodSetup.mainChatId != ""
+      send freshStarted = startFresh(openAgentId, doodSetup.mainChatId)
+
+// What a Dood's profile, memory and model pages read, by name, from the root (app.contract's `provide`).
 component ProfileScreen
   props
     page: Page
+    // "profile", or "settings": the list of its sections, which a wide window shows beside its profile.
+    route: string
   view
-    DoodScreen(page=page, route="profile", lead="Who your Dood is: its name, its look, and what it remembers.")
-      text "Not in this app yet." font-size="0.875rem" color="ink.muted" testId="placeholder-profile"
+    DoodSettings(page=page, route=route, title="Profile", lead="", listing=(route == "settings"))
+      ProfileBody(agentId=page.agentId)
+
+component ProfileBody
+  props
+    agentId: string
+  inject
+    doodList: Dood[]
+    workspaceList: Workspace[]
+    doodSetup: DoodSetup
+    setupOurs: bool
+    shownForm: DoodForm
+    doodVoice: DoodVoice
+    voicePicked: string
+    voiceError: string
+    voiceBusy: bool
+    editDood: action
+    rollLook: action
+    pickVoice: action
+  derive dood = doodOf(doodList, agentId)
+  derive name = doodSetup.named == "" ? "this Dood" : doodSetup.named
+  derive chosenVoice = voiceBusy ? voicePicked : doodVoice.voice
+  view
+    column gap=24 testId="profile-body"
+      text `Who ${name} is: how it looks, how it talks, and which workspace it is in.` class=Hint margin-top=-20
+      if not setupOurs
+        column gap=10 aria-busy=true
+          progress aria-label="Loading"
+      else
+        row gap=20 align-items="center" flex-wrap="wrap"
+          DoodFace(seed=(shownForm.seed == "" ? agentId : shownForm.seed), color=hexOf(shownForm.color, dood.color), state="idle", name=nameOf(dood), size=96)
+          column flex="1 1 14rem" min-width=0 gap=12
+            column gap=6
+              text "Name" class=FieldName
+              input value=shownForm.name input=editDood("name") maxlength=40 placeholder="Not named yet" aria-label="Name" class=SettingsField testId="profile-name"
+            column gap=6
+              text "Tagline" class=FieldName
+              input value=shownForm.tagline input=editDood("tagline") maxlength=120 aria-label="Tagline" class=SettingsField testId="profile-tagline"
+        SettingsSection(title="Look", hint="Its shape and face were not chosen: they grew from a roll of the dice. Pick its color, or roll again for a different creature.", testId="profile-look")
+          row role="radiogroup" aria-label="Color" appearance="none" flex-wrap="wrap" gap=6
+            for c in avatarColors() key=c.id
+              button role="radio" aria-checked=(shownForm.color == c.id) press=editDood("color", c.id) aria-label=c.label title=c.label
+                padding=2 border-radius=999 background-color="transparent" border=(shownForm.color == c.id ? "2px solid var(--primary)" : "2px solid transparent")
+                testId=`profile-color-${c.id}`
+                column width=28 height=28 border-radius=14 background-color=c.hex
+          button press=rollLook class=OutlineButton align-self="flex-start" testId="profile-roll"
+            text "Roll a new look"
+        if doodVoice.available and doodVoice.agentId == agentId
+          SettingsSection(title="Voice", hint=`How ${doodSetup.named == "" ? "your Dood" : doodSetup.named} sounds when you call it. It was given one of its own, so that two Doods seldom sound alike. Call it to hear a change.`, testId="profile-voice")
+            row role="radiogroup" aria-label="Voice" appearance="none" flex-wrap="wrap" gap=6
+              for v in doodVoice.voices key=v
+                button role="radio" aria-checked=(v == chosenVoice) press=pickVoice(v) disabled=voiceBusy
+                  padding="4px 12px" border-radius=999 font-size="0.875rem" text-transform="capitalize"
+                  background-color="transparent" border=(v == chosenVoice ? "1px solid var(--primary)" : "1px solid var(--border)")
+                  color=(v == chosenVoice ? "primary" : "ink.muted") font-weight=(v == chosenVoice ? 500 : 400) testId=`profile-voice-${v}`
+                  text v
+            ErrorLine(text=voiceError, testId="profile-voice-error")
+        SettingsSection(title="Personality", hint="How the Dood talks and behaves, written to it in the second person.", testId="profile-personality")
+          textarea value=shownForm.soul input=editDood("soul") rows=6 maxlength=4000 placeholder="You are…" aria-label="Personality" class=SettingsTextArea testId="profile-soul"
+        MoveDood(agentId=agentId)
+        // A team's Dood is everyone's, so deleting it is for the people who run the team.
+        if workspaceOf(workspaceList, dood.workspaceId).role != "member"
+          DeleteDood(agentId=agentId)
+        SaveBar()
+
+// Where the Dood lives, and moving it: to a team, to share it, or back to oneself.
+component MoveDood
+  props
+    agentId: string
+  inject
+    doodList: Dood[]
+    workspaceList: Workspace[]
+    doodSetup: DoodSetup
+    moveTarget: string
+    moveError: string
+    moving: bool
+    chooseMove: action
+    move: action
+  derive dood = doodOf(doodList, agentId)
+  derive here = workspaceOf(workspaceList, dood.workspaceId)
+  derive elsewhere = workspaceList.filter(w => w.id != here.id)
+  derive name = doodSetup.named == "" ? "This Dood" : doodSetup.named
+  derive to = workspaceOf(workspaceList, moveTarget)
+  view
+    SettingsSection(title="Workspace", hint=(here.kind == "team" ? `${name} is in ${here.name}: everyone there can use it and read its chats.` : `${name} is yours alone. Move it to a team to share it.`), testId="profile-workspace")
+      if here.role == "member"
+        text "Only an admin of the team can move it." class=Hint
+      else if elsewhere.length == 0
+        text "Start a team with New team, at the foot of the sidebar, to have somewhere to move it." class=Hint testId="profile-move-nowhere"
+      else
+        row flex-wrap="wrap" align-items="center" gap=8
+          // The React app's Select: a button that drops a menu of the other workspaces.
+          button popovertarget="move-to-menu" aria-label="Move to" display="flex" align-items="center" gap=8 class=SettingsField min-width="12rem" testId="profile-move-to"
+            text (moveTarget == "" ? "Move to…" : to.name) flex=1 text-align="start" color=(moveTarget == "" ? "ink.muted" : "ink")
+            image "symbol:icon.caret-down" aria-hidden=true color="ink.muted" font-size="0.75rem"
+          column id="move-to-menu" popover="auto" role="menu" aria-label="Move to" class=Menu
+            for w in elsewhere key=w.id
+              button role="menuitem" press=chooseMove(w.id) popovertarget="move-to-menu" popovertargetaction="hide" class=MenuItem testId=`profile-move-to-${w.id}`
+                text w.name flex=1
+                if w.id == moveTarget
+                  image "symbol:icon.check" aria-hidden=true
+          button press=move disabled=(moveTarget == "" or moving) class=OutlineButton testId="profile-move"
+            text (moving ? "Moving…" : "Move")
+      if moveTarget != ""
+        text (to.kind == "team" ? `Everyone in ${to.name} will be able to use ${name}, read all of its chats and what it remembers, and use its connectors and paired computers. Machines it shares with other Doods stay behind, and it can work on the ones ${to.name} has open to every Dood.` : `Only you will be able to use ${name}. Everyone else loses its chats. Machines it shares with other Doods stay with the team.`)
+          role="note" padding="8px 12px" border-radius=10 background-color="muted" font-size="0.875rem" testId="profile-move-note"
+      ErrorLine(text=moveError, testId="profile-move-error")
+
+// Deleting a Dood cannot be undone, so it asks for the Dood's name first.
+component DeleteDood
+  props
+    agentId: string
+  inject
+    doodSetup: DoodSetup
+    doodComputers: DoodComputers
+    doodComputersOurs: bool
+    deleteOpen: bool
+    deleteTyped: string
+    deleteComputers: bool
+    deleteError: string
+    deleting: bool
+    openDelete: action
+    cancelDelete: action
+    typeDelete: action
+    toggleDeleteComputers: action
+    deleteDoodNow: action
+  derive expected = doodSetup.named == "" ? "delete" : doodSetup.named
+  derive alone = doodComputersOurs ? doodComputers.alone : []
+  view
+    SettingsSection(title="Delete this Dood", hint="Removes its memory, chats, schedules, skills and connectors, and disconnects it from every computer. Files in the library stay with the workspace. This cannot be undone.", testId="profile-delete")
+      if deleteOpen
+        column gap=12 padding=16 border-radius=16 border="1px solid var(--danger)"
+          row flex-wrap="wrap" gap=4
+            text "Type" font-size="0.875rem" font-weight=500
+            text expected font-size="0.875rem" font-weight=700
+            text "to confirm" font-size="0.875rem" font-weight=500
+          input value=deleteTyped input=typeDelete autocomplete="off" aria-label=`Type ${expected} to confirm` class=SettingsField testId="profile-delete-typed"
+          if alone.length > 0
+            column gap=4
+              row gap=8 align-items="flex-start"
+                input type="checkbox" checked=deleteComputers change=toggleDeleteComputers disabled=deleting aria-label=`Also delete ${listWords(alone)}` testId="profile-delete-computers"
+                text `Also delete ${listWords(alone)}` font-size="0.875rem"
+              text (alone.length == 1 ? "No other Dood can use this computer. Deleting it deletes everything on it." : "No other Dood can use these computers. Deleting them deletes everything on them.") class=Hint padding-left=24
+          ErrorLine(text=deleteError, testId="profile-delete-error")
+          row gap=8
+            button press=deleteDoodNow disabled=(deleteTyped.trim() != expected or deleting) class=DangerButton testId="profile-delete-confirm"
+              text (deleting ? "Deleting…" : "Delete for good")
+            button press=cancelDelete disabled=deleting class=GhostButton testId="profile-delete-cancel"
+              text "Cancel"
+      else
+        button press=openDelete class=OutlineButton color="danger" align-self="flex-start" testId="profile-delete-open"
+          text "Delete Dood…"
+
+// "Save changes", at the foot of whichever of the form's pages is showing, with how the last save went.
+component SaveBar
+  inject
+    wide: bool
+    doodFormDirty: bool
+    formOver: bool
+    doodSaving: bool
+    doodSaveError: string
+    doodSavedOk: bool
+    saveDoodForm: action
+  view
+    // Afloat at the foot of a wide window's card, as the React app's; a phone's is the page's last row,
+    // since one afloat there covers what is under it.
+    row position=(wide ? "sticky" : "static") bottom=0 justify-content="flex-end" align-items="center" gap=12 padding="8px 0" flex-wrap="wrap"
+      ErrorLine(text=doodSaveError, testId="dood-save-error")
+      if doodSavedOk
+        text "Saved" role="status" class=StatusWords testId="dood-saved"
+      button press=saveDoodForm disabled=(not doodFormDirty or formOver or doodSaving) class=PrimaryButton box-shadow="0 4px 12px rgb(0 0 0 / 0.15)" testId="dood-save"
+        text (doodSaving ? "Saving…" : "Save changes")
+
+// A box to type into, with how much of its limit is used under it.
+component Counted
+  props
+    value: string
+    limit: number
+    rows: number
+    label: string
+    field: string
+    testId: string
+  inject
+    editDood: action
+  derive over = value.length > limit
+  view
+    column gap=4
+      textarea value=value input=editDood(field) rows=rows aria-label=label aria-invalid=over class=SettingsTextArea
+        font-family="Geist Mono" font-size="0.8125rem" border-color=(over ? "danger" : "input") testId=testId
+      text `${value.length} / ${limit}` align-self="flex-end" font-size="0.75rem" color=(over ? "danger" : "ink.muted") testId=`${testId}-count`
+
+// What the Dood has learned and keeps between chats, and what it has been told about who it works for.
+component MemoryScreen
+  props
+    page: Page
+  inject
+    doodSetup: DoodSetup
+    setupOurs: bool
+    shownForm: DoodForm
+    freshError: string
+    freshOk: bool
+    freshBusy: bool
+    askFresh: action
+    startFreshNow: action
+  derive name = doodSetup.named == "" ? "this Dood" : doodSetup.named
+  view
+    DoodSettings(page=page, route="memory", title="Memory", lead=`What ${name} has learned and keeps between chats, and what it has been told about who it works for.`, listing=false)
+      if not setupOurs
+        progress aria-label="Loading"
+      else
+        SettingsSection(title="Memory", hint="The Dood's own long-term notes, also read in every conversation.", testId="memory-memory")
+          Counted(value=shownForm.memory, limit=doodSetup.memoryLimit, rows=8, label="Memory", field="memory", testId="memory-text")
+        SettingsSection(title=(doodSetup.team != "" ? "About the team" : "About you"), hint=(doodSetup.team != "" ? `What the Dood knows about ${doodSetup.team} and the people in it. It reads this in every conversation, one entry per line.` : "What the Dood knows about you. It reads this in every conversation, one entry per line."), testId="memory-user")
+          Counted(value=shownForm.user, limit=doodSetup.userLimit, rows=6, label=(doodSetup.team != "" ? "About the team" : "About you"), field="user", testId="memory-about")
+        if doodSetup.mainChatId != ""
+          SettingsSection(title="Start fresh", hint="The Dood stops carrying the earlier messages of the main chat. Its memory is kept, and you can still read them.", testId="memory-fresh")
+            row flex-wrap="wrap" align-items="center" gap=12
+              button press=askFresh disabled=freshBusy class=OutlineButton testId="memory-fresh-start"
+                text "Start fresh"
+              if freshOk
+                text "Started fresh" role="status" class=StatusWords testId="memory-fresh-done"
+            ErrorLine(text=freshError, testId="memory-fresh-error")
+            Confirm(id="start-fresh", title="Start fresh?", message="From here on the Dood answers in the main chat without what was said in it before. Its memory is kept, and the earlier messages can still be read.", action="Start fresh", destructive=false, confirm=startFreshNow, testId="memory-fresh-confirm")
+        SaveBar()
+
+// What the Dood thinks with, and the computers it can work on.
+component ModelScreen
+  props
+    page: Page
+  inject
+    doodList: Dood[]
+    workspaceList: Workspace[]
+    doodSetup: DoodSetup
+    setupOurs: bool
+    shownForm: DoodForm
+    doodModelList: ModelChoice[]
+    doodComputers: DoodComputers
+    doodComputersOurs: bool
+    editDood: action
+  derive name = doodSetup.named == "" ? "this Dood" : doodSetup.named
+  derive dood = doodOf(doodList, page.agentId)
+  derive w = workspaceOf(workspaceList, dood.workspaceId)
+  derive chosen = modelOf(doodModelList, shownForm.model)
+  view
+    DoodSettings(page=page, route="model", title="Model and computers", lead=`What ${name} thinks with, the computers it can work on, and what it does with a message that arrives while it is busy.`, listing=false)
+      if not setupOurs
+        progress aria-label="Loading"
+      else
+        SettingsSection(title="Model", hint="Which model this Dood thinks with. Applies from its next reply.", testId="model-model")
+          ModelPicker(id="dood-model", label="Model", models=doodModelList, value=shownForm.model, pick=editDood("model"), testId="model-picker")
+          if chosen.name != ""
+            ThinkingPicker(label="Thinking", levels=chosen.thinking, value=shownForm.thinking, pick=editDood("thinking"))
+          if w.name != ""
+            row flex-wrap="wrap" gap=4
+              text `The models to choose from are those ${w.name} is signed in to, under` class=Hint
+              link href=`/w/${w.id}/models` font-size="0.875rem" color="ink" text-decoration="underline" testId="model-workspace-models"
+                text "Models"
+              text "in the workspace's settings." class=Hint
+        SettingsSection(title="Computers", hint="Where this Dood can keep files and run commands. Computers belong to the workspace, and a Dood has a folder of its own on each machine it has worked on.", testId="model-computers")
+          if not doodComputersOurs
+            progress aria-label="Loading"
+          else if doodComputers.usable.length == 0
+            text "It has no computer to work on." class=Hint testId="model-no-computers"
+          else
+            column role="list" aria-label="Computers this Dood can use" gap=8
+              for c in doodComputers.usable key=c.id
+                row role="listitem" flex-wrap="wrap" align-items="baseline" gap=12 padding=12 border-radius=12 border="1px solid var(--border)" font-size="0.875rem" testId=`model-computer-${c.id}`
+                  text c.name font-family="Geist Mono" font-weight=500
+                  text c.kind color="ink.muted"
+                  if c.folder != ""
+                    text c.folder margin-left="auto" min-width=0 font-family="Geist Mono" font-size="0.75rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+          row flex-wrap="wrap" gap=4
+            text "Computers are added, removed and shared under" class=Hint
+            link href=`/w/${w.id}/settings` font-size="0.875rem" color="ink" text-decoration="underline" testId="model-workspace-computers"
+              text "Computers"
+            text "in the workspace's settings." class=Hint
+        SaveBar()
+
+// Choosing one model out of hundreds (components/model-picker.tsx): a box showing the one
+// chosen, which opens a list that narrows as you type, under where each comes from.
+component ModelPicker
+  props
+    // The popover's id: one per picker on a page.
+    id: string
+    label: string
+    models: ModelChoice[]
+    value: string
+    pick: action
+    testId: string
+  state query = ""
+  derive current = modelOf(models, value)
+  derive words = query.toLowerCase().split(" ").filter(w => w != "")
+  derive matches = models.filter(m => not words.map(w => `${m.name} ${m.id}`.toLowerCase().includes(w)).includes(false))
+  derive shown = matches.slice(0, 60)
+  action search(v: string)
+    query = v
+  action choose(id: string)
+    query = ""
+    pick(id)
+  view
+    column gap=4
+      button popovertarget=id aria-label=label display="flex" align-items="center" gap=8 class=SettingsField text-align="start" testId=testId
+        text (current.name == "" ? value : current.name) flex=1 min-width=0 overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`${testId}-value`
+        image "symbol:icon.caret-up-down" aria-hidden=true color="ink.muted"
+      if current.name != ""
+        text `${current.id.replaceAll("openrouter/", "")}${current.detail == "" ? "" : ` · ${current.detail}`}` font-size="0.75rem" color="ink.muted" padding="0 4px"
+      column id=id popover="auto" role="dialog" aria-label=label width="min(28rem, calc(100vw - 32px))" max-height="22rem" display="flex" flex-direction="column"
+        background-color="popover" border-radius=12 box-shadow="0 0 0 1px var(--hairline), 0 2px 5px rgb(0 0 0 / 0.05), 0 22px 48px -22px rgb(0 0 0 / 0.26)" padding=6
+        input value=query input=search placeholder=`Search ${models.length} ${models.length == 1 ? "model" : "models"}` aria-label=`Search ${label}` autocomplete="off" class=SettingsField margin-bottom=4 testId=`${testId}-search`
+        scroll flex=1 min-height=0
+          column role="listbox" aria-label=label
+            if shown.length == 0
+              text "No model matches." class=Hint padding="10px 8px"
+            for m, i in shown key=m.id
+              if m.source != "" and (i == 0 or match shown.at(i - 1) { case some(p) => p.source != m.source, case none => true })
+                text m.source font-size="0.75rem" font-weight=500 color="ink.muted" padding="10px 8px 2px"
+              button role="option" aria-selected=(m.id == value) press=choose(m.id) popovertarget=id popovertargetaction="hide"
+                display="flex" flex-direction="column" align-items="stretch" gap=1 padding="6px 8px" border-radius=8 text-align="start"
+                background-color=(m.id == value ? "wash" : "transparent") border="none" color="ink" testId=`${testId}-option-${m.id}`
+                :hover
+                  background-color="wash"
+                row gap=8 align-items="baseline"
+                  text m.name font-size="0.875rem" font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+                  if m.recommended
+                    text "suggested" font-size="0.75rem" color="ink.muted"
+                text `${m.id.replaceAll("openrouter/", "")}${m.detail == "" ? "" : ` · ${m.detail}`}` font-size="0.75rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+            if matches.length > shown.length
+              text `${matches.length - shown.length} more. Type to narrow them down.` font-size="0.75rem" color="ink.muted" padding="8px" border-top="1px solid var(--border)"
+
+// How hard a Dood thinks before it answers: the levels its model offers (components/thinking-picker.tsx).
+component ThinkingPicker
+  props
+    label: string
+    levels: string[]
+    value: string
+    pick: action
+  derive chosen = nearestThinking(levels, value)
+  view
+    column gap=6
+      text label class=FieldName
+      if levels.length > 0
+        row role="radiogroup" aria-label=label appearance="none" gap=4 padding=4 border-radius=10 border="1px solid var(--input)"
+          for l in levels key=l
+            button role="radio" aria-checked=(l == chosen) press=pick(l) flex=1 min-width=0 min-height="1.75rem" border-radius=7 font-size="0.8125rem"
+              background-color=(l == chosen ? "primary" : "transparent") color=(l == chosen ? "primary.ink" : "ink") border="none" testId=`thinking-${l}`
+              text thinkingLabel(l) overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+      text (levels.length == 0 ? "This model does not think before it answers." : levels.length == 1 ? "This model always thinks this much." : "How long it thinks before it answers. More is slower and costs more. Applies from its next reply.") class=SmallHint padding="0 4px"
+
+// What the Dood has spent on models. Read-only: it is a record, not a setting.
+component UsageScreen
+  props
+    page: Page
+  inject
+    session: Session
+    doodUsage: DoodUsage
+    usageLoading: bool
+  derive ours = doodUsage.owner == session.owner and doodUsage.agentId == page.agentId
+  view
+    DoodSettings(page=page, route="usage", title="Usage", lead="What this Dood's thinking has cost so far, across its chats and scheduled runs.", listing=false)
+      if not ours
+        progress aria-label="Loading"
+      else if not doodUsage.used
+        text "Nothing yet." class=Hint testId="usage-nothing"
+      else
+        dl display="grid" grid-template-columns="repeat(3, 1fr)" gap=12 font-size="0.875rem"
+          column
+            dt color="ink.muted"
+              text "Cost"
+            dd font-size="1.125rem" font-weight=500 font-variant-numeric="tabular-nums"
+              text doodUsage.cost testId="usage-cost"
+          column
+            dt color="ink.muted"
+              text "Read"
+            dd font-size="1.125rem" font-weight=500 font-variant-numeric="tabular-nums"
+              text doodUsage.read testId="usage-read"
+          column
+            dt color="ink.muted"
+              text "Written"
+            dd font-size="1.125rem" font-weight=500 font-variant-numeric="tabular-nums"
+              text doodUsage.written testId="usage-written"
+        table font-size="0.875rem" width="100%"
+          caption
+            text "Usage by model"
+          thead
+            tr
+              th scope="col" text-align="start" font-weight=400 color="ink.muted" padding="4px 0"
+                text "Model"
+              th scope="col" text-align="end" font-weight=400 color="ink.muted" padding="4px 8px"
+                text "Tokens"
+              th scope="col" text-align="end" font-weight=400 color="ink.muted" padding="4px 0"
+                text "Cost"
+          tbody
+            for m in doodUsage.models key=m.model
+              tr border-top="1px solid var(--border)"
+                td padding="6px 0"
+                  text m.model
+                td text-align="end" padding="6px 8px" font-variant-numeric="tabular-nums"
+                  text m.tokens
+                td text-align="end" padding="6px 0" font-variant-numeric="tabular-nums"
+                  text m.cost
+        if doodUsage.scheduled != ""
+          text doodUsage.scheduled class=SmallHint

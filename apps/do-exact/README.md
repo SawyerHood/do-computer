@@ -29,11 +29,21 @@ what Exact cannot do yet.
   reply arriving as it is written, every piece of it, over the Dood's WebSocket. Text is drawn as Markdown;
   thinking, tool calls and notices each have a plain row. Sending a message. Its panel beside
   the chat, from its face in the pill.
+- Settings, in the React app's settings window's card (`views/settings-kit.contract`): a Dood's
+  profile (name, tagline, colour, a new look, voice, personality, moving it, deleting it),
+  memory (with starting the main chat fresh), model and thinking with its computers, usage and
+  permissions; the person's own General (theme, which sets the app's scheme, default model and
+  computer), Notifications (this browser's web push, through the `do-push` view and a service
+  worker of its own), and the lists of Doods and workspaces; a workspace's Models (signing in
+  to a provider with a key, a subscription or a code) and Passwords (logins and cards); and for
+  whoever looks after the deployment, Global models and the waiting list. The account menu
+  leads to them.
 - A Dood's other pages, from the pill's menu: library, automations, skills, connectors,
-  computers, permissions, profile, settings; and a workspace's page, people and settings. Each
-  is a titled placeholder for now.
-- Tests (`chat.test.contract`, `shell.test.contract`, `sign-in.test.contract`) that drive all
-  of that against Do Computer's own server on the web host, and `./x verify` clean.
+  computers; and a workspace's page, people and settings. Each is a titled placeholder for now.
+- Tests (`chat.test.contract`, `shell.test.contract`, `sign-in.test.contract`,
+  `settings.test.contract`) that drive all of that against Do Computer's own server on the web
+  host, and `./x verify` clean. `server.ts` turns saved logins and cards on (`DC_SECRETS=on`) so
+  that Passwords can be tested.
 
 ## Run it
 
@@ -113,7 +123,7 @@ In the order it would be built:
    the build from its static assets, which the deploy would have to build with Exact's tools.
 7. **What Exact has no answer for yet.** Mermaid and Shiki (npm packages with DOM or wasm needs,
    which would be web native views as the creature is), MCP app and visual embeds beyond a plain
-   `iframe`, remote push, and the desktop app's work: running the daemon and driving the screen
+   `iframe`, push on native hosts, and the desktop app's work: running the daemon and driving the screen
    and browser. Windows is unfinished in Exact.
 
 ## Things learned about Exact, 2026-11-09

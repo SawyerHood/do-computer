@@ -41,7 +41,8 @@
     "do-markdown",
     "do-code",
     "do-mermaid",
-    "do-dictation"
+    "do-dictation",
+    "do-push"
   ],
   "env": [
     "API_BASE_URL",
