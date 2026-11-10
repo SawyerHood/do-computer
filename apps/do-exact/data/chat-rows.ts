@@ -103,7 +103,7 @@ function toolBlock(part: ToolPart, id: string, uses: Map<string, Use>): Block | 
   }
   if (isPinning(any as MessagePart)) {
     const { pin, file } = pinned(part);
-    return block(id, 'pin', { name: pinTitle(pin, file), path: file.path, fileId: file.id, text: pin.title });
+    return block(id, 'pin', { name: pinTitle(pin, file), path: file.path, fileId: file.id, text: pin.title ?? '' });
   }
   if (isSubagentStart(any as MessagePart)) {
     const { chatId, title } = part.details as { chatId: string; title: string };

@@ -8,7 +8,10 @@ import { EMPTY_CHAT, reduceChat, type ChatEvent, type ChatHistoryPage, type Chat
 import type { AgentEvent, AgentSummary, ApprovalDecision, ApprovalsState, ChatSummary, ConnectorSummary, LibraryListing, SecretRequest } from '../protocol/agent.ts';
 import { LOGIN_PASSWORD, LOGIN_USERNAME, MAX_PASSWORD_CHARS, MAX_USERNAME_CHARS } from '../protocol/passwords.ts';
 import { siteHost } from '../protocol/screen.ts';
-import { API, current, follow, get, NOBODY, post, reply, seg } from './api.ts';
+import { jobOutcome, type JobSummary } from '../protocol/jobs.ts';
+import { API, current, del, follow, get, NOBODY, post, put, reply, seg } from './api.ts';
+import type { Pin } from '../protocol/pins.ts';
+import type { SiteSummary } from '../protocol/sites.ts';
 import { activityOf, rowsOf, startsMidway, waitingRows } from './chat-rows.ts';
 
 type Chat = Result<'followChat'>;
@@ -63,11 +66,12 @@ function chatInfo(chat: ChatSummary): ChatInfo {
   };
 }
 
-const NO_ASKS: Result<'followAsks'> = { agentId: '', approvals: 0, secrets: 0, chats: 0, connectors: 0, library: 0, lost: false };
+const NO_ASKS: Result<'followAsks'> = { agentId: '', jobs: 0, pins: 0, approvals: 0, secrets: 0, chats: 0, connectors: 0, library: 0, lost: false };
 
 export const chatSources: Pick<Sources,
   'openChat' | 'followChat' | 'sendMessage' | 'stopChat' | 'loadEarlier' | 'loadChatContext' | 'followAsks' | 'loadApprovals' | 'answerApproval' |
-  'loadSecretAsks' | 'answerSecret' | 'answerLogin' | 'declineSecret' | 'loadSignIns' | 'signInConnector' | 'dismissConnector' | 'loadLibraryView'
+  'loadSecretAsks' | 'answerSecret' | 'answerLogin' | 'declineSecret' | 'loadSignIns' | 'signInConnector' | 'dismissConnector' | 'loadLibraryView' | 'loadJobs' |
+  'loadStanding' | 'pinFile' | 'unpinFile' | 'shareAgain'
 > = {
   // The Dood's main chat, which it is given the first time it is opened.
   openChat: async ([owner, agentId], store): Promise<Result<'openChat'>> => {
@@ -140,7 +144,7 @@ export const chatSources: Pick<Sources,
   // about. The shell follows the same stream for the sidebar (data/shell.ts `followDood`).
   followAsks: ([owner, agentId], store): Result<'followAsks'> | Promise<Result<'followAsks'>> => {
     if (agentId === '' || !current(owner, store)) return NO_ASKS;
-    const counts = { approvals: 0, secrets: 0, chats: 0, connectors: 0, library: 0 };
+    const counts = { jobs: 0, pins: 0, approvals: 0, secrets: 0, chats: 0, connectors: 0, library: 0 };
     let lost = false;
     const now = () => ({ agentId, ...counts, lost });
     return follow<Result<'followAsks'>, AgentEvent>(store, `/api/agents/${seg(agentId)}/events`, {
@@ -152,7 +156,10 @@ export const chatSources: Pick<Sources,
         else if (event.what === 'connectors') { counts.connectors++; counts.approvals++; }
         else if (event.what === 'computers') counts.approvals++;
         else if (event.what === 'chats' || event.what === 'identity') counts.chats++;
-        else if (event.what === 'library') counts.library++;
+        else if (event.what === 'library') { counts.library++; counts.pins++; }
+        else if (event.what === 'jobs') counts.jobs++;
+        // Sites are told of with the library: sharing one changes no file, and asks again anyway.
+        else if (event.what === 'pins') counts.pins++;
         return now();
       },
       lost: () => {
@@ -246,7 +253,42 @@ export const chatSources: Pick<Sources,
     const listing = await get<LibraryListing>(store, `/api/agents/${seg(agentId)}/library`);
     return { owner, agentId, base: `${API}/d/${seg(agentId)}/${seg(listing.view)}/`, files: listing.files.map((file) => file.id) };
   },
+
+  // The Dood's background commands, for the chips where they were started.
+  loadJobs: async ([owner, agentId], store): Promise<Result<'loadJobs'>> => {
+    if (agentId === '' || !current(owner, store)) return { owner: NOBODY, agentId: '', jobs: [] };
+    const { jobs } = await get<{ jobs: JobSummary[] }>(store, `/api/agents/${seg(agentId)}/jobs`);
+    return {
+      owner, agentId,
+      jobs: jobs.map((job) => ({
+        id: job.id, command: job.command, computer: job.computer, status: job.status, startedAt: job.startedAt,
+        ended: job.status === 'running' ? '' : lower(jobOutcome({ ...job, ms: (job.endedAt ?? job.startedAt) - job.startedAt })),
+      })),
+    };
+  },
+
+  // How the pins and the sites the chat shows stand now: a card says so, not how they stood.
+  loadStanding: async ([owner, agentId], store): Promise<Result<'loadStanding'>> => {
+    if (agentId === '' || !current(owner, store)) return { owner: NOBODY, agentId: '', pins: [], sites: [] };
+    const [{ pins }, { sites }] = await Promise.all([
+      get<{ pins: Pin[] }>(store, `/api/agents/${seg(agentId)}/pins`),
+      get<{ sites: SiteSummary[] }>(store, `/api/agents/${seg(agentId)}/sites`),
+    ]);
+    return {
+      owner, agentId,
+      pins: pins.flatMap((pin) => [`id:${pin.fileId}`, `path:${pin.path}`]),
+      sites: sites.flatMap((site) => [`id:${site.id}`, `path:${site.path}`, ...(site.public ? [`public:${site.id}`, `public:${site.path}`] : [])]),
+    };
+  },
+  // Back as the Dood pinned it, under the title it gave.
+  pinFile: ([agentId, fileId, title], store) => reply(() =>
+    put(store, `/api/agents/${seg(agentId)}/pins/${seg(fileId)}`, title === '' ? {} : { title })),
+  unpinFile: ([agentId, fileId], store) => reply(() => del(store, `/api/agents/${seg(agentId)}/pins/${seg(fileId)}`)),
+  // The same place shared again after it was stopped is a site with another address.
+  shareAgain: ([agentId, path, title], store) => reply(() => post(store, `/api/agents/${seg(agentId)}/sites`, { path, title })),
 };
+
+const lower = (words: string) => words.charAt(0).toLowerCase() + words.slice(1);
 
 function hostOf(url: string): string {
   try {

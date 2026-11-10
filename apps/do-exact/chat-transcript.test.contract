@@ -346,3 +346,39 @@ test "away from the newest message, a button brings the reader back to it"
   clock +1500 real
   expect state atEnd == true
   expect tree missing "to-latest"
+
+test "something the Dood pins is a card that can take the pin off, and put it back as it was"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "transcript-14@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "/tool bash {\"command\":\"printf hello > board.md\"}"
+  tap "send"
+  clock data
+  clock +3000 real
+  type "composer" "/tool send {\"text\":\"The board.\",\"files\":[\"board.md\"]}"
+  tap "send"
+  clock data
+  clock +3000 real
+  type "composer" "/tool pin {\"action\":\"pin\",\"path\":\"board.md\",\"title\":\"Launch board\"}"
+  tap "send"
+  clock data
+  clock +3000 real
+  clock data
+  expect text "pin-words-Launch board" == "Your Dood pinned Launch board"
+  tap "unpin-Launch board"
+  clock data
+  clock +1000 real
+  clock data
+  expect text "pin-words-Launch board" == "Launch board is no longer pinned"
+  tap "pin-again-Launch board"
+  clock data
+  clock +1000 real
+  clock data
+  expect tree has "unpin-Launch board"

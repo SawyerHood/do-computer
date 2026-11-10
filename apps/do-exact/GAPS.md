@@ -41,6 +41,61 @@ modal route (`navigationPresentation="modal"`) would be the dialog, if that is w
 menu under its name (`align="center"`); an Exact popover is placed by the platform under the
 button that opens it.
 
+## Chat transcript
+
+**Visuals run in Exact's `iframe`, which speaks only in strings.** The React app's frame
+(`components/chat/visual.tsx`) and this one have the same sandbox, `allow-scripts allow-popups
+allow-forms allow-modals` without `allow-same-origin`, and load the same address, the library's
+session-free view (`/d/<agent>/<view>/<path>`), with its colours in the fragment. What Exact's
+frame cannot do: `postMessage(text, id)` posts a string, and a visual's page (and an MCP app's)
+reads objects, so nothing can be told to the page after it loads: not a change between light and
+dark (it follows the device's own, which the app follows too), not being shown large
+(fullscreen), and no answer to what it asks (opening a link, putting words in the composer,
+saving a file), so those requests are left unanswered. What the page says arrives as its JSON's
+text (`message=`), read in `chat-frames.contract` by searching the text: its height, which the
+frame follows, and a script's failure, which offers "Tell …" as the React app does. The React app
+also checks that a request came from the person's own press in the frame (`lib/pressed.ts`), keeps
+the height a page took per width so it opens at it next time (`lib/visual-heights.ts`), loads a
+frame far up the chat only when it is scrolled near (`loading="lazy"`), and offers sharing the page
+from its corner; none of these are here. "Open beside the chat" is the library page's link.
+
+**MCP apps are not shown.** A connector's page for one of its tools (`mcp-app.tsx`) is served
+under `/api`, which needs the session, and is driven by a JSON-RPC host
+(`lib/mcp-app-host.ts`: initialize, tool calls with the person's consent, resource reads) over
+object messages. Exact's frame can send neither a bearer header nor an object, so the chat says
+whose page it is and that the web app shows it. A web native view that builds its own frame
+would do it.
+
+**Pictures that need the session are not shown.** An `image` here cannot send the bearer token.
+A file the Dood sends is shown, and downloaded, from the session-free view address; but the
+pictures kept of each step on a screen or in a browser (`shots/<id>`), and the live view of a
+screen while the Dood uses it (`uses.tsx`, `lib/use-live-view.ts`), are behind the session. A
+use is a line, "Juniper used MacBook's screen · 4 steps", that unfolds to its steps in words; while
+it goes, it is the step under way. Pausing and stopping a use from its window are not here.
+
+**One stream more.** The open Dood's event stream (`/api/agents/:id/events`) is followed twice:
+by the shell for the sidebar (`followDood`) and by the chat (`followAsks`) for what it shows of
+approvals, secrets, sign-ins, sub-agents, jobs, pins and the library. The two could be one
+source with more counts once both areas are merged.
+
+**Hover reveals nothing.** Exact's `:hover` paints a box itself and cannot show a child, so a
+file card's download and a visual's corner button are always shown, as the React app shows them
+under a finger.
+
+**The working line does not shine.** The React app sweeps a highlight across "Thinking…"
+(`animate-shine`); here it is still, beside the Dood's working face. "Delivered" leaves after
+three seconds without fading.
+
+**Who else is here, and typing.** A team's presence and "Ada is typing…" come over the person's
+own socket in the React app (`useHere`, `noteTyping`), which cannot carry this app's session
+(The shell, above). A call held in the chat (`CallInChat`) and the starters a Dood offers when it
+is first met (`meetingWith`, kept in the first run's browser storage) are not here either.
+
+**Start fresh cannot be done from a test.** Earlier messages ("Show earlier messages") are loaded
+a page at a time from `/chats/:id/history`, and a test cannot start a chat fresh: that is in the
+Dood's settings, and a test's `request` step sends a persona, not the session. It is checked by a
+drive against a server the script makes the chat on: `tools/chat-earlier.sh`.
+
 ## Type and colour
 
 **Fonts are TTF, from Geist's own release.** Exact's `font` takes TTF or OTF and refuses WOFF2

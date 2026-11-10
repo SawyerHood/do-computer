@@ -30,6 +30,7 @@ component MessageRow
   props
     message: Message
     agentId: string
+    // The Dood's name, "" for one that has none yet: each part says it its own way.
     doodName: string
     // In a sub-agent's chat, who gave it its task: this side is theirs.
     asker: string
@@ -346,11 +347,19 @@ component FileCard
             width=32 height=32 margin-right=4 border-radius=8 color="ink.muted" testId=`file-download-${block.name}`
             image "symbol:icon.download" font-size="1rem" aria-hidden=true
 
-// A site the Dood shared, where it shared it: its title, who can open it, its address, and the
-// ways to copy it and open it.
+// A site the Dood shared, where it shared it: its title, who can open it now, its address, and
+// the ways to copy it and open it; or that it is not shared any more, and the way to share it again.
 component SiteCard
   props
     block: Block
+  inject
+    siteWords: string[]
+    standingKnown: bool
+    standingBusy: bool
+    shareSiteAgain: action
+  // Until the list is here, it is shown as the Dood left it.
+  derive shared = not standingKnown or siteWords.includes(`id:${block.fileId}`) or siteWords.includes(`path:${block.path}`)
+  derive open = standingKnown ? (siteWords.includes(`public:${block.fileId}`) or siteWords.includes(`public:${block.path}`)) : block.outcome == "public"
   view
     row flex-wrap="wrap" align-items="center" gap=12 padding="10px 10px 10px 12px" border-radius=16 class=Card font-size="0.875rem" max-width="100%"
       role="group" aria-label=`Site: ${block.name}` testId=`site-${block.name}`
@@ -360,23 +369,38 @@ component SiteCard
         column min-width=0
           row gap=8 align-items="center"
             text block.name font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
-            text (block.outcome == "public" ? "Public" : "Workspace") font-size="0.75rem" color="ink.muted" padding="0 8px" border-radius=999 border="1px solid var(--border)"
-          text block.detail.replaceAll("https://", "").replaceAll("http://", "") font-family="Geist Mono" font-size="0.75rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
-      row gap=6 flex-shrink=0
-        button press=copyLink class=OutlineButton testId=`site-copy-${block.name}`
-          text "Copy link"
-        link href=block.detail target="_blank" class=OutlineButton
-          text "Open"
-          image "symbol:icon.arrow-square-out" aria-hidden=true font-size="0.875rem"
+            if shared
+              text (open ? "Public" : "Workspace") font-size="0.75rem" color="ink.muted" padding="0 8px" border-radius=999 border="1px solid var(--border)" testId=`site-who-${block.name}`
+            else
+              text "Not shared any more" font-size="0.75rem" color="ink.muted" testId=`site-gone-${block.name}`
+          text (shared ? block.detail.replaceAll("https://", "").replaceAll("http://", "") : block.path) font-family="Geist Mono" font-size="0.75rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+      if shared
+        row gap=6 flex-shrink=0
+          button press=copyLink class=OutlineButton testId=`site-copy-${block.name}`
+            text "Copy link"
+          link href=block.detail target="_blank" class=OutlineButton
+            text "Open"
+            image "symbol:icon.arrow-square-out" aria-hidden=true font-size="0.875rem"
+      else
+        button press=shareSiteAgain(block.path, block.name) disabled=standingBusy class=OutlineButton testId=`site-share-${block.name}`
+          text "Share again"
   action copyLink
     copyText(block.detail)
 
-// Something the Dood pinned, where it pinned it, and the way to open it.
+// Something the Dood pinned, where it pinned it: what it is, the way to open it and to take the
+// pin off; or that it is no longer pinned, and the way to pin it again as it was.
 component PinCard
   props
     block: Block
     agentId: string
     doodName: string
+  inject
+    pinWords: string[]
+    standingKnown: bool
+    standingBusy: bool
+    pinAgain: action
+    unpin: action
+  derive pinned = not standingKnown or pinWords.includes(`id:${block.fileId}`) or pinWords.includes(`path:${block.path}`)
   view
     row flex-wrap="wrap" align-items="center" gap=12 padding="10px 10px 10px 12px" border-radius=16 class=Card font-size="0.875rem" max-width="100%"
       role="group" aria-label=`Pinned: ${block.name}` testId=`pin-${block.name}`
@@ -384,10 +408,17 @@ component PinCard
         column width=36 height=36 border-radius=8 background-color="wash" align-items="center" justify-content="center" flex-shrink=0
           image "symbol:icon.push-pin" color="ink.muted" font-size="1.25rem" aria-hidden=true
         column min-width=0
-          text `${doodName} pinned ${block.name}` font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+          text (pinned ? `${doodName != "" ? doodName : "Your Dood"} pinned ${block.name}` : `${block.name} is no longer pinned`) font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`pin-words-${block.name}`
           text block.path font-family="Geist Mono" font-size="0.75rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
-      link href=`${path("library", agentId)}?file=${block.fileId}` class=OutlineButton
-        text "Open"
+      row gap=6 flex-shrink=0
+        if pinned
+          link href=`${path("library", agentId)}?file=${block.fileId}` class=OutlineButton
+            text "Open"
+          button press=unpin(block.fileId) disabled=standingBusy class=OutlineButton testId=`unpin-${block.name}`
+            text "Unpin"
+        else
+          button press=pinAgain(block.fileId, block.text) disabled=standingBusy class=OutlineButton testId=`pin-again-${block.name}`
+            text "Pin it again"
 
 // Where the Dood started a sub-agent: a way into its chat, its creature, and how it is getting on.
 component SubagentChip
@@ -422,7 +453,8 @@ component StatusMark
     else
       image "symbol:icon.check-circle" color="ink.muted" aria-label="Reported back"
 
-// A command the Dood left running in the background.
+// A command the Dood left running in the background: where it runs, how it is getting on, and,
+// once it ended, how. What it printed is with the word of its end.
 component CommandChip
   props
     block: Block
@@ -432,8 +464,15 @@ component CommandChip
         image "symbol:icon.terminal" color="ink.muted" font-size="0.875rem" aria-hidden=true
       row flex-wrap="wrap" align-items="baseline" gap="0 8px" min-width=0
         text block.text font-family="Geist Mono" font-size="0.8125rem" font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap" max-width="100%"
-        text (block.outcome == "moved" ? "still going after a minute, now in the background" : "ran in the background") font-size="0.75rem" color="ink.muted"
-      image "symbol:icon.check-circle" color="ink.muted" aria-hidden=true flex-shrink=0
+        text (block.status == "" ? "ran in the background" : `${block.name} · ${block.going ? (block.outcome == "moved" ? "still going after a minute, now in the background" : "in the background") : block.after}`) font-size="0.75rem" color="ink.muted" testId="command-chip-words"
+      if block.going
+        progress aria-label="Running" width=14 height=14
+      else if block.status == "" or block.status == "done"
+        image "symbol:icon.check-circle" color="ink.muted" aria-label="Finished" flex-shrink=0
+      else if block.status == "stopped"
+        image "symbol:icon.stop-circle" color="ink.muted" aria-label="Stopped" flex-shrink=0
+      else
+        image "symbol:icon.warning-circle" color="danger" aria-label="Failed" flex-shrink=0
 
 // The Dood asking another Dood something: a way into their conversation.
 component AgentChip
@@ -465,7 +504,7 @@ component UseLine
         else
           image "symbol:icon.check-circle" aria-hidden=true margin-top=3
         text
-          text `${doodName} ${block.going ? "is using" : "used"} `
+          text `${doodName != "" ? doodName : "It"} ${block.going ? "is using" : "used"} `
           text block.name font-weight=500 color="ink"
           text (block.going ? ` · ${block.detail}` : block.after)
       if block.lines.length > 0

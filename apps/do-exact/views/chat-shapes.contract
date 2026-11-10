@@ -123,6 +123,8 @@ shape ChatContext
 // The open Dood's event stream, counted by what changed.
 shape AskPulse
   agentId: string
+  jobs: number
+  pins: number
   approvals: number
   secrets: number
   chats: number
@@ -191,3 +193,28 @@ shape LibraryView
   agentId: string
   base: string
   files: string[]
+
+// A command the Dood left running in the background, as its chip says how it is getting on.
+shape Job
+  id: string
+  command: string
+  computer: string
+  // "running", "done", "failed", "timed_out", "stopped", "lost".
+  status: string
+  startedAt: number
+  // How it ended, in a few words ("finished in 4s"); "" while it runs.
+  ended: string
+
+shape Jobs
+  owner: string
+  agentId: string
+  jobs: Job[]
+
+// What is pinned to the Dood, and what of its library is shared, as words a card looks itself up
+// by: `id:<fileId>` and `path:<path>` for a pin; `id:<siteId>`, `path:<path>` and `public:<siteId>`
+// for a site.
+shape Standing
+  owner: string
+  agentId: string
+  pins: string[]
+  sites: string[]

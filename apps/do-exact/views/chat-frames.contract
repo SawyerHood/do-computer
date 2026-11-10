@@ -40,7 +40,7 @@ component VisualFrame
             image "symbol:icon.warning-circle" aria-hidden=true
             text "Something in this page did not work."
             button press=tell font-weight=500 color="ink" text-decoration="underline" background-color="transparent" border="none" padding=0
-              text `Tell ${doodName}`
+              text `Tell ${doodName != "" ? doodName : "your Dood"}`
   // What the page says comes as its JSON's text. It says how tall it is, and what failed in it.
   action heard(said: string)
     if said.includes("ui/notifications/size-changed")

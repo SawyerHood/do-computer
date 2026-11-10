@@ -10,7 +10,7 @@ use DoodHeader, doodOf, nameOf, stateOf from "./shell.contract"
 use DoodFace from "./creature.contract"
 use MessageRow, Working, TranscriptPlaceholder, Welcome from "./chat-rows.contract"
 use Asks from "./chat-asks.contract"
-use Block, Message, Chat, Opened, Earlier, ChatInfo, ChatContext, AskPulse, ApprovalAsk, Approvals, SecretField, SecretAsk, SecretAsks, SignInAsk, SignIns, SignInReply, LibraryView from "./chat-shapes.contract"
+use Block, Message, Chat, Opened, Earlier, ChatInfo, ChatContext, AskPulse, ApprovalAsk, Approvals, SecretField, SecretAsk, SecretAsks, SignInAsk, SignIns, SignInReply, LibraryView, Job, Jobs, Standing from "./chat-shapes.contract"
 use EmptyState from "exact:content"
 
 members App
@@ -36,6 +36,9 @@ members App
   resource secretAsks = loadSecretAsks(session.owner, openAgentId) with asks.secrets as shape SecretAsks else empty()
   resource signIns = loadSignIns(session.owner, openAgentId) with asks.connectors as shape SignIns else empty()
   resource libraryView = loadLibraryView(session.owner, openAgentId) with asks.library as shape LibraryView else empty()
+  resource standing = loadStanding(session.owner, openAgentId) with asks.pins as shape Standing else empty()
+  mutation pinChanged as shape Reply refreshes standing
+  resource chatJobs = loadJobs(session.owner, openAgentId) with asks.jobs as shape Jobs else empty()
   mutation stopped as shape Reply
   mutation retried as shape Reply then toEnd
   mutation allowed as shape Reply refreshes approvals
@@ -60,9 +63,15 @@ members App
   derive signInError = pending(signInAsked) ? "" : match signInAsked { case some(r) => r.error, case none => "" }
   // The transcript's rows, in one list as a virtualized list takes them: the way to what came
   // before, what came before, the chat, and the line that says what the Dood is doing.
-  derive transcriptRows = (hasEarlier ? [markerRow("earlier")] : []).concat(earlierRows).concat(ours ? chat.messages : []).concat(ours and chat.activity != "" ? [markerRow("working")] : [])
+  derive jobList = chatJobs.owner == session.owner and chatJobs.agentId == openAgentId ? chatJobs.jobs : []
+  // A command's chip says how its job is getting on, joined here once rather than in each row.
+  derive liveRows = jobList.length == 0 ? chat.messages : chat.messages.map(m => m.blocks.filter(b => b.kind == "command").length == 0 ? m : Message(m, blocks=m.blocks.map(b => b.kind == "command" ? withJob(b, jobList) : b)))
+  derive transcriptRows = (hasEarlier ? [markerRow("earlier")] : []).concat(earlierRows).concat(ours ? liveRows : []).concat(ours and chat.activity != "" ? [markerRow("working")] : [])
   derive subagentStatuses = chatContext.chats.filter(c => c.kind == "subagent").map(c => `${c.id}=${c.status}`)
   derive chatTeam = match first(workspaceList.filter(w => w.id == openDood.workspaceId and w.kind == "team")) { case some(w) => w.name, case none => "" }
+  derive standingHere = standing.owner == session.owner and standing.agentId == openAgentId
+  derive pinWords = standingHere ? standing.pins : []
+  derive siteWords = standingHere ? standing.sites : []
   derive deliveredNow = chat.justDelivered != deliveredGone ? chat.justDelivered : ""
   derive libraryFiles = libraryView.owner == session.owner and libraryView.agentId == openAgentId ? libraryView.files : []
 
@@ -144,6 +153,15 @@ members App
           openURL(r.url)
       case none
         atEnd = atEnd
+  action pinAgain(fileId: string, title: string)
+    if not pending(pinChanged)
+      send pinChanged = pinFile(openAgentId, fileId, title)
+  action unpin(fileId: string)
+    if not pending(pinChanged)
+      send pinChanged = unpinFile(openAgentId, fileId)
+  action shareSiteAgain(path: string, title: string)
+    if not pending(pinChanged)
+      send pinChanged = shareAgain(openAgentId, path, title)
   action notNowSignIn(connectorId: string)
     if not pending(signInDismissed)
       send signInDismissed = dismissConnector(openAgentId, connectorId)
@@ -155,6 +173,11 @@ fn chatInfoOf(chats: ChatInfo[], id: string): ChatInfo = match first(chats.filte
 // A row of the transcript that is not a message: "earlier" (the way to what came before) or
 // "working" (what the Dood is doing).
 fn markerRow(role: string): Message = Message(id=`marker-${role}`, role=role, status="", error="", blocks=[], from="", author="", authorId="", time="", spoken=false, answered=false, delivery="", files=[], notSent="", failures=0, errorTitle="", errorHint="", errorDetail="", errorFacts=[], errorKind="", retryable=false, stopped=false)
+// A command's block, with how its job stands: `status`, the computer as `name`, how it ended as `after`.
+fn withJob(b: Block, jobs: Job[]): Block = match first(jobs.filter(j => j.id == b.detail and j.command.split("\n").at(0) == some(b.text))) {
+  case some(j) => Block(b, status=j.status, name=j.computer, after=j.ended, going=(j.status == "running")),
+  case none => b
+}
 // A sub-agent or a conversation at work: working, or waiting for someone's OK.
 fn atWork(status: string): bool = status == "working" or status == "waiting"
 fn subagentWords(status: string): string = status == "working" ? "Working" : status == "waiting" ? "Waiting for your OK" : status == "stopped" ? "Stopped" : status == "failed" ? "Did not finish" : "Reported back"
@@ -256,7 +279,7 @@ component ChatScreen
                   else if m.role == "working"
                     Working(dood=dood, activity=chat.activity)
                   else
-                    MessageRow(message=m, agentId=page.agentId, doodName=name, asker=(sub ? name : ""), canRetry=(own and m.id == lastKey and not chat.busy))
+                    MessageRow(message=m, agentId=page.agentId, doodName=chatContext.name, asker=(sub ? name : ""), canRetry=(own and m.id == lastKey and not chat.busy))
             if not atEnd
               row position="absolute" bottom=12 left=0 right=0 justify-content="center" pointer-events="none"
                 button press=toLatest aria-label="Scroll to end" class=JumpButton pointer-events="auto" testId="to-latest"

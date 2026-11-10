@@ -24,14 +24,23 @@ what Exact cannot do yet.
 - A wide window has the sidebar beside the page; a phone has the list, then a Dood's chat over
   it. Every page has its address (`/a/:agentId`, `/a/:agentId/c/:chatId`,
   `/a/:agentId/library`, `/w/:workspaceId/people`, …): deep links, reload, Back and Forward work.
-- A Dood's main chat: the transcript, opened at its newest message and following it, with the
-  reply arriving as it is written over the chat's event stream. Text is drawn as Markdown;
-  thinking, tool calls and notices each have a plain row. Sending a message. Its panel beside
-  the chat, from its face in the pill.
+- A Dood's chat, as the React app's transcript draws it: opened at its newest message and
+  following it, with a way back to the newest when the reader has scrolled away, the reply
+  arriving as it is written over the chat's event stream, and earlier messages a page at a time.
+  The Dood's words as Markdown; what it does on its own as one line while it does it ("Running:
+  …"); the files it sends, the visuals it draws (in a sandboxed frame), the sites it shares, what
+  it pins, the sub-agents it starts and the commands it leaves running, each as a card that says
+  how it stands now; notices of what it was told (a sub-agent reported back, someone allowed
+  something, a command ended), a reply that failed in plain words with Details and Try again, a
+  message that waits for the Dood as "Sending" and then "Delivered". Over the composer, what the
+  Dood waits on someone for: leave to do something, secrets or a login to type, a connector to
+  sign in to. A sub-agent's chat, a conversation with another Dood, a thread in Slack and an old
+  side chat each say whose they are, lead back, and have their own foot in the composer's place.
+  Sending a message. Its panel beside the chat, from its face in the pill.
 - A Dood's other pages, from the pill's menu: library, automations, skills, connectors,
   computers, permissions, profile, settings; and a workspace's page, people and settings. Each
   is a titled placeholder for now.
-- Tests (`chat.test.contract`, `shell.test.contract`, `sign-in.test.contract`) that drive all
+- Tests (`chat.test.contract`, `chat-transcript.test.contract`, `shell.test.contract`, `sign-in.test.contract`) that drive all
   of that against Do Computer's own server on the web host, and `./x verify` clean.
 
 ## Run it
@@ -75,8 +84,9 @@ In the order it would be built:
 
 1. **The pages' bodies.** Every page but the chat is a placeholder (PORTING.md says how to fill
    one in). The creature is drawn, but not petted, dressed or hatched in the shell yet.
-2. **The rest of a chat.** Approvals, queued messages and Stop, earlier history, attachments and
-   pictures, side chats and sub-agents, code blocks with highlighting, tables.
+2. **The rest of a chat.** The composer's side (attachments, Stop, slash commands), code blocks
+   with highlighting and tables (the Markdown area), MCP apps, and what GAPS.md's "Chat
+   transcript" lists.
 3. **The rest of the shell.** Naming and hatching with the egg, starting a team and answering
    invitations, putting Doods in order by dragging, folding a workspace, calls, and the
    React app's wide sidebar that folds to a column of faces.

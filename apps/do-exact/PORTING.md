@@ -100,7 +100,12 @@ views/shell.contract      members: viewport, time, workspaces, Doods, the open D
                           hatching, marking seen. Sidebar, DoodRow, AccountButton, DoodHeader
                           (the pill and its pages menu), DoodScreen, WorkspaceScreen, NoDood
 views/sign-in.contract    members: the session, signing in and out. SignIn
-views/chat.contract       members: the open chat, sending. ChatScreen, MessageRow, DoodPanel
+views/chat.contract       members: the open chat, sending, what came before, what the Dood waits on
+                          someone for. ChatScreen, its bars and feet, the composer's place, DoodPanel
+views/chat-rows.contract  the transcript's rows: MessageRow and each part (MessageText is the one
+                          place Markdown is drawn); chat-frames.contract the visual's frame;
+                          chat-asks.contract approvals, secrets, sign-ins; chat-shapes.contract
+data/chat-rows.ts         a chat's state (`reduceChat`'s) made into those rows
 views/creature.contract   DoodFace: a Dood's creature, the `do-creature` native view (seed, colour,
                           state, name, size)
 views/<area>.contract     each other page: a placeholder screen in DoodScreen or WorkspaceScreen
