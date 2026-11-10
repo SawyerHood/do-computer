@@ -115,7 +115,8 @@ made.
 **Library Markdown has one swap point.** `views/library-markdown.contract` wraps Exact's
 `text markup="markdown"`. It is not the React `Markdown` component: code highlighting,
 Mermaid/math, DOM embeds, and the React document typography await the separate Markdown
-port. The front page therefore shows shorter previews, and a document's paragraph spacing
+port. Inline Markdown images are currently alt text rather than pictures (standalone image
+viewing works). The front page therefore shows shorter previews, and a document's paragraph spacing
 is Exact's. Relative library links/images are resolved in `data/library.ts`; individual
 Markdown nodes do not yet call the chat document-panel action.
 
@@ -123,9 +124,10 @@ Markdown nodes do not yet call the chat document-panel action.
 conflict resolution and revision revert use Contract state and the real library API. A
 small `library-format.js` native view applies the toolbar to a textarea's actual selection
 and gives Contract the resulting string. There is no editor scroll synchronisation or
-rich syntax colouring. On phones split becomes a vertical editor/preview rather than
+rich syntax colouring. On phones split keeps the editor; Read switches to the preview rather than
 squeezing two columns together. Folder operations are full-path rename/move; like React,
-folders are implicit and there is no standalone empty-folder operation.
+folders are implicit and there is no standalone empty-folder operation. Drafts are not a
+persisted offline queue: keep a failed save open and retry it before closing the app.
 
 **Chat has an integration seam, not a second attachment renderer.** `LibraryFileCard` and
 `LibraryPictureViewer` in `views/library-card.contract` are exports for the separate chat

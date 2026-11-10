@@ -18,7 +18,7 @@ component LibraryFileCard
     row align-items="center" gap=2 max-width="100%" padding=4 border-radius=12 background-color="popover" box-shadow="0 0 0 1px var(--hairline), 0 1px 2px rgb(0 0 0 / 0.05)" testId=`library-card-${fileId}`
       button press=openLibraryPanel(fileId) class=MenuItem min-width=0 flex=1 aria-label=`Open ${name}` testId=`library-card-open-${fileId}`
         image "symbol:document" aria-hidden=true
-        text name overflow-wrap="anywhere" font-size="0.875rem"
+        text name overflow-wrap="break-word" font-size="0.875rem"
       button press=libraryTogglePinFile(fileId) class=IconButton aria-pressed=pinned aria-label=(pinned ? `Unpin ${name}` : `Pin ${name}`) testId=`library-card-pin-${fileId}`
         image "symbol:pin"
       if path != ""
@@ -61,7 +61,7 @@ component LibraryPictureViewer
       dialog id="library-pictures" aria-label="Pictures" key=keys max-width="95vw" background-color="canvas" color="ink" padding=16 testId=`pictures-${tag}`
         column gap=12
           row gap=8 align-items="center"
-            text picture.name flex=1 min-width=0 overflow-wrap="anywhere"
+            text picture.name flex=1 min-width=0 overflow-wrap="break-word"
             if pictures.length > 1
               text `${at + 1} of ${pictures.length}` font-size="0.8125rem" color="ink.muted"
               button press=previous class=IconButton aria-label="Previous picture" testId=`pictures-previous-${tag}`

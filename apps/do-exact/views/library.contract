@@ -11,7 +11,7 @@ members App
   // --- library ---
   state libraryPanelId = ""
   resource libraryLocation = locateLibrary(top(nav).url) as shape LibraryLocation else empty(mode="read")
-  resource libraryPulse = followLibrary(session.owner, openAgentId) as shape LibraryPulse else empty()
+  resource libraryPulse = followLibrary(session.owner, onRoute == "library" or libraryPanelId != "" or panelOpen ? openAgentId : "") as shape LibraryPulse else empty()
   task libraryMend mount
     every(5000, libraryHeal)
   action libraryHeal
@@ -20,8 +20,9 @@ members App
   resource library = loadLibrary(session.owner, onRoute == "library" or libraryPanelId != "" or panelOpen ? openAgentId : "") with libraryPulse.changes as shape Library else empty()
   derive libraryFiles = library.owner == session.owner and library.agentId == openAgentId ? library.files : []
   derive librarySelected = libraryFileOf(libraryFiles, onRoute == "library" ? libraryLocation.file : libraryPanelId, onRoute == "library" ? libraryLocation.path : "")
-  resource libraryContent = readLibrary(session.owner, openAgentId, librarySelected.id, librarySelected.rev, librarySelected.kind, librarySelected.path) as shape LibraryContent else empty()
+  resource libraryContent = readLibrary(session.owner, openAgentId, librarySelected.id, librarySelected.rev, librarySelected.kind, librarySelected.path, librarySelected.size) as shape LibraryContent else empty()
   resource libraryHistory = libraryVersions(session.owner, openAgentId, libraryHistoryOpen ? librarySelected.id : "") with librarySelected.rev as shape LibraryHistory else empty()
+  mutation librarySaved as shape LibraryWritten refreshes library, libraryHistory then libraryAfterSave
   mutation libraryWritten as shape LibraryWritten refreshes library, libraryHistory then libraryAfterWrite
   mutation libraryChanged as shape Reply refreshes library, libraryHistory
   mutation libraryUploaded as shape Reply queue refreshes library
@@ -36,11 +37,14 @@ members App
   state libraryRenaming = false
   state libraryDraft = ""
   state libraryDraftId = ""
+  state libraryDraftAgent = ""
+  state libraryDraftOwner = ""
+  state librarySavingId = ""
   state libraryBaseRev = 0
   state libraryDirty = false
   state librarySaveState = ""
   state libraryMode = "read"
-  derive libraryReady = libraryContent.owner == session.owner and libraryContent.fileId == librarySelected.id and librarySelected.id != ""
+  derive libraryReady = libraryContent.owner == session.owner and libraryContent.fileId == librarySelected.id and libraryContent.rev == librarySelected.rev and librarySelected.id != ""
   derive libraryText = libraryDraftId == librarySelected.id ? libraryDraft : (libraryReady ? libraryContent.text : "")
   derive libraryError = pending(libraryWritten) ? "" : match libraryWritten { case some(r) => r.error, case none => "" }
   derive libraryChangeError = pending(libraryChanged) ? "" : match libraryChanged { case some(r) => r.error, case none => "" }
@@ -52,21 +56,27 @@ members App
       libraryMode = libraryLocation.mode
   task libraryOpening key=`${librarySelected.id}:${librarySelected.rev}:${libraryReady}`
     after(1, librarySynchronize)
-  task libraryAutosave when libraryDirty and librarySaveState == "Saving…" and not pending(libraryWritten) key=libraryDraft
+  task libraryAutosave when libraryDirty and librarySaveState == "Saving…" and not pending(libraryWritten) and not pending(librarySaved) key=libraryDraft
     after(700, librarySave)
 
   action librarySynchronize
     if libraryReady
       if libraryDraftId != librarySelected.id or not libraryDirty
+        if libraryDraftId != librarySelected.id
+          librarySave()
         libraryDraft = libraryContent.text
         libraryDraftId = librarySelected.id
+        libraryDraftAgent = openAgentId
+        libraryDraftOwner = session.owner
         libraryBaseRev = librarySelected.rev
         libraryDirty = false
-      else if libraryBaseRev != librarySelected.rev and not pending(libraryWritten)
+      else if libraryBaseRev != librarySelected.rev and not pending(libraryWritten) and not pending(librarySaved)
         librarySaveState = "conflict"
   action libraryRefresh
     refresh library
     refresh libraryContent
+    refresh librarySites
+    refresh libraryPins
   action libraryFilterEdit(v: string)
     libraryFilter = v
   action libraryFolder(path: string)
@@ -78,6 +88,7 @@ members App
   action libraryHistoryToggle
     libraryHistoryOpen = not libraryHistoryOpen
   action libraryNew
+    librarySave()
     send libraryWritten = createLibrary(openAgentId, libraryDestination)
   action libraryUpload
     showPicker("library-upload")
@@ -121,13 +132,30 @@ members App
   action libraryEdit(text: string)
     libraryDraft = text
     libraryDraftId = librarySelected.id
+    libraryDraftAgent = openAgentId
+    libraryDraftOwner = session.owner
     libraryDirty = true
     librarySaveState = librarySaveState == "conflict" ? "conflict" : "Saving…"
   action librarySave
-    if libraryDirty and not pending(libraryWritten) and libraryDraftId == librarySelected.id
-      send libraryWritten = writeLibrary(openAgentId, librarySelected.id, libraryDraft, libraryBaseRev, false)
+    if libraryDirty and not pending(librarySaved) and libraryDraftId != "" and libraryDraftOwner == session.owner
+      librarySavingId = libraryDraftId
+      send librarySaved = writeLibrary(libraryDraftAgent, libraryDraftId, libraryDraft, libraryBaseRev, false)
   action libraryKeepMine
-    send libraryWritten = writeLibrary(openAgentId, librarySelected.id, libraryDraft, libraryBaseRev, true)
+    librarySavingId = libraryDraftId
+    send librarySaved = writeLibrary(libraryDraftAgent, libraryDraftId, libraryDraft, libraryBaseRev, true)
+  action libraryAfterSave
+    if librarySavingId == libraryDraftId
+      match librarySaved
+        case some(r)
+          if r.ok
+            if r.text == libraryDraft
+              libraryDirty = false
+            libraryBaseRev = r.rev
+            librarySaveState = r.text == libraryDraft ? "Saved" : "Saving…"
+          else
+            librarySaveState = r.conflict ? "conflict" : "Could not save"
+        case none
+          librarySaveState = ""
   action libraryTakeTheirs
     libraryDraft = libraryContent.text
     libraryDraftId = librarySelected.id
@@ -246,7 +274,7 @@ component LibraryScreen
                               else
                                 image "symbol:document" font-size="2.25rem" color="ink.muted"
                             column padding="10px 12px" gap=3
-                              text f.name font-size="0.875rem" font-weight=500 overflow-wrap="anywhere"
+                              text f.name font-size="0.875rem" font-weight=500 overflow-wrap="break-word"
                               text `${f.by} · ${f.when}` font-size="0.75rem" color="ink.muted"
                   column border-radius=(selected.id == "" and wide ? 16 : 0) border=(selected.id == "" and wide ? "1px solid var(--hairline)" : "none") padding=8 gap=8
                     row align-items="center" gap=6 flex-wrap="wrap"
@@ -274,7 +302,7 @@ component LibraryScreen
                               row align-items="center" min-height=32 gap=4
                                 button press=folder(r.path) aria-expanded=(not closed.includes(r.path)) display="flex" gap=6 align-items="center" flex=1 min-width=0 padding=`4px 6px 4px ${8 + r.depth * 14}px` class=MenuItem testId=`folder-${r.path}`
                                   image (closed.includes(r.path) ? "symbol:forward-chevron" : "symbol:menu") font-size="0.75rem" aria-hidden=true
-                                  text r.name overflow-wrap="anywhere"
+                                  text r.name overflow-wrap="break-word"
                                 button press=shareLibraryPath(r.path) aria-label=`Share ${r.name}` testId=`share-folder-${r.path}`
                                   image "symbol:share" font-size="0.875rem"
                             else
@@ -288,7 +316,7 @@ component LibraryScreen
                         for f in library.deleted key=f.id
                           row align-items="center" gap=8
                             column flex=1 min-width=0
-                              text f.path font-size="0.8125rem" overflow-wrap="anywhere"
+                              text f.path font-size="0.8125rem" overflow-wrap="break-word"
                               text `${f.by} · ${f.when}` font-size="0.75rem" color="ink.muted"
                             button press=restore(f.id) disabled=busy aria-label=`Restore ${f.name}` testId=`restore-${f.id}`
                               text "Restore"
@@ -306,6 +334,6 @@ component LibraryFileRow
   view
     link href=file.href class=MenuItem aria-label=`Open ${file.name}` aria-current=(selected ? "page" : "false") background-color=(selected ? "wash" : "transparent") padding=`4px 8px 4px ${26 + file.depth * 14}px` min-height=32 box-sizing="border-box" testId=`file-${file.id}`
       image (file.kind == "image" ? "symbol:photo" : file.kind == "page" ? "symbol:link" : "symbol:document") color="ink.muted" aria-hidden=true
-      text label min-width=0 overflow-wrap="anywhere" font-size="0.875rem"
+      text label min-width=0 overflow-wrap="break-word" font-size="0.875rem"
       if shared.id != ""
         image (shared.public ? "symbol:link" : "symbol:lock") aria-label=(shared.public ? "Shared with anyone who has the link" : "Shared with the workspace") margin-left="auto" font-size="0.75rem" color="ink.muted"

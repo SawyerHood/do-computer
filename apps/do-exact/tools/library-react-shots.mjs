@@ -1,11 +1,12 @@
 // Run while ./x agent holds this checkout's server; it never starts another server.
 import { createRequire } from 'node:module';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 const { chromium } = createRequire(resolve('../web/package.json'))('@playwright/test');
 const origin = process.env.API_BASE_URL ?? 'http://127.0.0.1:3915';
 const out = resolve('.exact/shots/library-react');
 mkdirSync(out, { recursive: true });
+const started = Date.now();
 const browser = await chromium.launch({ executablePath: process.env.CHROME ?? '/home/sawyer/.cache/ms-playwright/chromium-1248/chrome-linux64/chrome' });
 try {
   const setup = await browser.newContext({ baseURL: origin });
@@ -24,6 +25,12 @@ try {
     files = id ? (await (await setup.request.get(`/api/agents/${id}/library`)).json()).files : [];
     if (files.length >= 3) break;
     if (Date.now() > deadline) throw new Error('Screenshot uploads did not finish.');
+    await new Promise(r => setTimeout(r, 200));
+  }
+  // Do not compare a pre-share Exact home with a post-share React home.
+  const ready = '.exact/shots/library-exact/phone-home-light.png';
+  while (!existsSync(ready) || statSync(ready).mtimeMs < started) {
+    if (Date.now() > deadline) throw new Error('Exact screenshot drive did not reach its hold');
     await new Promise(r => setTimeout(r, 200));
   }
   const doc = files.find(f => f.name === 'report.md');

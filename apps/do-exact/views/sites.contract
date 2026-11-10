@@ -63,8 +63,8 @@ component SharedSites
               image "symbol:link" color="ink.muted"
               column flex=1 min-width=0 gap=3
                 link href=s.url target="_blank" color="ink" text-decoration="none" testId=`site-${s.id}`
-                  text s.title font-size="0.875rem" font-weight=500 overflow-wrap="anywhere"
-                text `${s.path} · ${s.missing ? "no longer in the library" : s.by + " · " + s.when}` color="ink.muted" font-size="0.75rem" overflow-wrap="anywhere"
+                  text s.title font-size="0.875rem" font-weight=500 overflow-wrap="break-word"
+                text `${s.path} · ${s.missing ? "no longer in the library" : s.by + " · " + s.when}` color="ink.muted" font-size="0.75rem" overflow-wrap="break-word"
               text (s.public ? "Public" : libraryAudience) color="ink.muted" font-size="0.6875rem"
               SiteCopy(url=s.url, tag=s.id)
               button press=shareLibraryPath(s.path) aria-label=`Sharing of ${s.title}` testId=`site-settings-${s.id}`
@@ -101,14 +101,14 @@ component ShareControls
           text (libraryShareSite.id == "" ? "Share with a link" : "Shared with a link") flex=1 font-weight=600 font-size="0.875rem"
           button press=libraryCloseShare aria-label="Close sharing" testId="library-share-close"
             image "symbol:close"
-        text librarySharePath font-size="0.8125rem" color="ink.muted" overflow-wrap="anywhere"
+        text librarySharePath font-size="0.8125rem" color="ink.muted" overflow-wrap="break-word"
         if libraryShareSite.id == ""
           text `This gives it a link of its own, which shows it as it is in the library. ${libraryAudience} can open it, and nobody else until you make it public.` font-size="0.875rem" color="ink.muted"
           button press=libraryShare disabled=librarySharingBusy testId="library-share-create"
             text (librarySharingBusy ? "Sharing…" : "Share")
         else
           column gap=6
-            link href=libraryShareSite.url target="_blank" font-family="Geist Mono" font-size="0.75rem" overflow-wrap="anywhere" testId="library-share-url"
+            link href=libraryShareSite.url target="_blank" font-family="Geist Mono" font-size="0.75rem" overflow-wrap="break-word" testId="library-share-url"
               text libraryShareSite.url
             SiteCopy(url=libraryShareSite.url, tag="dialog")
           text "Who can open it" font-size="0.8125rem" font-weight=500

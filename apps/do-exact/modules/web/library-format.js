@@ -7,7 +7,9 @@ export function create(element, props, event) {
     setProps(next) {
       if (next.marks === command) return;
       command = next.marks;
-      const textarea = document.getElementById('library-editor');
+      let scope = element.parentElement;
+      while (scope && !scope.querySelector('#library-editor')) scope = scope.parentElement;
+      const textarea = scope?.querySelector('#library-editor');
       const pair = formats[command.split(':')[0]];
       if (!textarea || !pair) return;
       const { selectionStart: start, selectionEnd: end } = textarea;

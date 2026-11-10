@@ -24,6 +24,8 @@ test "failed saves keep the draft and concurrent revisions offer keep mine or sh
   tap "library-format-Bold"
   clock data
   expect text "library-editor" == "Hello**text**"
+  clock +1000
+  clock data
   fail fetch "http://127.0.0.1:"
   type "library-editor" "# Kept through an outage"
   clock +1000
@@ -65,3 +67,5 @@ test "failed saves keep the draft and concurrent revisions offer keep mine or sh
   clock data
   expect text "library-editor" == "# Untitled\n\n"
   expect tree missing "library-conflict"
+  clock +11000
+  clock data

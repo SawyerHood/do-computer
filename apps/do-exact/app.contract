@@ -91,7 +91,7 @@ component App
     libraryError
     libraryRenaming
     libraryRename
-    libraryBusy = pending(libraryWritten)
+    libraryBusy = (pending(libraryWritten) or pending(librarySaved))
     libraryHome
     libraryEdit
     librarySave
@@ -171,7 +171,7 @@ component App
             ChatScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""), route=e.name, chat=chat, ours=ours, loading=(pending(opened) or pending(chat)), draft=draft, sayError=sayError, sending=pending(said), editDraft=editDraft, say=say, heal=heal)
           // --- library ---
           if e.name == "library"
-            LibraryScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""), library=library, files=libraryFiles, selected=librarySelected, sites=Sites(owner=librarySites.owner, agentId=librarySites.agentId, sites=librarySiteList), loading=pending(library), failed=failed(library), missing=(librarySelected.id == "" and (libraryLocation.file != "" or libraryLocation.path != "")), busy=(pending(libraryWritten) or pending(libraryUploaded)), error=(libraryError + libraryChangeError + libraryUploadError), query=libraryFilter, closed=libraryClosed, deletedOpen=libraryDeletedOpen, onFilter=libraryFilterEdit, folder=libraryFolder, new=libraryNew, upload=libraryUpload, picked=libraryPicked, restore=libraryRestore, toggleDeleted=libraryDeletedToggle, retry=libraryRefresh)
+            LibraryScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""), library=library, files=libraryFiles, selected=librarySelected, sites=Sites(owner=librarySites.owner, agentId=librarySites.agentId, sites=librarySiteList), loading=pending(library), failed=failed(library), missing=(librarySelected.id == "" and (libraryLocation.file != "" or libraryLocation.path != "")), busy=(pending(libraryWritten) or pending(librarySaved) or pending(libraryUploaded)), error=(libraryError + libraryChangeError + libraryUploadError), query=libraryFilter, closed=libraryClosed, deletedOpen=libraryDeletedOpen, onFilter=libraryFilterEdit, folder=libraryFolder, new=libraryNew, upload=libraryUpload, picked=libraryPicked, restore=libraryRestore, toggleDeleted=libraryDeletedToggle, retry=libraryRefresh)
           // --- automations ---
           if e.name == "automations"
             AutomationsScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))

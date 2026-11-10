@@ -3,11 +3,12 @@ export function create(element, props, event) {
   let frame, latest = props;
   const media = matchMedia('(prefers-color-scheme: dark)');
   const tell = () => {
-    const appearance = getComputedStyle(element).colorScheme.includes('dark') || media.matches ? 'dark' : 'light';
+    const scheme = getComputedStyle(element).colorScheme.trim();
+    const appearance = scheme === 'dark' || (scheme !== 'light' && media.matches) ? 'dark' : 'light';
     frame?.contentWindow?.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/host-context-changed', params: { theme: appearance, styles: { variables: latest.colour ? { '--agent-color': latest.colour } : {} } } }, '*');
   };
   const find = () => {
-    const next = document.getElementById('library-page');
+    const next = element.parentElement?.querySelector('#library-page');
     if (frame === next) return;
     frame?.removeEventListener('load', tell);
     frame = next;

@@ -52,7 +52,7 @@ component LibraryViewer
     close("library-picture-dialog")
   action pageReload
     reload("library-page")
-  derive wordCount = libraryText.split(" ").filter(w => w.trim() != "").length
+  derive wordCount = libraryText.split("\n").map(line => line.split(" ")).flat().map(w => w.split("\t")).flat().filter(w => w.trim() != "").length
   view
     column flex=1 min-width=0 min-height=0 testId="library-viewer"
       row flex-shrink=0 flex-wrap="wrap" gap=4 align-items="center" padding="6px 10px" border-bottom="1px solid var(--hairline)"
@@ -90,7 +90,7 @@ component LibraryViewer
           button popovertarget="library-more" aria-label="More" testId="library-more-button" class=IconButton
             image "symbol:more"
           column id="library-more" popover="auto" background-color="popover" color="ink" padding=8 border-radius=12 box-shadow="0 0 0 1px var(--hairline)"
-            text file.path font-size="0.8125rem" overflow-wrap="anywhere" max-width="16rem" padding=6
+            text file.path font-size="0.8125rem" overflow-wrap="break-word" max-width="16rem" padding=6
             text `${file.by} · ${file.when} · ${file.bytes}` font-size="0.75rem" color="ink.muted" padding=6
             button press=libraryBeginRename popovertarget="library-more" popovertargetaction="hide" class=MenuItem testId="library-rename"
               text "Rename or move"
@@ -115,12 +115,12 @@ component LibraryViewer
               text "It has not been changed since it was made." font-size="0.8125rem" testId="library-history-empty"
             for v in libraryHistory.versions key=v.rev
               button press=libraryRevert(v.rev) disabled=libraryBusy class=MenuItem testId=`library-revert-${v.rev}`
-                text `Put back this version · ${v.detail}` overflow-wrap="anywhere"
+                text `Put back this version · ${v.detail}` overflow-wrap="break-word"
       if librarySaveState == "conflict"
         column padding=12 gap=8 background-color="surface" role="alert"
           text "This file changed while you were editing it. Your changes are not saved." font-size="0.875rem" testId="library-conflict"
           row gap=8
-            button press=libraryTakeTheirs testId="library-take-theirs" class=MenuItem
+            button press=libraryTakeTheirs disabled=(not libraryReady) testId="library-take-theirs" class=MenuItem
               text "Show theirs"
             button press=libraryKeepMine testId="library-keep-mine" class=MenuItem
               text "Keep mine"
@@ -142,7 +142,7 @@ component LibraryViewer
         row gap=8 padding=6 align-items="center"
           button press=pageReload aria-label="Reload page" testId="library-page-reload" class=MenuItem
             image "symbol:refresh"
-          text file.path flex=1 min-width=0 font-size="0.75rem" color="ink.muted" overflow-wrap="anywhere"
+          text file.path flex=1 min-width=0 font-size="0.75rem" color="ink.muted" overflow-wrap="break-word"
           text "sandboxed" font-size="0.6875rem" color="ink.muted"
           link href=file.url target="_blank" testId="library-page-tab"
             text "Open"
@@ -154,10 +154,10 @@ component LibraryViewer
           audio src=file.url controls=true width="100%" aria-label=file.name testId="library-audio"
       else if file.kind == "other" or (file.kind == "table" and file.size > 1048576 and libraryMode != "read")
         column flex=1 justify-content="center" align-items="center" padding=24 gap=12
-          text file.name font-weight=500 overflow-wrap="anywhere"
+          text file.name font-weight=500 overflow-wrap="break-word"
           text `${file.bytes} · This kind of file cannot be shown here.` color="ink.muted" font-size="0.875rem"
           do-library-download address=file.url filename=file.name width=120 height=36 role="button" aria-label="Download file" testId="library-other-download"
-      else if not libraryReady
+      else if not libraryReady and libraryText == ""
         column padding=24 gap=8
           text (libraryContentFailed ? "This file could not be read. Try again." : "Loading file…") color="ink.muted" testId="library-file-loading"
           button press=libraryRefresh testId="library-file-retry" class=MenuItem

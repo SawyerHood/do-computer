@@ -19,3 +19,5 @@ test "an unavailable library offers retry instead of an empty library"
   tap "library-retry"
   clock data
   expect tree has "library-empty"
+  clock +11000
+  clock data

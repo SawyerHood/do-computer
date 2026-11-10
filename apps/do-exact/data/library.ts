@@ -48,7 +48,7 @@ export const librarySources: Pick<Sources, 'followLibrary' | 'locateLibrary' | '
     const sorted = [...listing.files].sort((a, b) => b.updatedAt - a.updatedAt);
     const files = await Promise.all(sorted.map(async (f, i) => {
       const shaped = convert(f);
-      if (i < 8 && shaped.kind === 'markdown' && f.size < 65536) shaped.preview = (await (await raw(store, `${base(agentId)}/${seg(f.id)}?rev=${f.rev}`)).text()).slice(0, 1200);
+      if (i < 8 && shaped.kind === 'markdown' && f.size < 65536) shaped.preview = (await raw(store, `${base(agentId)}/${seg(f.id)}?rev=${f.rev}`).then(r => r.text()).catch(() => '')).slice(0, 1200);
       return shaped;
     }));
     const rows: Result<'loadLibrary'>['rows'] = [];
@@ -59,10 +59,10 @@ export const librarySources: Pick<Sources, 'followLibrary' | 'locateLibrary' | '
     const children = (dir: string): typeof rows => rows.filter(r => dirOf(r.path) === dir).sort((a, b) => Number(b.folder) - Number(a.folder) || a.name.localeCompare(b.name)).flatMap(r => r.folder ? [r, ...children(r.path)] : [r]);
     return { owner, agentId, files, rows: children(''), deleted: listing.deleted.map(f => ({ ...convert(f), when: when(f.deletedAt), by: f.deletedBy === 'agent' ? 'by a Dood' : 'by you' })), total: bytes(files.reduce((n, f) => n + f.size, 0)) };
   },
-  readLibrary: async ([owner, agentId, fileId, rev, kind, path], store): Promise<Result<'readLibrary'>> => {
+  readLibrary: async ([owner, agentId, fileId, rev, kind, path, size], store): Promise<Result<'readLibrary'>> => {
     const empty = { owner: NOBODY, fileId: '', rev: 0, text: '', rendered: '', rows: [], cut: false };
-    if (!current(owner, store) || fileId === '' || !['markdown', 'text', 'page', 'table'].includes(kind)) return empty;
-    const response = await raw(store, `${base(agentId)}/${seg(fileId)}?rev=${rev}`, kind === 'table' ? { headers: { range: 'bytes=0-262143' } } : {});
+    if (!current(owner, store) || fileId === '' || (size > 1048576 && kind !== 'table') || !['markdown', 'text', 'page', 'table'].includes(kind)) return empty;
+    const response = await raw(store, `${base(agentId)}/${seg(fileId)}?rev=${rev}`, kind === 'table' && size > 1048576 ? { headers: { range: 'bytes=0-262143' } } : {});
     const text = await response.text();
     const listing = kind === 'markdown' ? await get<LibraryListing>(store, base(agentId)) : undefined;
     const paths = new Set(listing?.files.map(f => f.path));
@@ -71,7 +71,7 @@ export const librarySources: Pick<Sources, 'followLibrary' | 'locateLibrary' | '
       if (!target || !paths.has(target)) return whole;
       return `${image}[${title}](${image ? viewUrl(agentId, listing!.view, target) : `/a/${seg(agentId)}/library?path=${seg(target)}`})`;
     });
-    const table = kind === 'table' ? parseDelimited(text, delimiterOf(path), { rows: TABLE_ROWS + 1, whole: response.status !== 206 }) : { rows: [], cut: false };
+    const table = kind === 'table' ? parseDelimited(text, delimiterOf(path), { rows: TABLE_ROWS, whole: response.status !== 206 }) : { rows: [], cut: false };
     return { owner, fileId, rev, text, rendered, rows: table.rows.map((cells, i) => ({ id: String(i), cells: cells.map((text, col) => ({ id: String(col), text })) })), cut: table.cut };
   },
   createLibrary: ([agentId, dir], store) => written(() => made(store, `${base(agentId)}?path=${seg(`${dir === '' ? '' : `${dir}/`}Untitled.md`)}`, { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: '# Untitled\n\n' }), '# Untitled\n\n'),

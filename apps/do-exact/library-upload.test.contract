@@ -42,6 +42,11 @@ test "uploads open as a document, sandboxed page, table, code, picture, PDF and 
   clock settle
   clock data
   expect tree has "library-table"
+  expect state libraryContent.rows.length == 3
+  expect state libraryContent.cut == false
+  tap "library-mode-source"
+  clock data
+  expect text "library-editor" == "Name,Count\nApples,3\n\"Pears, ripe\",4"
   tap "library-home"
   clock data
   type "library-filter" "example.ts"
@@ -76,3 +81,7 @@ test "uploads open as a document, sandboxed page, table, code, picture, PDF and 
   clock settle
   clock data
   expect tree has "library-other-download"
+  tap "library-home"
+  clock data
+  type "library-filter" ""
+  clock data

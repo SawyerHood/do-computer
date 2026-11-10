@@ -21,7 +21,7 @@ shape LibraryPins
 
 members App
   // --- library pins ---
-  resource libraryPins = loadLibraryPins(session.owner, openAgentId) with libraryPulse.changes, libraryFiles as shape LibraryPins else empty()
+  resource libraryPins = loadLibraryPins(session.owner, onRoute == "library" or libraryPanelId != "" or panelOpen ? openAgentId : "") with libraryPulse.changes, libraryFiles as shape LibraryPins else empty()
   mutation libraryPinnedReply as shape Reply refreshes libraryPins
   derive libraryPinList = libraryPins.owner == session.owner and libraryPins.agentId == openAgentId ? libraryPins.pins : []
   derive libraryPinned = libraryPinList.map(p => p.currentId == librarySelected.id).includes(true)
@@ -58,10 +58,10 @@ component PinsShelf
                   iframe src=p.url title=`Preview of ${p.title}` sandbox="allow-scripts" tabindex=-1 pointer-events="none" border="none" width="200%" height=320 transform="scale(0.5)" transform-origin="left top"
             row gap=6 align-items="center" padding=6
               if p.missing
-                text `${p.title} is no longer in the library` flex=1 min-width=0 font-size="0.8125rem" color="ink.muted" overflow-wrap="anywhere" testId=`pin-missing-${p.fileId}`
+                text `${p.title} is no longer in the library` flex=1 min-width=0 font-size="0.8125rem" color="ink.muted" overflow-wrap="break-word" testId=`pin-missing-${p.fileId}`
               else
                 button press=openLibraryPanel(p.currentId) class=MenuItem flex=1 min-width=0 testId=`pin-open-${p.fileId}`
-                  text p.title font-size="0.875rem" overflow-wrap="anywhere"
+                  text p.title font-size="0.875rem" overflow-wrap="break-word"
               if not p.missing
                 text p.when color="ink.muted" font-size="0.6875rem"
               button press=libraryUnpin(p.fileId) aria-label=`Unpin ${p.title}` testId=`pin-remove-${p.fileId}`
