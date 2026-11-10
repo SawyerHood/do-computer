@@ -1,4 +1,5 @@
 // Add a tag's implementation here; its DOM and lifetime belong in its own file.
+import * as call from './call.js';
 import * as connectorsPicture from './connectors-picture.js';
 import * as dictation from './dictation.js';
 import * as creature from './creature.js';
@@ -12,7 +13,7 @@ import * as libraryFormat from './library-format.js';
 import * as libraryFrame from './library-frame.js';
 import { start, ended } from './shared.js';
 import { markdown, code, mermaid } from './content-views.js';
-const views = { 'do-slack-picture': connectorsPicture, 'do-dictation': dictation, 'do-creature': creature, 'do-portrait': portrait, 'do-gift': gift, 'do-wardrobe': wardrobe, 'do-sky': sky, 'do-markdown': markdown, 'do-code': code, 'do-mermaid': mermaid, 'do-push': push, 'do-library-download': libraryDownload, 'do-library-format': libraryFormat, 'do-library-frame': libraryFrame };
+const views = { 'do-call': call, 'do-slack-picture': connectorsPicture, 'do-dictation': dictation, 'do-creature': creature, 'do-portrait': portrait, 'do-gift': gift, 'do-wardrobe': wardrobe, 'do-sky': sky, 'do-markdown': markdown, 'do-code': code, 'do-mermaid': mermaid, 'do-push': push, 'do-library-download': libraryDownload, 'do-library-format': libraryFormat, 'do-library-frame': libraryFrame };
 export const abi = 1;
 export const roster = Object.fromEntries(Object.keys(views).map(tag => [tag, { snapshot: false }]));
 export function create(tag, element, json, event) {

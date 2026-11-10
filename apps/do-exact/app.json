@@ -42,6 +42,7 @@
     "do-code",
     "do-mermaid",
     "do-dictation",
+    "do-call",
     "do-push",
     "do-library-download",
     "do-library-format",

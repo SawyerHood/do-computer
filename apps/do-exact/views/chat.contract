@@ -1,3 +1,4 @@
+use CallInChat from "./call.contract"
 // A Dood's chat, as the React app's ChatView (apps/web/src/components/chat/chat-view.tsx): the
 // transcript, opened at its newest message and following it, the reply arriving as it is
 // written over the Dood's socket; what came before it; what the Dood waits on someone for;
@@ -81,10 +82,10 @@ members App
   // A command's chip says how its job is getting on (composer-jobs.contract has every job of the
   // Dood), joined here once rather than in each row.
   derive liveRows = composerJobList.length == 0 ? chat.messages : chat.messages.map(m => m.blocks.filter(b => b.kind == "command").length == 0 ? m : Message(m, blocks=m.blocks.map(b => b.kind == "command" ? withJob(b, composerJobList) : b)))
-  derive transcriptRows = (hasEarlier ? [markerRow("earlier")] : []).concat(earlierRows).concat(ours ? liveRows : []).concat(ours and chat.activity != "" ? [markerRow("working")] : [])
+  derive transcriptRows = (hasEarlier ? [markerRow("earlier")] : []).concat(earlierRows).concat(ours ? liveRows : []).concat(ours and chat.activity != "" ? [markerRow("working")] : []).concat((callView.active and callView.agentId == openAgentId and callView.chatId == openChatId or callView.wrapAgentId == openAgentId and callView.wrapChatId == openChatId and callView.wrapCallId != "" and not callRecordWritten) ? [markerRow("call")] : [])
   derive lastRowId = match transcriptRows.at(-1) { case some(m) => m.id, case none => "" }
   // What makes the transcript taller: a row more, or the newest one written further.
-  derive chatGrowth = `${transcriptRows.length}:${lastRowId}:${match chat.messages.at(-1) { case some(m) => sum(m.blocks.map(b => b.text.length)), case none => 0 }}`
+  derive chatGrowth = `${transcriptRows.length}:${lastRowId}:${match chat.messages.at(-1) { case some(m) => sum(m.blocks.map(b => b.text.length)), case none => 0 }}:${callView.lines.length}:${callView.you.length}:${callView.dood.length}`
   derive subagentStatuses = threadsListing.chats.filter(c => c.kind == "subagent").map(c => `${c.id}=${c.status}`)
   derive chatTeam = match first(workspaceList.filter(w => w.id == openDood.workspaceId and w.kind == "team")) { case some(w) => w.name, case none => "" }
   derive pendingComputers = computerAsks.owner == session.owner and computerAsks.agentId == openAgentId ? computerAsks.asks : []
@@ -326,6 +327,8 @@ component ChatScreen
                     row justify-content="center" padding="16px 16px 0"
                       button press=showEarlier disabled=earlierLoading class=QuietButton color="ink.muted" testId="show-earlier"
                         text (earlierLoading ? "Loading…" : "Show earlier messages")
+                  else if m.role == "call"
+                    CallInChat(agentId=page.agentId, chatId=chat.chatId)
                   else if m.role == "working"
                     Working(dood=dood, activity=chat.activity)
                   else

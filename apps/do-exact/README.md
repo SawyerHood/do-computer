@@ -35,13 +35,16 @@ Every page of the React app behind sign-in, at the same addresses, in its colour
   Doods', Slack's and old side chats each lead back. In a team, who has the chat open and who is
   typing.
 - **The composer**: drafts per chat, files picked, pasted or dropped, pictures made small, the
-  model and how hard it thinks, the microphone, running commands with their output and Stop,
-  and the Dood's other chats.
+  model and how hard it thinks, the microphone, the call button, running commands with their
+  output and Stop, and the Dood's other chats.
 - **Settings**, as the React app's settings window: a Dood's profile (name, tagline, colour, look,
   voice, personality, moving and deleting it), memory, model and computers, skills, connectors
   and Slack, permissions and usage; the person's General, Notifications (web push), Doods and
   Workspaces; a workspace's People, Computers, Models and Passwords; and for whoever looks after
   the deployment, Global models and the waiting list.
+- **Calls** with a Dood, wherever the deployment offers them: from the empty composer, the panel
+  or the name menu, with its creature listening, thinking and speaking, mute, the live words,
+  a card that stays while you go elsewhere, and a folded record in the chat afterwards.
 - **Teams**: making one, inviting by email or GitHub, links to pass on, accepting or leaving an
   invitation (also signed out), roles, handing the team on, renaming and deleting it, and who
   is here now.
@@ -54,7 +57,7 @@ Every page of the React app behind sign-in, at the same addresses, in its colour
   and conflicts, renaming, moving, downloading, deleting and restoring, history, pins (beside
   the chat, in the Dood's panel) and sharing with the workspace or anyone with a link.
 
-Not here: voice calls (being built on `exact-calls`), claiming a Dood hatched in a post, the
+Not here: claiming a Dood hatched in a post, the
 waiting list's own first run, and the public pages (`/dood/:id`, `/hatch`, `/s/…`, docs), which
 the deployment serves to everyone. GAPS.md has the rest.
 

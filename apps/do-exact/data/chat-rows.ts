@@ -194,7 +194,7 @@ function noticeBlock(part: NoticePart | undefined, id: string): Block {
     case 'call': {
       const call = part.call;
       return block(id, 'notice', {
-        status: kind, text: call === undefined ? '' : callLength(call.seconds), lines: call?.summary ?? [],
+        status: kind, text: call === undefined ? '' : callLength(call.seconds), lines: call?.summary ?? [], detail: call?.id ?? '', chatId: call?.chatId ?? '',
         more: (call?.lines ?? []).map((line) => `${line.who === 'you' ? 'You' : 'Dood'}: ${line.text}`).join('\n'),
       });
     }

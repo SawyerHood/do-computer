@@ -312,6 +312,29 @@ made from fetched bytes, so `library-download.js` makes a Blob address in a web 
 Uploads use Exact's file picker. Shared addresses are the deployment's `/s/:siteId` pages,
 including its own sign-in for restricted links. All three are web only.
 
+## Calls
+
+**The call's media is a web native view.** `do-call` (`modules/web/call.js`) holds the shared
+`packages/client` caller, its WebRTC adapter (`call-media.ts`), the remote player, the
+microphone and its analysers; Contract has the buttons, the live words, the card and the record,
+and authenticated writes go through `data/call.ts`. The view gets one-use socket tickets, never
+the session. No native host has calls. The test server has no voice provider: its scripted
+mode (`DC_CALLS_SCRIPT`) tests handoffs, replies and records, and a local WebRTC loopback tests
+capture, playback, the data channel, mute and clean-up; real speech, voice choice,
+interruption and a provider's limits have not been tried end to end.
+
+**Leaving the page may leave the write-up to the server.** React's `lib/call.ts` ends a call on
+`pagehide` with a keepalive request that carries the cookie, and so does this app when the
+deployment serves it. Across origins the view has no bearer, so the server writes the call up
+at its deadline instead of at once; likewise after signing out once the session is gone.
+
+**The call card is the web card on every size, a little plainer.** As React's web `CallCard`, a
+compact card that stays while navigating, not the phone app's full-screen call. It is in the
+app's teal, not the Dood's hue, has no animated rings, and does not move aside for a document
+beside the chat; over a short transcript it covers its top, as React's does (opening the wide
+panel puts the call there instead). Its activity shows the last five handoffs; a call's record
+is its words with who said them, not React's two columns.
+
 ## Native views and verification
 
 **Every native view is web only.** The creature, wardrobe, island, sky, Markdown, code,

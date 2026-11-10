@@ -273,6 +273,16 @@ parallel merges.
 - **Composer.** Drafts are per chat (`composerKey`) and kept for the session, as the React app's
   are. Picked, pasted and dropped files are read in data/composer.ts, so a drive that attaches
   one needs `--storage`.
+- **Calls.** views/call.contract has the call's members and views, data/call.ts its writes,
+  `modules/web/call.js` the media (bundled by `modules/web/call-build.mjs`; `--check` says
+  whether the committed output is fresh). Keep its seams as they are: one `CallSend` in the
+  composer, `CallWindow` at the root outside the route arms, the call's row in the transcript as
+  a marker in `transcriptRows` with its words in `chatGrowth` (the virtualised transcript takes
+  one direct `for`, so nothing else may be added beside it), and `callNameOf` local to
+  call.contract (shell.contract's `nameOf` would make an import cycle). Without a provider the
+  app offers no call; `DC_CALLS=on DC_CALLS_SCRIPT=1 ./x test web tests/calls/scripted.test.contract`
+  holds a scripted one, `node tools/call-browser-run.mjs` compares it with the React app and
+  checks WebRTC with a fake microphone, and `bun tools/call-data-check.ts` the data bridge.
 - **Teams.** Who is here comes from the team's presence socket (data/teams-here.ts); where this
   page is and whether its person is typing is said on it by `sayHere`, not by reopening it.
 
