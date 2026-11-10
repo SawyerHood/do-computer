@@ -22,7 +22,8 @@ if (chats.length !== reads) {
   console.error(run.stdout.slice(-2000), run.stderr.slice(-2000));
   throw new Error(`stream-check: ${chats.length} readings of the chat, expected ${reads}`);
 }
-const thoughts = chats.map((chat) => chat.messages[1]?.blocks.find((b) => b.kind === 'thinking')?.text ?? '');
+// The transcript draws no thinking, as the React app does not; the chat's answer carries it as `thought`.
+const thoughts = chats.map((chat) => chat.thought ?? '');
 let before = '';
 let lost = 0;
 for (const [at, thought] of thoughts.entries()) {

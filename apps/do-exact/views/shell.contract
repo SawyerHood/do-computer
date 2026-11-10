@@ -8,6 +8,7 @@ use DoodFace from "./creature.contract"
 use EmptyState from "exact:content"
 use TeamInfo, TeamInbox, teamOf, TeamHint from "./teams.contract"
 use SidebarDoodMenu from "./teams-sidebar.contract"
+use AskCounts from "./chat-shapes.contract"
 
 // What a hatch answers: the new Dood, to open it.
 shape Hatched
@@ -21,6 +22,8 @@ shape DoodPulse
   agentId: string
   changes: number
   lost: bool
+  // --- chat transcript --- what the chat shows of the Dood, counted (data/chat-asks.ts).
+  asks: AskCounts
 
 // The person's own feed (`/api/presence/personal:<user>`), counted the same way, for every Dood.
 shape Feed

@@ -99,3 +99,46 @@ style Field
 
 style FieldLabel
   font-size="0.875rem" font-weight=500 color="ink"
+
+// --- chat transcript ---
+// A card in the chat (a file, a site, a pin, a request for leave): raised off the page, as the
+// React app's `bg-card shadow-raised`.
+style Card
+  background-color="popover" color="ink"
+  box-shadow="0 0 0 1px var(--hairline), 0 1px 2px rgb(0 0 0 / 0.07)"
+
+// What floats over the transcript's top: the way back to the main chat, a thread's place in Slack.
+style FloatPill
+  display="flex" align-items="center" gap=4 min-height="2rem" padding="0 12px 0 8px" border-radius=999
+  font-size="0.8125rem" font-weight=500 color="ink.muted" text-decoration="none" background-color="popover"
+  box-shadow="0 0 0 1px var(--hairline), 0 1px 2px rgb(0 0 0 / 0.07)"
+// The React app's small outline button (`variant="outline" size="xs"/"sm"`).
+style OutlineButton
+  display="flex" align-items="center" gap=6 min-height="1.75rem" padding="0 10px" border-radius=8
+  font-size="0.8125rem" font-weight=400 color="ink" background-color="canvas" border="1px solid var(--border)"
+  text-decoration="none" white-space="nowrap"
+  :hover
+    background-color="wash"
+  :disabled
+    opacity=0.5
+
+// A button with nothing round it but a wash on hover (`variant="ghost"`).
+style QuietButton
+  display="flex" align-items="center" gap=6 min-height="1.75rem" padding="0 10px" border-radius=8
+  font-size="0.8125rem" color="ink" background-color="transparent" border="none" text-decoration="none"
+  :hover
+    background-color="wash"
+  :disabled
+    opacity=0.5
+
+// The round button that brings the transcript back to its newest message.
+style JumpButton
+  min-width="2rem" min-height="2rem" border-radius=999 display="flex" align-items="center" justify-content="center"
+  padding=0 border="none" color="ink" background-color="popover"
+  box-shadow="0 0 0 1px var(--hairline), 0 2px 6px rgb(0 0 0 / 0.12)"
+  :hover
+    background-color="muted"
+
+// A line the chat was told of (an answer, a report, a command that ended): a rule at its start.
+style EventLine
+  border-left="2px solid var(--border)" padding="2px 0 2px 12px" font-size="0.875rem" color="ink.muted"

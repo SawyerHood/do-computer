@@ -24,11 +24,10 @@ test "a long reply arrives piece by piece over the socket, and nothing of it is 
   // Part of the way: the thought is there, being written.
   expect state chat.busy == true
   expect state chat.lost == false
-  expect state chat.messages.1 .status == "streaming"
-  expect state chat.messages.1 .blocks.0 .kind == "thinking"
+  expect state chat.activity == "Thinking"
   clock until state chat.busy == false within 20000
   expect state chat.lost == false
-  expect state chat.messages.1 .blocks.0 .text == "Word1 Word2 Word3 Word4 Word5 Word6 Word7 Word8 Word9 Word10 Word11 Word12 Word13 Word14 Word15 Word16 Word17 Word18 Word19 Word20 Word21 Word22 Word23 Word24 Word25 Word26 Word27 Word28 Word29 Word30 Word31 Word32 Word33 Word34 Word35 Word36 Word37 Word38 Word39 Word40 Word41 Word42 Word43 Word44 Word45 Word46 Word47 Word48 Word49 Word50 Word51 Word52 Word53 Word54 Word55 Word56 Word57 Word58 Word59 Word60 Word61 Word62 Word63 Word64 Word65 Word66 Word67 Word68 Word69 Word70 Word71 Word72 Word73 Word74 Word75 Word76 Word77 Word78 Word79 Word80 Word81 Word82 Word83 Word84 Word85 Word86 Word87 Word88 Word89 Word90 Word91 Word92 Word93 Word94 Word95 Word96 Word97 Word98 Word99 Word100 Word101 Word102 Word103 Word104 Word105 Word106 Word107 Word108 Word109 Word110 Word111 Word112 Word113 Word114 Word115 Word116 Word117 Word118 Word119 Word120"
+  expect state chat.thought == "Word1 Word2 Word3 Word4 Word5 Word6 Word7 Word8 Word9 Word10 Word11 Word12 Word13 Word14 Word15 Word16 Word17 Word18 Word19 Word20 Word21 Word22 Word23 Word24 Word25 Word26 Word27 Word28 Word29 Word30 Word31 Word32 Word33 Word34 Word35 Word36 Word37 Word38 Word39 Word40 Word41 Word42 Word43 Word44 Word45 Word46 Word47 Word48 Word49 Word50 Word51 Word52 Word53 Word54 Word55 Word56 Word57 Word58 Word59 Word60 Word61 Word62 Word63 Word64 Word65 Word66 Word67 Word68 Word69 Word70 Word71 Word72 Word73 Word74 Word75 Word76 Word77 Word78 Word79 Word80 Word81 Word82 Word83 Word84 Word85 Word86 Word87 Word88 Word89 Word90 Word91 Word92 Word93 Word94 Word95 Word96 Word97 Word98 Word99 Word100 Word101 Word102 Word103 Word104 Word105 Word106 Word107 Word108 Word109 Word110 Word111 Word112 Word113 Word114 Word115 Word116 Word117 Word118 Word119 Word120"
 
 test "the sidebar hears from the feed of a Dood that is not open"
   size 1280x800

@@ -24,6 +24,9 @@ shape LibraryRow
 shape Library
   owner: string
   agentId: string
+  // Where its files are served as what they are, with no session (`/d/<agent>/<view>/`): what a
+  // chat's file card, picture and visual are had from.
+  base: string
   files: LibraryFile[]
   rows: LibraryRow[]
   deleted: LibraryFile[]

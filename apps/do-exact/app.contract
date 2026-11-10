@@ -10,7 +10,7 @@ use SidebarDialogs from "./views/teams-sidebar.contract"
 use ChatScreen from "./views/chat.contract"
 use LibraryScreen from "./views/library.contract"
 use LibraryFileCard, LibraryPictureViewer from "./views/library-card.contract"
-use LibraryDocumentPanel, LibraryPinsDock from "./views/pins.contract"
+use LibraryDocumentPanel from "./views/pins.contract"
 use ShareControls, Sites from "./views/sites.contract"
 use AutomationsScreen from "./views/automations.contract"
 use SkillsScreen from "./views/skills.contract"
@@ -180,6 +180,54 @@ component App
     teamEditInviteRole
     teamEditInviteNote
     teamSendInvites
+    // --- chat transcript ---
+    chatThread
+    mainChatId
+    transcriptRows
+    hasEarlier
+    earlierLoading = pending(earlier)
+    showEarlier
+    following
+    scrolled
+    readerWheel
+    readerDown
+    readerUp
+    readerKey
+    toLatest
+    deliveredNow
+    filesBase
+    chatLibraryIds
+    chatLibraryLinks
+    chatPicture
+    showPicture
+    openChatFile
+    markdownSaid
+    retry
+    putInComposer
+    pendingApprovals
+    pendingSecrets
+    pendingSignIns
+    answerApproval
+    answering = pending(allowed)
+    answerError
+    giveSecrets
+    giveLogin
+    declineSecrets
+    secretBusy = pending(secretGiven)
+    secretError
+    signInTo
+    notNowSignIn
+    signInBusy = (pending(signInAsked) or pending(signInDismissed))
+    signInError
+    subagentStatuses
+    chatTeam
+    pendingComputers
+    answerComputer
+    computerBusy = pending(computerAnswered)
+    computerError
+    chatWorkspaceId = openDood.workspaceId
+    libraryPinnedIds
+    librarySiteWords
     composerSettings
     composerModelsLoading = pending(composerConfig)
     composerModelsFailed = failed(composerConfig)
@@ -619,8 +667,9 @@ component App
             PasswordsScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=e.params.workspaceId))
         ShareControls()
         if onRoute == "dood" or onRoute == "chat"
-          LibraryPinsDock()
           LibraryDocumentPanel()
+          // --- chat transcript --- a picture opened from the chat, large; the chat opens it.
+          LibraryPictureViewer(pictures=[chatPicture], tag="chat", trigger=false)
         TeamDialogs()
         SidebarDialogs()
         // --- dood --- the creature's windows, and the first run's scene over everything

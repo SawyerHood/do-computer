@@ -35,10 +35,20 @@ what Exact cannot do yet.
   Doods. Every picture of a Dood is in its egg until it has hatched, wears what it has on, and
   acts out what its chat says: listening, thinking, at which kind of work, answering, done,
   troubled, waiting for an OK, asleep.
-- A Dood's main chat: the transcript, opened at its newest message and following it, with the
-  reply arriving as it is written, every piece of it, over the Dood's WebSocket. Text is drawn as Markdown;
-  thinking, tool calls and notices each have a plain row. Sending a message. Its panel beside
-  the chat, from its face in the pill.
+- A Dood's chat, as the React app's transcript draws it: opened at its newest message and
+  following it, with a way back to the newest when the reader has scrolled away, the reply
+  arriving as it is written over the Dood's WebSocket, and earlier messages a page at a time.
+  The Dood's words as Markdown; what it does on its own as one line while it does it ("Running:
+  …"); the files it sends, the visuals it draws (in a sandboxed frame), the sites it shares, what
+  it pins, the sub-agents it starts and the commands it leaves running, each as a card that says
+  how it stands now; notices of what it was told (a sub-agent reported back, someone allowed
+  something, a command ended), a reply that failed in plain words with Details and Try again, a
+  message that waits for the Dood as "Sending" and then "Delivered". Over the composer, what the
+  Dood waits on someone for: leave to do something, secrets or a login to type, a connector to
+  sign in to. A sub-agent's chat, a conversation with another Dood, a thread in Slack and an old
+  side chat each say whose they are, lead back, and have their own foot in the composer's place.
+  The composer (views/composer.contract) is under it. Its panel beside the chat, from its face
+  in the pill, with what is pinned to it.
 - Teams: create one with a colour, optional personal Doods and invitations; rename it, manage
   members and their roles, hand ownership on, leave, or delete an empty team. People and
   workspace settings use the shared settings frame; New team is in both its Workspaces list
@@ -127,13 +137,13 @@ React app (`apps/web/src/server/exact-app.ts`). Node only for now. `tools/same-o
 
 In the order it would be built:
 
-1. **The remaining pages.** Automations, skills, connectors and computers still have placeholder
-   bodies. Claiming a Dood hatched in a post, the waiting list's own first run and the public
-   Dood page (`/dood/:id`, `/hatch`) remain outside this signed-in client.
-2. **Transcript parity.** Earlier history, approval and queue interactions, and the remaining
-   tool presentations. Sending files, Stop and helper chats already work; see GAPS.md.
-3. **The rest of the shell.** Touch drag ordering, calls,
-   live presence, and the React app's wide sidebar that folds to a column of faces.
+1. **The remaining pages.** Automations, skills, connectors and computer-management bodies
+   remain placeholders. Claiming a Dood hatched in a post, the waiting list's own first run and
+   the public Dood page (`/dood/:id`, `/hatch`) remain outside this signed-in client.
+2. **The rest of a chat.** Slash commands, MCP apps, authenticated screen pictures, visual
+   message bridging and what GAPS.md's "Chat transcript" lists.
+3. **The rest of the shell.** Touch drag ordering, calls, team live presence, and the React
+   app's wide sidebar that folds to a column of faces.
 4. **Any deployment.** The address is a constant. A person should type it at sign-in, as on the
    phone, which needs the grant `net.fetch https:` and the address kept in the store.
 5. **Apple hosts.** Nothing here was built for iOS or macOS yet: that needs a Mac with Xcode.

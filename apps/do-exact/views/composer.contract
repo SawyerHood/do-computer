@@ -1,7 +1,7 @@
 use RunningCommands from "./composer-jobs.contract"
 use Reply from "./shapes.contract"
 use Composer, SendButton, IconButton, Menu, MenuItem, Field from "./styles.contract"
-use ThreadsMenu, ThreadFoot, ThreadListing from "./threads.contract"
+use ThreadsMenu, ThreadListing from "./threads.contract"
 
 shape ComposerDraft
   key: string
@@ -250,9 +250,8 @@ component ComposerBox
     column max-width="45rem" width="100%" margin="0 auto" padding="4px 16px 16px" box-sizing="border-box" flex-shrink=0 gap=8
       RunningCommands()
       ThreadsMenu(agentId=agentId, chatId=chatId, listing=threadsListing, loading=threadsLoading, failed=threadsFailed, retry=threadsRefresh)
-      if threadsReadOnly
-        ThreadFoot(agentId=agentId, chatId=chatId, listing=threadsListing, busy=busy, stop=composerStop)
-      else
+      // A chat read here and written in elsewhere has its foot in this place (views/chat.contract).
+      if not threadsReadOnly
         column gap=6 drop=composerDrop testId="composer-drop"
           if composerAttachments.length > 0 or composerUploading
             row flex-wrap="wrap" gap=6 align-items="flex-end" padding="0 8px" aria-label="Attached files" testId="attached-files"

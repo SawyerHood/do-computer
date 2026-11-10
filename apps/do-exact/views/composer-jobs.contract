@@ -7,6 +7,11 @@ shape ComposerJob
   computer: string
   started: number
   output: string
+  // --- chat transcript --- every job of the Dood, for the chips where they were started: how
+  // each stands ("running", "done", "failed", …), its chat, and how it ended in words.
+  status: string
+  chatId: string
+  ended: string
 
 shape ComposerJobs
   owner: string
@@ -15,7 +20,7 @@ shape ComposerJobs
 
 members App
   // --- composer commands ---
-  resource composerJobs = loadComposerJobs(session.owner, openAgentId, openChatId) as shape ComposerJobs else empty()
+  resource composerJobs = loadComposerJobs(session.owner, openAgentId, openChatId) with pulse.asks.jobs as shape ComposerJobs else empty()
   mutation composerJobStopped as shape Reply refreshes composerJobs
   task composerJobPoll when openAgentId != ""
     every(4000, composerRefreshJobs)
@@ -24,7 +29,8 @@ members App
   action composerStopJob(id: string)
     send composerJobStopped = stopComposerJob(openAgentId, id)
   derive composerJobError = pending(composerJobStopped) ? "" : match composerJobStopped { case some(r) => r.error, case none => "" }
-  derive composerRunning = composerJobs.owner == session.owner and composerJobs.agentId == openAgentId ? composerJobs.jobs : []
+  derive composerJobList = composerJobs.owner == session.owner and composerJobs.agentId == openAgentId ? composerJobs.jobs : []
+  derive composerRunning = composerJobList.filter(j => j.status == "running" and j.chatId == openChatId)
 
 component RunningCommands
   inject
