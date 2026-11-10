@@ -18,6 +18,7 @@ use DoodSettingsScreen from "./views/dood-settings.contract"
 use AccountScreen, GeneralScreen, DoodsListScreen, WorkspacesListScreen from "./views/settings-account.contract"
 use WorkspaceModelsScreen, ServerModelsScreen from "./views/settings-models.contract"
 use PasswordsScreen from "./views/settings-passwords.contract"
+use WaitlistScreen from "./views/settings-waitlist.contract"
 use NotificationsScreen from "./views/settings-notifications.contract"
 use WorkspaceHomeScreen from "./views/workspace.contract"
 use PeopleScreen from "./views/people.contract"
@@ -52,6 +53,7 @@ routes nav
     doodsList "/settings/doods"
     workspacesList "/settings/workspaces"
     serverModels "/settings/server"
+    waitlist "/settings/waitlist"
     workspace "/w/:workspaceId"
       people "/w/:workspaceId/people"
       workspaceSettings "/w/:workspaceId/settings"
@@ -79,6 +81,7 @@ component App
   members "./views/settings-models.contract"
   members "./views/settings-passwords.contract"
   members "./views/settings-notifications.contract"
+  members "./views/settings-waitlist.contract"
   // A new area adds its members line here, in its own place, in the order of the routes.
 
   // What any screen may `inject` instead of taking it as a prop.
@@ -150,6 +153,7 @@ component App
     openAccountSettings
     settingsReturn
     admin
+    hasWaitlist
     accountSetup
     accountOurs
     allModelList
@@ -247,6 +251,13 @@ component App
     enablePush
     disablePush
     testPushNow
+    // --- settings: waiting list ---
+    waitlist
+    waitlistFailed = failed(waitlist)
+    lettingIn
+    letInBusy = pending(letInDone)
+    letInError
+    letInNow
 
   // The Dood whose page is open (the deepest one in the stack), and the chat a `/c/` page names.
   derive openAgentId = match stack(nav).filter(e => e.params.agentId != "").at(-1) { case some(e) => e.params.agentId, case none => "" }
@@ -328,6 +339,8 @@ component App
             DoodsListScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
           if e.name == "workspacesList"
             WorkspacesListScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
+          if e.name == "waitlist"
+            WaitlistScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
           if e.name == "serverModels"
             ServerModelsScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
           // --- workspace ---

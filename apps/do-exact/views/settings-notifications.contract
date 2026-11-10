@@ -81,6 +81,7 @@ component NotificationsScreen
     page: Page
   inject
     admin: bool
+    hasWaitlist: bool
     settingsReturn: string
     session: Session
     pushKey: PushKey
@@ -94,7 +95,7 @@ component NotificationsScreen
     disablePush: action
     testPushNow: action
   view
-    AccountSettings(page=page, route="notifications", title="Notifications", lead="Hear from a Dood when it answers in a chat you do not have open, needs your OK, or reports on something it does on a schedule.", listing=false, admin=admin, close=settingsReturn)
+    AccountSettings(page=page, route="notifications", title="Notifications", lead="Hear from a Dood when it answers in a chat you do not have open, needs your OK, or reports on something it does on a schedule.", listing=false, admin=admin, waitlist=hasWaitlist, close=settingsReturn)
       do-push vapid=(pushKey.owner == session.owner ? pushKey.key : "") ask=pushCommand message=pushSaid width=0 height=0 aria-hidden=true testId="push-view"
       SettingsSection(title="This browser", hint="", testId="notifications-browser")
         text pushWords(pushState) role="status" class=Hint margin-top=-10 testId="notifications-state"

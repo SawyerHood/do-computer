@@ -38,13 +38,14 @@ fn doodEntries(agentId: string): SettingsEntry[] = [
 ]
 
 // What is the person's own, and what the deployment offers, for those who look after it (`OWN`, `SERVER`).
-fn accountEntries(admin: bool): SettingsEntry[] = [
+fn accountEntries(admin: bool, waitlist: bool): SettingsEntry[] = [
   SettingsEntry(route="general", href="/settings/general", label="General", icon="symbol:icon.gear", group=""),
   SettingsEntry(route="notifications", href="/settings/notifications", label="Notifications", icon="symbol:icon.bell", group=""),
   SettingsEntry(route="doodsList", href="/settings/doods", label="Doods", icon="symbol:icon.smiley", group=""),
   SettingsEntry(route="workspacesList", href="/settings/workspaces", label="Workspaces", icon="symbol:icon.squares-four", group="")
 ].concat(admin ? [
-  SettingsEntry(route="serverModels", href="/settings/server", label="Global models", icon="symbol:icon.hard-drives", group="Server"),
+  SettingsEntry(route="serverModels", href="/settings/server", label="Global models", icon="symbol:icon.hard-drives", group="Server")
+] : []).concat(admin and waitlist ? [
   SettingsEntry(route="waitlist", href="/settings/waitlist", label="Waiting list", icon="symbol:icon.hourglass", group="Server")
 ] : [])
 
@@ -316,15 +317,16 @@ component AccountSettings
     title: string
     lead: string
     listing: bool
-    // They look after the deployment, so its sections are listed.
+    // They look after the deployment, so its sections are listed; the waiting list where it has one.
     admin: bool
+    waitlist: bool
     // The page the settings were opened over, where the cross goes back to.
     close: string
   slot
   inject
     session: Session
   view
-    SettingsFrame(page=page, route=route, title=title, lead=lead, listing=listing, entries=accountEntries(admin),
+    SettingsFrame(page=page, route=route, title=title, lead=lead, listing=listing, entries=accountEntries(admin, waitlist),
       name="Settings", kind=session.name, seed="", color="", letter=session.initials,
       home="/settings", up="", upLabel="", close=close, dood=false)
       children

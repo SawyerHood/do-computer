@@ -195,16 +195,15 @@ component ServerModelsScreen
   inject
     session: Session
     admin: bool
+    hasWaitlist: bool
     settingsReturn: string
     workspaceList: Workspace[]
   derive own = match first(workspaceList.filter(x => x.kind == "personal")) { case some(x) => x.id, case none => "" }
   view
-    AccountSettings(page=page, route="serverModels", title="Global models", lead="", listing=false, admin=admin, close=settingsReturn)
-      row flex-wrap="wrap" gap=4 margin-top=-20
-        text "What everyone's Doods can run on without signing in to anything. A subscription or a key signed in here is shared with every workspace on this server. For your own Doods only, sign in under" class=Hint
-        link href=`/w/${own}/models` font-size="0.875rem" color="ink" text-decoration="underline" testId="server-models-own"
-          text "Models"
-        text "in your workspace's settings." class=Hint
+    AccountSettings(page=page, route="serverModels", title="Global models", lead="", listing=false, admin=admin, waitlist=hasWaitlist, close=settingsReturn)
+      // One sentence with a link in it, which a text's runs cannot hold: Markdown's.
+      text `What everyone's Doods can run on without signing in to anything. A subscription or a key signed in here is shared with every workspace on this server. For your own Doods only, sign in under [Models](/w/${own}/models) in your workspace's settings.`
+        markup="markdown" class=Hint margin-top=-20 testId="server-models-lead"
       ModelsBody(scopeId="deployment", w=workspaceOf(workspaceList, ""))
 
 // The deployment's own models, the providers, and the window that signs in to one (models.tsx `Section`).

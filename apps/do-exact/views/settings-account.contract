@@ -92,6 +92,7 @@ members App
   resource accountSetup = loadAccountSettings(accountOn ? session.owner : "") as shape AccountSetup else empty()
   derive accountOurs = accountSetup.owner == session.owner and session.owner != ""
   derive admin = accountOurs and accountSetup.admin
+  derive hasWaitlist = accountOurs and accountSetup.waitlist
   resource allModels = loadModelChoices(session.owner, "", onRoute == "account" or onRoute == "general") as shape ModelChoices else empty()
   derive allModelList = allModels.owner == session.owner and allModels.workspaceId == "" ? allModels.models : []
   mutation defaultModelSaved as shape Reply refreshes accountSetup
@@ -125,9 +126,10 @@ component AccountScreen
     page: Page
   inject
     admin: bool
+    hasWaitlist: bool
     settingsReturn: string
   view
-    AccountSettings(page=page, route="account", title="General", lead="Yours, whichever workspace you are in. What one Dood is like is set on that Dood, and what a workspace has is set on the workspace.", listing=true, admin=admin, close=settingsReturn)
+    AccountSettings(page=page, route="account", title="General", lead="Yours, whichever workspace you are in. What one Dood is like is set on that Dood, and what a workspace has is set on the workspace.", listing=true, admin=admin, waitlist=hasWaitlist, close=settingsReturn)
       GeneralBody()
 
 component GeneralScreen
@@ -135,9 +137,10 @@ component GeneralScreen
     page: Page
   inject
     admin: bool
+    hasWaitlist: bool
     settingsReturn: string
   view
-    AccountSettings(page=page, route="general", title="General", lead="Yours, whichever workspace you are in. What one Dood is like is set on that Dood, and what a workspace has is set on the workspace.", listing=false, admin=admin, close=settingsReturn)
+    AccountSettings(page=page, route="general", title="General", lead="Yours, whichever workspace you are in. What one Dood is like is set on that Dood, and what a workspace has is set on the workspace.", listing=false, admin=admin, waitlist=hasWaitlist, close=settingsReturn)
       GeneralBody()
 
 // The theme, and the defaults (general.tsx).
@@ -211,6 +214,7 @@ component DoodsListScreen
     page: Page
   inject
     admin: bool
+    hasWaitlist: bool
     settingsReturn: string
     session: Session
     doodsAbout: DoodsAbout
@@ -219,7 +223,7 @@ component DoodsListScreen
     hatch: action
   derive groups = doodsAbout.owner == session.owner ? doodsAbout.groups : []
   view
-    AccountSettings(page=page, route="doodsList", title="Doods", lead="Every Dood you can set up, by the workspace it is in. Choose one to change who it is, what it thinks with and what it may do.", listing=false, admin=admin, close=settingsReturn)
+    AccountSettings(page=page, route="doodsList", title="Doods", lead="Every Dood you can set up, by the workspace it is in. Choose one to change who it is, what it thinks with and what it may do.", listing=false, admin=admin, waitlist=hasWaitlist, close=settingsReturn)
       ErrorLine(text=hatchError, testId="doods-list-error")
       if doodsAbout.owner != session.owner
         progress aria-label="Loading"
@@ -251,13 +255,14 @@ component WorkspacesListScreen
     page: Page
   inject
     admin: bool
+    hasWaitlist: bool
     settingsReturn: string
     session: Session
     workspaceList: Workspace[]
     workspacesAbout: WorkspacesAbout
   derive ours = workspacesAbout.owner == session.owner
   view
-    AccountSettings(page=page, route="workspacesList", title="Workspaces", lead="Your own, and the teams you are in. A workspace has the computers its Doods work on and the models they can run on; a team has its people too.", listing=false, admin=admin, close=settingsReturn)
+    AccountSettings(page=page, route="workspacesList", title="Workspaces", lead="Your own, and the teams you are in. A workspace has the computers its Doods work on and the models they can run on; a team has its people too.", listing=false, admin=admin, waitlist=hasWaitlist, close=settingsReturn)
       column role="list"
         for w, i in workspaceList key=w.id
           link href=`/w/${w.id}/settings` role="listitem" aria-label=`${w.name}: workspace settings` display="flex" align-items="center" gap=12 padding="10px 6px"
