@@ -3,9 +3,10 @@
 // stream. An area's file (data/<area>.ts) uses these and nothing of fetch's own.
 import type { Store } from '../app.contract.d.ts';
 
-// The deployment's address: server.ts listens on it for the tests and the dev loop. app.ts's
+// The deployment's address, which app.ts reads from its setting and hands over before any source runs. app.ts's
 // `grants` names it too.
-export const API = 'http://127.0.0.1:3911';
+export let API = '';
+export const setApi = (address: string) => { API = address; };
 
 /** The name the session is kept under: what a sign-in's `set-auth-token` header handed over. */
 const SESSION = 'session';

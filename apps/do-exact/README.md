@@ -55,7 +55,7 @@ bun exact.mjs mac --run                    # on a Mac: the macOS app
 ```
 
 `server.ts` starts `apps/web` on port 3911 with an empty data folder and no model key, so a Dood
-answers with the echo model. The address is `API` in `data/api.ts` (and `grants` in `app.ts`).
+answers with the echo model. The address is the `API_BASE_URL` setting, read in `app.ts`; `./x` sets it.
 
 The web build is served from its own origin, so the server has to be told about it:
 `DC_CLIENT_ORIGINS=http://127.0.0.1:8766`, which `server.ts` sets and which is why the commands

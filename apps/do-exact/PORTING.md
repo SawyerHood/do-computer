@@ -52,10 +52,12 @@ build compiles Rust for a minute or two; later ones take seconds.
   `.exact/shots/exact/`; `node tools/react-shots.mjs` takes the React app's same screens into
   `.exact/shots/react/`, on a server of its own on port 3990. Hold them side by side.
 - `./x verify` at the end of a piece of work: tests, layout checks light and dark, a relaunch.
-- `./x` takes a machine-wide lock around the verbs that use ports 3911 and 8766, because other
-  agents work in other checkouts on this machine. Never start `server.ts`, the React dev
-  server or anything else on those ports yourself and leave it running; never `pkill` by a
-  broad pattern.
+- **Ports.** Other agents work in other checkouts on this machine. A checkout's `.slot` file
+  holds a number that moves both its ports (the server's 3911 + slot, the page's 8766 + slot),
+  and `./x` takes a lock per slot around the verbs that use them. Use the slot you were given
+  (`echo 3 > .slot`); without one you share slot 0 and wait your turn. Never start `server.ts`,
+  the React dev server or anything else on those ports yourself and leave it running; never
+  `pkill` by a broad pattern. The React app for comparison is at the server's port.
 
 ## Structure
 

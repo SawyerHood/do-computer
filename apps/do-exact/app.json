@@ -38,5 +38,8 @@
     "do-gift",
     "do-wardrobe",
     "do-sky"
+  ],
+  "env": [
+    "API_BASE_URL"
   ]
 }
