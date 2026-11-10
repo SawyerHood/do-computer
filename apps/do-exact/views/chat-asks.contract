@@ -1,0 +1,296 @@
+// What the Dood waits on someone for, over the composer in every chat of it, as the React app's
+// PendingApprovals (approvals.tsx), PendingSecrets and PendingSignIns (secrets.tsx): leave to do
+// something, secrets or a login to type, a connector to sign in to. What is typed is held in the
+// card until it is sent, and goes nowhere else.
+use Workspace from "./shapes.contract"
+use Card, OutlineButton, QuietButton, PrimaryButton, Field, FieldLabel from "./styles.contract"
+use ApprovalAsk, SecretAsk, SecretField, SignInAsk from "./chat-shapes.contract"
+
+component Asks
+  props
+    agentId: string
+    // The Dood's name, as each card says who asks.
+    name: string
+    // The chat on screen: an ask from another one says where it came from.
+    chatId: string
+    workspaceId: string
+  inject
+    pendingApprovals: ApprovalAsk[]
+    pendingSecrets: SecretAsk[]
+    pendingSignIns: SignInAsk[]
+    // In a team, anyone in it can answer.
+    chatTeam: string
+  derive team = chatTeam
+  view
+    if pendingApprovals.length > 0
+      column width="100%" max-width="48rem" margin="0 auto" padding="0 16px 8px" box-sizing="border-box" gap=8 flex-shrink=0
+        role="list" aria-label="Waiting for your OK" testId="approvals"
+        for r in pendingApprovals key=r.id
+          ApprovalCard(request=r, agentId=agentId, name=name, here=(r.chatId == chatId), team=team)
+    if pendingSignIns.length > 0
+      column width="100%" max-width="48rem" margin="0 auto" padding="0 16px 8px" box-sizing="border-box" gap=8 flex-shrink=0
+        role="list" aria-label="Connectors to sign in to" testId="sign-ins"
+        for c in pendingSignIns key=c.id
+          SignInCard(connector=c, name=name)
+    if pendingSecrets.length > 0
+      scroll width="100%" max-width="48rem" margin="0 auto" padding="0 16px 8px" box-sizing="border-box" max-height="60vh" flex-shrink=0
+        role="list" aria-label="Secrets it asked for" testId="secret-asks"
+        column gap=8
+          for s in pendingSecrets key=s.id
+            if s.kind == "login"
+              LoginCard(ask=s, agentId=agentId, name=name, here=(s.chatId == chatId), team=team)
+            else
+              SecretCard(ask=s, agentId=agentId, name=name, here=(s.chatId == chatId), team=team)
+
+// Where an ask came from, when that is not the chat on screen.
+component AskedIn
+  props
+    agentId: string
+    chatId: string
+    lead: string
+    title: string
+  view
+    row flex-wrap="wrap" font-size="0.75rem" color="ink.muted"
+      text lead white-space="pre"
+      link href=path("chat", agentId, chatId) color="ink.muted" text-decoration="underline"
+        text title
+
+// One thing the Dood asks leave for: what, the specifics, and the three answers.
+component ApprovalCard
+  props
+    request: ApprovalAsk
+    agentId: string
+    name: string
+    here: bool
+    team: string
+  inject
+    answerApproval: action
+    answering: bool
+    answerError: string
+  // A card's security code, typed with a yes, held here until it is sent.
+  state typed = ""
+  derive ready = request.wants == "" or (typed.length >= 3 and typed.length <= 4 and parseNumber(typed) != none)
+  view
+    column gap=10 padding=14 border-radius=16 class=Card role="listitem" testId=`approval-${request.id}`
+      row gap=10 align-items="flex-start"
+        image "symbol:icon.shield-check" color="ink.muted" aria-hidden=true margin-top=2 flex-shrink=0
+        column flex=1 min-width=0 gap=2
+          text font-size="0.875rem" testId=`approval-title-${request.id}`
+            text name font-weight=500
+            text " wants to: "
+            text request.title font-weight=500
+          if not here
+            AskedIn(agentId=agentId, chatId=request.chatId, lead=(request.chatKind == "schedule" ? "In the scheduled run " : request.chatKind == "subagent" ? "From the sub-agent " : request.chatKind == "agent" ? "In a conversation with another Dood " : request.chatKind == "slack" ? "In the Slack thread " : "In the chat "), title=request.chatTitle)
+          if request.chatKind == "subagent" and request.task != ""
+            // A sub-agent reads what it finds, and what it finds can ask for things in its name.
+            text `Asked while working on: “${request.task}”. Allow it only if you expected it.` font-size="0.75rem" color="ink.muted"
+      if request.detail != ""
+        text request.detail font-family="Geist Mono" font-size="0.75rem" white-space="pre-wrap" overflow-wrap="anywhere"
+          max-height=160 overflow="auto" padding="8px 12px" border-radius=8 background-color="muted" testId=`approval-detail-${request.id}`
+      if request.wants != ""
+        column gap=6
+          text request.wants class=FieldLabel
+          input type="password" inputmode="numeric" autocomplete="off" maxlength=4 value=typed input=editTyped submit=allowOnce disabled=answering
+            aria-label=request.wants class=Field width="6rem" font-family="Geist Mono" testId=`approval-typed-${request.id}`
+      if answerError != ""
+        text answerError role="alert" font-size="0.875rem" color="danger"
+      row gap=8 flex-wrap="wrap" align-items="center"
+        button press=allowOnce disabled=(answering or not ready) class=PrimaryButton testId=`allow-once-${request.id}`
+          text "Allow once"
+        // Asked about every time, "always" changes nothing.
+        if not request.onceOnly
+          button press=allowAlways disabled=answering class=OutlineButton min-height="2.125rem" testId=`allow-always-${request.id}`
+            text "Always allow"
+        button press=deny disabled=answering class=QuietButton min-height="2.125rem" testId=`deny-${request.id}`
+          text "Don’t allow"
+        if team != ""
+          text `Anyone in ${team} can answer` margin-left="auto" font-size="0.75rem" color="ink.muted"
+  action editTyped(v: string)
+    typed = v
+  action allowOnce
+    if ready
+      answerApproval(request.id, "once", typed)
+      typed = ""
+  action allowAlways
+    answerApproval(request.id, "always", typed)
+    typed = ""
+  action deny
+    answerApproval(request.id, "deny", "")
+    typed = ""
+
+// Secrets the Dood asked for, saved to a file on a computer or as a connector's access token.
+component SecretCard
+  props
+    ask: SecretAsk
+    agentId: string
+    name: string
+    here: bool
+    team: string
+  inject
+    giveSecrets: action
+    declineSecrets: action
+    secretBusy: bool
+    secretError: string
+  // What is typed, in the order of the fields, and which are shown as typed.
+  state values: string[] = []
+  state shown: string[] = []
+  state problem = ""
+  derive one = ask.fields.length == 1
+  view
+    column gap=12 padding=14 border-radius=16 class=Card role="listitem" testId=`secret-${ask.id}`
+      row gap=10 align-items="flex-start"
+        image "symbol:icon.key" color="ink.muted" aria-hidden=true margin-top=2 flex-shrink=0
+        column flex=1 min-width=0 gap=2
+          text font-size="0.875rem" testId=`secret-title-${ask.id}`
+            text name font-weight=500
+            if ask.subagent != ""
+              text "’s sub-agent "
+              text ask.subagent font-weight=500
+            text (ask.kind == "connector" ? " asks for the access token of " : one ? " asks for a secret" : ` asks for ${ask.fields.length} secrets`)
+            if ask.kind == "connector"
+              text ask.name font-weight=500
+          if ask.purpose != ""
+            text `“${ask.purpose}”` font-size="0.875rem" color="ink.muted" testId=`secret-purpose-${ask.id}`
+          text font-size="0.75rem" color="ink.muted" margin-top=4 overflow-wrap="anywhere"
+            if ask.kind == "connector"
+              text "Kept with the connector at "
+              text ask.place font-family="Geist Mono"
+              text " and sent only there. "
+            else
+              text "Saved to "
+              text ask.name font-family="Geist Mono" color="ink"
+              text " on "
+              text ask.place font-family="Geist Mono"
+              text ". "
+            text `What you type is not put in the chat or shown to ${name}.`
+          if not here
+            AskedIn(agentId=agentId, chatId=ask.chatId, lead=(ask.subagent == "" ? "Asked in " : "From the sub-agent "), title=(ask.subagent == "" ? "another chat" : ask.subagent))
+          if ask.subagent != ""
+            text `Asked while working on: “${ask.task}”. Fill it in only if you expected it.` font-size="0.75rem" color="ink.muted"
+      column gap=12
+        for f, i in ask.fields key=f.name
+          column gap=4 min-width=0
+            text (ask.kind == "connector" ? "Access token" : f.name) class=FieldLabel font-family="Geist Mono" font-size="0.75rem"
+            if f.description != ""
+              text f.description font-size="0.75rem" color="ink.muted" testId=`secret-field-note-${f.name}`
+            row position="relative" align-items="center"
+              input type=(shown.includes(f.name) ? "text" : "password") autocomplete="off" autocapitalize="none" value=valueAt(values, i) input=edit(i)
+                disabled=secretBusy aria-label=f.name class=Field flex=1 min-width=0 padding="0 40px 0 10px" font-family="Geist Mono" testId=`secret-field-${f.name}`
+              button press=toggleShown(f.name) aria-label=`${shown.includes(f.name) ? "Hide" : "Show"} ${f.name}` aria-pressed=shown.includes(f.name) disabled=secretBusy
+                position="absolute" right=4 class=QuietButton padding="0 6px" testId=`secret-show-${f.name}`
+                image (shown.includes(f.name) ? "symbol:icon.eye-slash" : "symbol:icon.eye") aria-hidden=true
+      if problem != "" or secretError != ""
+        text (problem != "" ? problem : secretError) role="alert" font-size="0.875rem" color="danger" testId=`secret-error-${ask.id}`
+      row gap=8 flex-wrap="wrap" align-items="center"
+        button press=save disabled=secretBusy class=PrimaryButton testId=`secret-save-${ask.id}`
+          text (secretBusy ? "Saving…" : one ? "Save secret" : "Save secrets")
+        button press=notNow disabled=secretBusy class=QuietButton min-height="2.125rem" testId=`secret-decline-${ask.id}`
+          text "Not now"
+        if team != ""
+          text `Anyone in ${team} can answer` margin-left="auto" font-size="0.75rem" color="ink.muted"
+  action edit(i: number, v: string)
+    problem = ""
+    values = ask.fields.map((f, j) => j == i ? v : valueAt(values, j))
+  action toggleShown(field: string)
+    shown = shown.includes(field) ? shown.filter(s => s != field) : shown.concat([field])
+  // Why a value cannot be saved, the first one's: as the React app's `problemWith`.
+  action save
+    let wrong = ask.fields.map((f, j) => problemWith(f.name, valueAt(values, j))).filter(p => p != "")
+    problem = match wrong.at(0) { case some(p) => p, case none => "" }
+    if wrong.length == 0
+      giveSecrets(ask.id, ask.fields.map(f => f.name), ask.fields.map((f, j) => valueAt(values, j)))
+      values = []
+  action notNow
+    declineSecrets(ask.id)
+
+fn valueAt(values: string[], i: number): string = match values.at(i) { case some(v) => v, case none => "" }
+fn problemWith(name: string, value: string): string = value == "" ? `Type a value for ${name}.` : (value.length > 16384 ? `${name} is too long to save.` : "")
+
+// A login the Dood asked for, to sign in on a site with: kept by the workspace, typed only there.
+component LoginCard
+  props
+    ask: SecretAsk
+    agentId: string
+    name: string
+    here: bool
+    team: string
+  inject
+    giveLogin: action
+    declineSecrets: action
+    secretBusy: bool
+    secretError: string
+  state username = ""
+  state password = ""
+  view
+    column gap=12 padding=14 border-radius=16 class=Card role="listitem" testId=`login-${ask.id}`
+      row gap=10 align-items="flex-start"
+        image "symbol:icon.key" color="ink.muted" aria-hidden=true margin-top=2 flex-shrink=0
+        column flex=1 min-width=0 gap=2
+          text font-size="0.875rem" overflow-wrap="anywhere"
+            text name font-weight=500
+            if ask.subagent != ""
+              text "’s sub-agent "
+              text ask.subagent font-weight=500
+            text " needs a login for "
+            text ask.name font-weight=500
+          if ask.purpose != ""
+            text `“${ask.purpose}”` font-size="0.875rem" color="ink.muted"
+          text `Kept encrypted by Do Computer. ${name} can sign in with it on ${ask.name} and cannot read it.` font-size="0.75rem" color="ink.muted" margin-top=4
+          if not here
+            AskedIn(agentId=agentId, chatId=ask.chatId, lead=(ask.subagent == "" ? "Asked in " : "From the sub-agent "), title=(ask.subagent == "" ? "another chat" : ask.subagent))
+      column gap=4
+        text "Username or email" class=FieldLabel
+        input value=username input=editUsername autocomplete="off" autocapitalize="none" disabled=secretBusy aria-label="Username or email" class=Field testId=`login-username-${ask.id}`
+      column gap=4
+        text "Password" class=FieldLabel
+        input type="password" value=password input=editPassword autocomplete="off" disabled=secretBusy aria-label="Password" class=Field testId=`login-password-${ask.id}`
+      if secretError != ""
+        text secretError role="alert" font-size="0.875rem" color="danger"
+      row gap=8 flex-wrap="wrap" align-items="center"
+        button press=save disabled=secretBusy class=PrimaryButton testId=`login-save-${ask.id}`
+          text (secretBusy ? "Saving…" : "Save")
+        button press=notNow disabled=secretBusy class=QuietButton min-height="2.125rem"
+          text "Not now"
+        if team != ""
+          text `Anyone in ${team} can answer` margin-left="auto" font-size="0.75rem" color="ink.muted"
+  action editUsername(v: string)
+    username = v
+  action editPassword(v: string)
+    password = v
+  action save
+    giveLogin(ask.id, ask.name, username, password)
+    password = ""
+  action notNow
+    declineSecrets(ask.id)
+
+// A connector the Dood added that someone has to sign in to before it can be used.
+component SignInCard
+  props
+    connector: SignInAsk
+    name: string
+  inject
+    signInTo: action
+    notNowSignIn: action
+    signInBusy: bool
+    signInError: string
+  view
+    column gap=10 padding=14 border-radius=16 class=Card role="listitem" testId=`sign-in-${connector.id}`
+      row gap=10 align-items="flex-start"
+        image "symbol:icon.plugs-connected" color="ink.muted" aria-hidden=true margin-top=2 flex-shrink=0
+        column flex=1 min-width=0 gap=2
+          text font-size="0.875rem"
+            text name font-weight=500
+            text " added the connector "
+            text connector.name font-weight=500
+            text ", which needs you to sign in"
+          text font-size="0.75rem" color="ink.muted" overflow-wrap="anywhere"
+            text "You sign in at "
+            text connector.host font-family="Geist Mono"
+            text ` and come back here. ${name} never sees your password.`
+      if signInError != ""
+        text signInError role="alert" font-size="0.875rem" color="danger"
+      row gap=8
+        button press=signInTo(connector.id) disabled=signInBusy class=PrimaryButton
+          text "Sign in"
+        button press=notNowSignIn(connector.id) disabled=signInBusy class=QuietButton min-height="2.125rem"
+          text "Not now"

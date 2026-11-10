@@ -70,6 +70,41 @@ component App
     signOut
     togglePanel
     back
+    // --- chat transcript ---
+    chatContext
+    chatInfo
+    mainChatId
+    transcriptRows
+    hasEarlier
+    earlierLoading = pending(earlier)
+    showEarlier
+    atEnd
+    scrolled
+    toLatest
+    stopTurn
+    stopChatOf
+    deliveredNow
+    filesBase
+    libraryFiles
+    retry
+    putInComposer
+    pendingApprovals
+    pendingSecrets
+    pendingSignIns
+    answerApproval
+    answering = pending(allowed)
+    answerError
+    giveSecrets
+    giveLogin
+    declineSecrets
+    secretBusy = pending(secretGiven)
+    secretError
+    signInTo
+    notNowSignIn
+    signInBusy = (pending(signInAsked) or pending(signInDismissed))
+    signInError
+    subagentStatuses
+    chatTeam
 
   // The Dood whose page is open (the deepest one in the stack), and the chat a `/c/` page names.
   derive openAgentId = match stack(nav).filter(e => e.params.agentId != "").at(-1) { case some(e) => e.params.agentId, case none => "" }

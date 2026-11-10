@@ -1,0 +1,80 @@
+// Pages shown in the chat, in frames kept apart from the app: a visual the Dood drew
+// (apps/web/src/components/chat/visual.tsx) and a connector's page for one of its tools
+// (mcp-app.tsx). Exact's `iframe` takes the React app's sandbox; what it cannot do is in GAPS.md
+// ("Chat transcript").
+use Block from "./chat-shapes.contract"
+use OutlineButton from "./styles.contract"
+
+// A visual, in the chat: the page itself, as tall as it says it is, on the chat's background.
+// It is a file of the library, served without a session at the library's view address.
+component VisualFrame
+  props
+    block: Block
+    agentId: string
+    doodName: string
+    base: string
+  inject
+    libraryFiles: string[]
+    putInComposer: action
+  state height = 240
+  state failure = ""
+  derive gone = base != "" and not libraryFiles.includes(block.fileId)
+  view
+    if gone
+      text `“${block.name}” is no longer in the library, so it cannot be shown here.` font-size="0.875rem" color="ink.muted" padding="0 4px" testId=`visual-gone-${block.fileId}`
+    else
+      column gap=6 width="100%" testId=`visual-${block.fileId}`
+        column position="relative" width="100%" height=frameHeight(height) role="figure" aria-label=`Visual: ${block.name}`
+          if base != ""
+            // No `allow-same-origin`: the page must not be the app, though the app's server serves it.
+            iframe id=`visual-frame-${block.id}` src=`${base}${block.path}` title=block.name sandbox="allow-scripts allow-popups allow-forms allow-modals"
+              message=heard width="100%" height="100%" border="none" background-color="transparent" testId=`visual-frame-${block.fileId}`
+          row position="absolute" top=0 right=0 gap=4
+            link href=`${path("library", agentId)}?file=${block.fileId}` aria-label="Open in the library" title="Open in the library"
+              display="flex" align-items="center" justify-content="center" width=30 height=30 border-radius=8 color="ink.muted"
+              background-color="canvas" border="1px solid var(--border)" testId=`visual-open-${block.fileId}`
+              image "symbol:icon.arrows-out" aria-hidden=true font-size="1rem"
+        if failure != ""
+          // A script of the page's failed, so what is above may be half of what was meant.
+          row gap=8 align-items="center" flex-wrap="wrap" padding="0 4px" font-size="0.875rem" color="ink.muted" role="status" testId=`visual-failed-${block.fileId}`
+            image "symbol:icon.warning-circle" aria-hidden=true
+            text "Something in this page did not work."
+            button press=tell font-weight=500 color="ink" text-decoration="underline" background-color="transparent" border="none" padding=0
+              text `Tell ${doodName}`
+  // What the page says comes as its JSON's text. It says how tall it is, and what failed in it.
+  action heard(said: string)
+    if said.includes("ui/notifications/size-changed")
+      height = numberAfter(said, "\"height\":", height)
+    if said.includes("notifications/message") and said.includes("\"level\":\"error\"") and failure == ""
+      failure = stringAfter(said, "\"data\":\"")
+  action tell
+    putInComposer(`The page “${block.name}” did not work when I opened it. It said: ${failure}`)
+
+// As tall as a visual's page says it is, within what a reply holds (protocol/visual.ts `visualFrameHeight`).
+fn frameHeight(h: number): number = h < 40 ? 40 : (h > 1600 ? 1600 : round(h))
+// The number after a key in a line of JSON, else the fallback.
+fn numberAfter(said: string, key: string, fallback: number): number = match said.split(key).at(1) {
+  case some(rest) => match parseNumber(match rest.split("}").at(0) { case some(t) => t, case none => "" }) { case some(n) => n, case none => fallback },
+  case none => fallback
+}
+// The string after a key in a line of JSON, up to its closing quote, as far as that can be told.
+fn stringAfter(said: string, key: string): string = match said.split(key).at(1) {
+  case some(rest) => match rest.split("\"}").at(0) { case some(t) => t, case none => rest },
+  case none => "it did not say what."
+}
+
+// A connector's page for one of its tools. The React app hosts it (lib/mcp-app-host.ts) with
+// messages Exact's frame cannot carry, from an address that needs the session: so it says
+// whose it is and that it is not shown here (GAPS.md).
+component McpAppFrame
+  props
+    block: Block
+  view
+    column gap=6 width="100%" testId=`mcp-app-${block.fileId}`
+      row gap=6 align-items="center" padding="0 4px" font-size="0.75rem" color="ink.muted"
+        image "symbol:icon.plugs-connected" aria-hidden=true font-size="0.875rem"
+        text
+          text "From "
+          text block.name font-weight=500 color="ink"
+      column padding="14px 16px" border-radius=12 border="1px solid var(--hairline)" font-size="0.875rem" color="ink.muted"
+        text `${block.text}: this page can be opened in Do Computer’s web app.`
