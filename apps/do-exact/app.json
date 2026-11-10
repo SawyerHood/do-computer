@@ -37,6 +37,9 @@
     "do-portrait",
     "do-gift",
     "do-wardrobe",
-    "do-sky"
+    "do-sky",
+    "do-markdown",
+    "do-code",
+    "do-mermaid"
   ]
 }

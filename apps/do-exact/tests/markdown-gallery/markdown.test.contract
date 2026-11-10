@@ -1,0 +1,19 @@
+test "rich text and standalone blocks mount at natural height"
+  clock data
+  expect tree has "rich"
+  expect tree has "code"
+  expect tree has "mermaid"
+  expect text "ready" == "true"
+  tap "mount"
+  expect tree missing "rich"
+  tap "mount"
+  clock data
+  expect tree has "rich"
+
+test "a reply streams prose, an open code fence and a completed block on Exact time"
+  clock data
+  tap "start"
+  clock +3600
+  expect text "step" == "6"
+  expect state streaming == false
+  expect tree has "rich"

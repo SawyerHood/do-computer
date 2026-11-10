@@ -1,0 +1,5 @@
+/.exact/
+/target/
+/modules/
+/views/
+/app.contract.d.ts

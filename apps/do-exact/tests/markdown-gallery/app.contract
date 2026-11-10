@@ -1,0 +1,98 @@
+use MessageText from "./views/markdown.contract"
+
+component App
+  state rich = "# A reply with everything\n\nSome **bold**, *italic*, ~~struck~~ and `inline code`. [Exact](https://github.com/expo/exact), www.example.com, a [reference][ref] and [this heading](#a-reply-with-everything).\n\n[ref]: https://example.com\n\n- An item\n  - Nested **item**\n- [x] A finished task\n- [ ] A task left\n\n1. First\n2. Second\n\n> A quiet quote.\n\n> [!TIP]\n> A GitHub alert with **bold** text.\n\n---\n\nSetext heading\n-------------\n\n<details><summary>More detail</summary>\n\nUse <kbd>Ctrl</kbd> + <kbd>C</kbd>, H<sub>2</sub>O, x<sup>2</sup>, and <mark>marked words</mark>.\n\n</details>\n\nA footnote[^one].\n\n[^one]: Its words.\n\n[File](notes/hello.md) and @sawyer (plain text, as in React). Math $a^2+b^2=c^2$ stays literal in both apps.\n\n![Private remote](https://example.invalid/picture.png)\n\n![Missing library picture](pictures/missing.png)\n\n<script>alert(1)</script>\n\n[Unsafe](javascript:alert)"
+  state sample = "## Syntax and scrolling\n\nA closed block is highlighted; an open one stays plain.\n\n```ts\nconst greeting: string = 'Hello';\nconsole.log(greeting); // the same CSS-variable Shiki theme as React\nconst wide = 'This deliberately long line should scroll sideways without making the message or page any wider than the phone screen';\n```\n\n| Name | State | A wide description | Count |\n| :--- | :---: | --- | ---: |\n| **Pip** | Ready | A description containing a long but ordinary sentence with many words | 123 |\n| Moss | Working | `a-long-unbroken-identifier-that-needs-horizontal-space` | 42 |\n\n```mermaid\nflowchart LR\n A[Ask] --> B{Ready?}\n B -->|Yes| C[Reply]\n B -->|No| A\n```\n\n```made-up-language\n<safe plain fallback>\n```"
+  state wide = "| Column one | Column two | Column three | Column four | Column five | Column six |\n| --- | --- | --- | --- | --- | --- |\n| abcdefghijklmnopqrstuvwxyz0123456789 | abcdefghijklmnopqrstuvwxyz0123456789 | abcdefghijklmnopqrstuvwxyz0123456789 | abcdefghijklmnopqrstuvwxyz0123456789 | abcdefghijklmnopqrstuvwxyz0123456789 | abcdefghijklmnopqrstuvwxyz0123456789 |"
+  state longCode = "const value0 = 0; // a long block, line 1\nconst value1 = 1; // a long block, line 2\nconst value2 = 2; // a long block, line 3\nconst value3 = 3; // a long block, line 4\nconst value4 = 4; // a long block, line 5\nconst value5 = 5; // a long block, line 6\nconst value6 = 6; // a long block, line 7\nconst value7 = 7; // a long block, line 8\nconst value8 = 8; // a long block, line 9\nconst value9 = 9; // a long block, line 10\nconst value10 = 10; // a long block, line 11\nconst value11 = 11; // a long block, line 12\nconst value12 = 12; // a long block, line 13\nconst value13 = 13; // a long block, line 14\nconst value14 = 14; // a long block, line 15\nconst value15 = 15; // a long block, line 16\nconst value16 = 16; // a long block, line 17\nconst value17 = 17; // a long block, line 18\nconst value18 = 18; // a long block, line 19\nconst value19 = 19; // a long block, line 20\nconst value20 = 20; // a long block, line 21\nconst value21 = 21; // a long block, line 22\nconst value22 = 22; // a long block, line 23\nconst value23 = 23; // a long block, line 24\nconst value24 = 24; // a long block, line 25\nconst value25 = 25; // a long block, line 26\nconst value26 = 26; // a long block, line 27\nconst value27 = 27; // a long block, line 28\nconst value28 = 28; // a long block, line 29\nconst value29 = 29; // a long block, line 30\nconst value30 = 30; // a long block, line 31\nconst value31 = 31; // a long block, line 32\nconst value32 = 32; // a long block, line 33\nconst value33 = 33; // a long block, line 34\nconst value34 = 34; // a long block, line 35\nconst value35 = 35; // a long block, line 36\nconst value36 = 36; // a long block, line 37\nconst value37 = 37; // a long block, line 38\nconst value38 = 38; // a long block, line 39\nconst value39 = 39; // a long block, line 40\nconst value40 = 40; // a long block, line 41\nconst value41 = 41; // a long block, line 42\nconst value42 = 42; // a long block, line 43\nconst value43 = 43; // a long block, line 44\nconst value44 = 44; // a long block, line 45\nconst value45 = 45; // a long block, line 46\nconst value46 = 46; // a long block, line 47\nconst value47 = 47; // a long block, line 48\nconst value48 = 48; // a long block, line 49\nconst value49 = 49; // a long block, line 50\nconst value50 = 50; // a long block, line 51\nconst value51 = 51; // a long block, line 52\nconst value52 = 52; // a long block, line 53\nconst value53 = 53; // a long block, line 54\nconst value54 = 54; // a long block, line 55\nconst value55 = 55; // a long block, line 56\nconst value56 = 56; // a long block, line 57\nconst value57 = 57; // a long block, line 58\nconst value58 = 58; // a long block, line 59\nconst value59 = 59; // a long block, line 60\nconst value60 = 60; // a long block, line 61\nconst value61 = 61; // a long block, line 62\nconst value62 = 62; // a long block, line 63\nconst value63 = 63; // a long block, line 64\nconst value64 = 64; // a long block, line 65\nconst value65 = 65; // a long block, line 66\nconst value66 = 66; // a long block, line 67\nconst value67 = 67; // a long block, line 68\nconst value68 = 68; // a long block, line 69\nconst value69 = 69; // a long block, line 70\nconst value70 = 70; // a long block, line 71\nconst value71 = 71; // a long block, line 72\nconst value72 = 72; // a long block, line 73\nconst value73 = 73; // a long block, line 74\nconst value74 = 74; // a long block, line 75\nconst value75 = 75; // a long block, line 76\nconst value76 = 76; // a long block, line 77\nconst value77 = 77; // a long block, line 78\nconst value78 = 78; // a long block, line 79\nconst value79 = 79; // a long block, line 80"
+  state step = 0
+  state streaming = false
+  state shown = true
+  state last = ""
+  state ready = false
+  state elapsed = 0
+  derive parts = ["A reply arriving ", "with **bold** text.\n\n```ts\n", "const answer", ": number = 42;\n", "console.log(answer);\n", "```\n\nDone."]
+  derive stream = parts.filter((p, i) => i < step).join("")
+  action heard(value: string)
+    last = value
+  action loaded
+    ready = true
+  action advance
+    if step < parts.length
+      let next = step + 1
+      step = next
+      streaming = next < parts.length
+  action start
+    step = 0
+    streaming = true
+    elapsed = 0
+  action tick
+    if streaming
+      if elapsed >= 500
+        elapsed = 0
+        if step < parts.length
+          let next = step + 1
+          step = next
+          streaming = next < parts.length
+      else
+        elapsed = elapsed + 100
+  action prose
+    scrollIntoView("prose")
+  action examples
+    scrollIntoView("examples")
+  action streamJump
+    scrollIntoView("stream")
+  action comparison
+    scrollIntoView("comparison")
+  action longJump
+    scrollIntoView("long")
+  action diagramJump
+    scrollIntoView("diagram-stage")
+  action mount
+    shown = not shown
+  task simulate mount
+    every(100, tick)
+  view
+    scroll flex=1 min-height=0
+      column padding=16 gap=16 max-width="48.75rem" margin-left="auto" margin-right="auto"
+        h1 "Message content"
+        row gap=12 flex-wrap="wrap"
+          button press=start testId="start"
+            text "Stream"
+          button press=advance testId="next"
+            text "Next piece"
+          button press=mount testId="mount"
+            text "Mount / remove"
+        row gap=12 flex-wrap="wrap"
+          button press=examples testId="examples"
+            text "Syntax"
+          button press=prose testId="prose-jump"
+            text "Prose"
+          button press=streamJump testId="stream-jump"
+            text "Stream result"
+          button press=comparison testId="compare-jump"
+            text "Exact reader"
+          button press=longJump testId="long-jump"
+            text "Long code"
+          button press=diagramJump testId="diagram-jump"
+            text "Diagram"
+        text step.toString() testId="step"
+        text ready.toString() testId="ready"
+        text last testId="last"
+        if shown
+          do-markdown text=sample message=heard load=loaded align-self="stretch" min-width=0 max-width="100%" aria-label="Syntax, table and diagram" id="examples" testId="rich"
+          column id="prose"
+            MessageText(text=rich, streaming=false, files="[]", message=heard)
+          h2 "Streaming" id="stream"
+          MessageText(text=stream, streaming=streaming, files="[]", message=heard)
+          h2 "Standalone code"
+          do-code code="def hello(name):\n    return f'Hello, {name}'" language="python" message=heard align-self="stretch" min-width=0 max-width="100%" aria-label="Python example" testId="code"
+          h2 "Unfinished diagram falls back to code"
+          do-mermaid diagram="flowchart LR\n A[unfinished" streaming="true" align-self="stretch" min-width=0 max-width="100%" aria-label="Unfinished diagram" testId="mermaid"
+          h2 "Completed diagram" id="diagram-stage"
+          do-mermaid diagram="flowchart LR\n A[Ask] --> B{Ready?}\n B -->|Yes| C[Reply]\n B -->|No| A" message=heard align-self="stretch" min-width=0 max-width="100%" aria-label="Completed diagram" testId="diagram"
+          do-markdown text=wide align-self="stretch" min-width=0 max-width="100%" aria-label="Wide table" testId="wide-table"
+          h2 "Long code" id="long"
+          do-code code=longCode language="typescript" align-self="stretch" min-width=0 max-width="100%" aria-label="Eighty lines of code" testId="long-code"
+          h2 "Exact's reader, for comparison" id="comparison"
+          text sample markup="markdown" user-select="text" overflow-wrap="anywhere" max-width="100%" testId="exact-reader"
