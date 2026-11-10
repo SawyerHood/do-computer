@@ -1,16 +1,24 @@
 // The session area: who is signed in, signing in or making an account, and signing out.
 import type { Result, Sources } from '../app.contract.d.ts';
 import { ask, byCookie, keep, ownerOf, post, Refused, reply, session, stockTickets } from './api.ts';
+import { AVATAR_COLORS } from '../protocol/avatars.ts';
 
 type Me = { user: { id: string; name: string; email: string } };
 
-const SIGNED_OUT: Result<'loadSession'> = { signedIn: false, owner: '', userId: '', name: '', email: '', initials: '' };
+const SIGNED_OUT: Result<'loadSession'> = { signedIn: false, owner: '', userId: '', name: '', email: '', initials: '', color: '' };
 
 /** Two letters for a face with no picture, as the React app's PersonFace: the first and last names' first, or a name's first two. */
 export function initialsOf(name: string): string {
   const words = name.trim().split(/\s+/).filter((word) => word !== '');
   const letters = words.length > 1 ? `${words[0]!.slice(0, 1)}${words[words.length - 1]!.slice(0, 1)}` : (words[0] ?? '').slice(0, 2);
   return letters.toUpperCase() || '?';
+}
+
+/** The colour of a face with no picture, as the React app's PersonFace: from the person's id. */
+export function faceColorOf(id: string): string {
+  let hash = 0;
+  for (let index = 0; index < id.length; index++) hash = (hash * 31 + id.charCodeAt(index)) >>> 0;
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length]!.hex;
 }
 
 export const sessionSources: Pick<Sources, 'loadSession' | 'signIn' | 'signOut'> = {
@@ -22,7 +30,7 @@ export const sessionSources: Pick<Sources, 'loadSession' | 'signIn' | 'signOut'>
       const { id, name, email } = body.user;
       // Tickets for the sockets the app opens next, ready before anything follows (data/api.ts).
       await stockTickets(store, 0).catch(() => 0);
-      return { signedIn: true, owner: ownerOf(id, store), userId: id, name, email, initials: initialsOf(name) };
+      return { signedIn: true, owner: ownerOf(id, store), userId: id, name, email, initials: initialsOf(name), color: faceColorOf(id) };
     } catch (e) {
       // A session the server no longer knows is over. Anything else fails the read, which keeps the last answer.
       if (e instanceof Refused && e.status === 401) {

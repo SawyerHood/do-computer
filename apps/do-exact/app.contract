@@ -238,12 +238,21 @@ component App
     utcOffset = time.utcOffset
     wide
     stillMotion = viewport.prefersReducedMotion
+    hovers = viewport.hover == "hover"
     hatchError
     hatching = pending(hatched)
     panelOpen
     hatch
     signOut
     togglePanel
+    sidebarWidth
+    sidebarShut
+    sidebarDragging
+    sidebarGrab
+    sidebarDrag
+    sidebarDrop
+    sidebarKey
+    sidebarReset
     back
     follow
     teamList

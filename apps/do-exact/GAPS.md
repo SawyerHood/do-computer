@@ -29,18 +29,18 @@ screen and pulls the sidebar over it from the left edge (`usePulledSidebar`). He
 the stack's first screen and a Dood's chat is pushed over it, with the way back at the top
 left where the React app's sidebar button is.
 
-**The sidebar does not fold to a rail of faces or resize.** The React app's wide sidebar can be
-a column of faces, and is dragged to any width from 208 to 448 px (`ResizeHandle`,
-`sidebarColumn`). Exact's split column has one width, `navigationSplit="288"` (the React app's
-starting width), and no way to drag it.
-
 **A pages menu opens from the pill's start, not its middle.** The React app centres the Dood's
 menu under its name (`align="center"`); an Exact popover is placed by the platform under the
 button that opens it.
 
-**Hover reveals nothing.** Exact's `:hover` paints a box and cannot show a child. So what the
-React app shows under a pointer is always shown: a sidebar row's menu (at the row's end, in its
-shade, with its drag grip in a wide window), a file card's download, a visual's corner button.
+**A sidebar row shows a grip beside its menu.** The React app drags the whole row to reorder
+it; Exact's `reorderFor` wants a handle of its own with no press, so while a row is pointed at
+(Exact's `hover` event) a small grip is beside its … menu, in the time's place. Where nothing
+can point, both are always there.
+
+**A file card's download and a visual's corner button are always shown.** The React app shows
+them under a pointer. They could be revealed with `hover` as the sidebar's menu is; they have
+not been.
 
 **A phone reorders with Move up and Move down.** A mouse drags a row's grip in a wide window
 (Exact's `reorderFor`), and the order is kept by the deployment as the React app's is. A finger

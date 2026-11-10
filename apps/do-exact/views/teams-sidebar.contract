@@ -15,6 +15,9 @@ component SidebarDoodMenu
   derive title = dood.name == "" ? "New Dood" : dood.name
   view
     row align-items="center"
+      if wide
+        box reorderFor=`dood-order-${dood.workspaceId}` touch-action="none" aria-label=`Drag ${title} to reorder` testId=`dood-grip-${dood.id}` padding=4 color="ink.muted" cursor="grab"
+          image "symbol:icon.dots-six-vertical" font-size="0.75rem"
       button popovertarget=`dood-menu-${dood.id}` aria-label=`${title}'s pages and actions` class=IconButton testId=`dood-menu-${dood.id}`
         image "symbol:icon.dots" width=16 height=16
       column id=`dood-menu-${dood.id}` popover="auto" role="menu" aria-label=`${title} menu` class=Menu
@@ -33,6 +36,3 @@ component SidebarDoodMenu
         button press=teamNudge(dood.id, 1) aria-label=`Move ${title} down` role="menuitem" class=MenuItem testId=`dood-later-${dood.id}`
           image "symbol:icon.arrow-down" aria-hidden=true
           text "Move down"
-      if wide
-        box reorderFor=`dood-order-${dood.workspaceId}` touch-action="none" aria-label=`Drag ${title} to reorder` testId=`dood-grip-${dood.id}` padding=4 color="ink.muted"
-          image "symbol:icon.dots-six-vertical" font-size="0.75rem"

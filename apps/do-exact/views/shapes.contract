@@ -10,6 +10,8 @@ shape Session
   email: string
   // One or two letters for the face of someone with no picture.
   initials: string
+  // The colour of that face, a hex, from the person's id.
+  color: string
 
 // What every write answers: whether it went through, and if not, why, in words to show.
 shape Reply
@@ -26,6 +28,8 @@ shape Viewport
   width: number
   height: number
   prefersReducedMotion: bool
+  // CSS's `hover` for the primary input: "hover" where a pointer can be over something, else "none".
+  hover: string
 
 shape Workspace
   // This person may use saved logins or cards here.
