@@ -67,8 +67,9 @@ shape Pairing
   home: string
   readOnly: bool
 members App
+  derive computersPanelOn = panelOpen and (onRoute == "dood" or onRoute == "chat")
   derive computerWorkspaceId = onRoute == "workspaceComputers" or onRoute == "workspaceSettings" ? top(nav).params.workspaceId : openDood.workspaceId
-  resource computers = loadComputers(session.owner, onRoute == "computers" or onRoute == "workspaceComputers" ? computerWorkspaceId : "") with toolsPulse.changes as shape Computers else empty()
+  resource computers = loadComputers(session.owner, onRoute == "computers" or onRoute == "workspaceComputers" or computersPanelOn ? computerWorkspaceId : "") with toolsPulse.changes as shape Computers else empty()
   resource pairingAddress = pairingCodeFromAddress(onRoute == "pair" ? top(nav).url : "") as shape PairingCode else empty()
   state pairingTypedCode = ""
   derive pairingCode = (pairingTypedCode != "" ? pairingTypedCode.trim() : pairingAddress.code).toUpperCase()
@@ -120,7 +121,7 @@ members App
   action resetPairing
     pairingDone = false
   action healComputers
-    if onRoute == "computers" or onRoute == "workspaceComputers"
+    if onRoute == "computers" or onRoute == "workspaceComputers" or computersPanelOn
       refresh computers
   action retryComputers
     refresh computers

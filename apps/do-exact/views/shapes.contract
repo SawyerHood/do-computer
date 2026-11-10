@@ -56,6 +56,8 @@ shape Dood
   seed: string
   color: string
   hatched: bool
+  // What it has on, as the protocol's Outfit in JSON ("{}" for nothing): the creature wears it.
+  outfit: string
 
 // The Doods, in each workspace's order: the one put first by hand, else the latest first.
 shape Doods

@@ -84,3 +84,27 @@ test "on a phone a tools section goes back to the Dood's settings list"
   clock settle
   clock data
   expect state onRoute == "dood"
+
+test "the Dood panel lists its connected computers and opens their workspace settings"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "tools-settings-3@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "hello-face"
+  clock data
+  tap "panel-toggle-dood"
+  clock data
+  expect tree has "panel-computers"
+  expect state computerItems.length == 1
+  tap "panel-manage-computers"
+  clock settle
+  clock data
+  expect state onRoute == "workspaceComputers"
+  expect tree has "computer-install"

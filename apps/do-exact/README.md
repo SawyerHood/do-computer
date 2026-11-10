@@ -25,6 +25,16 @@ what Exact cannot do yet.
 - A wide window has the sidebar beside the page; a phone has the list, then a Dood's chat over
   it. Every page has its address (`/a/:agentId`, `/a/:agentId/c/:chatId`,
   `/a/:agentId/library`, `/w/:workspaceId/people`, …): deep links, reload, Back and Forward work.
+- A Dood from its first moment (views/welcome, panel, panel-mood, care, wardrobe): someone with
+  no Dood watches an egg come down out of the night onto its island, says hello, names it, picks
+  its colour and what it thinks with, sees it hatch as the sun comes up, and follows it as it flies
+  into its chat, where it offers what to do first. A Dood hatched from the sidebar's + is met as
+  an egg that hatches while its owner watches. Its panel beside the chat has its creature, petted
+  with a click or by rubbing, treats beside it, its box filling with the hours until the next,
+  opened over the page, and its wardrobe, where anything the workspace found is worn by any of its
+  Doods. Every picture of a Dood is in its egg until it has hatched, wears what it has on, and
+  acts out what its chat says: listening, thinking, at which kind of work, answering, done,
+  troubled, waiting for an OK, asleep.
 - A Dood's main chat: the transcript, opened at its newest message and following it, with the
   reply arriving as it is written, every piece of it, over the Dood's WebSocket. Text is drawn as Markdown;
   thinking, tool calls and notices each have a plain row. Sending a message. Its panel beside
@@ -131,8 +141,9 @@ React app (`apps/web/src/server/exact-app.ts`). Node only for now. `tools/same-o
   This merge contains the composer, settings, library, Markdown and transport from `exact-client`,
   not those other workers' pending transcript/team changes. The workspace home and people
   pages are still placeholders here; see GAPS.md and COMPOSER.md for the chat seams.
-- **Shell parity.** Egg hatching, calls, drag ordering and the collapsing rail are not all
-  implemented. The creature native views exist; their presence does not claim the whole React shell.
+- **Creature entry points.** Claiming a Dood hatched in a post, the waiting-list first run and
+  public `/dood/:id` and `/hatch` pages are not part of the signed-in port.
+- **Shell parity.** Calls, drag ordering and the collapsing rail are not all implemented. The creature native views exist; their presence does not claim the whole React shell.
 - **Deployment and native hosts.** The address is a build setting. Server-served Exact works on
   Node via `DC_EXACT_APP`, not the Cloudflare Worker. Apple/Windows hosts and native push have
   not been validated by this web-only port. Remote computers work; Electron's local daemon

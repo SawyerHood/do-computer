@@ -43,6 +43,7 @@ function doodOf(agent: AgentSummary, me: string): Dood {
     seed: look.seed,
     color: look.color,
     hatched: agent.hatched,
+    outfit: JSON.stringify(agent.outfit ?? {}),
   };
 }
 

@@ -61,8 +61,8 @@ script also checks restricted/public server URL access and a native browser down
 - `LibraryDocumentPanel` is already mounted by `app.contract` on dood/chat routes. Call
   `openLibraryPanel(fileId)`; the selection follows an ID through moves. No chat route
   replacement is needed. Close calls `closeLibraryPanel`.
-- Mount `PinsShelf()` inside chat's own Dood panel and remove `LibraryPinsDock()` from
-  `app.contract` when that panel is ported. The temporary dock is not a new layout API.
+- `PinsShelf()` is mounted in the real Dood panel's pinned slot. The temporary absolute
+  `LibraryPinsDock()` and its root mount were removed when joining the creature panel.
 - Replace only `LibraryMarkdown` when the rich renderer lands. `libraryContent.rendered`
   resolves relative library image/link URLs; `libraryText` is the raw editable source.
 - Sharing overlays are root-mounted; `shareLibraryPath(path)` opens folder/file controls.

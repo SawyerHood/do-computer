@@ -3,7 +3,7 @@ use DoodPulse from "./shell.contract"
 members App
   derive toolsWorkspaceDoods = doodList.filter(d => d.workspaceId == computerWorkspaceId)
   derive toolsWorkspaceAgent = match first(toolsWorkspaceDoods) { case some(d) => d.id, case none => "" }
-  derive toolsAgentId = onRoute == "computers" or onRoute == "workspaceComputers" ? toolsWorkspaceAgent : (onRoute == "skills" or onRoute == "connectors" or onRoute == "automations" ? openAgentId : "")
+  derive toolsAgentId = onRoute == "computers" or onRoute == "workspaceComputers" ? toolsWorkspaceAgent : (onRoute == "skills" or onRoute == "connectors" or onRoute == "automations" or computersPanelOn ? openAgentId : "")
   resource toolsPulse = followTools(session.owner, toolsAgentId) as shape DoodPulse else empty()
   task toolsHealing mount
     every(5000, healTools)

@@ -115,6 +115,7 @@ async function route(name) {
   await page.goto(`${EXACT}/a/${agentId}/${name}`)
   await id("heading-" + name).waitFor()
   await page.waitForTimeout(400)
+  await id(name + "-loading").waitFor({ state: "hidden", timeout: 12000 })
 }
 try {
   await page.goto(sameOrigin ? EXACT + "/x/" : EXACT)
@@ -123,8 +124,13 @@ try {
   await id("sign-email").fill(email)
   await id("sign-password").fill(password)
   await id("sign-submit").click()
-  await id("new-dood").waitFor()
-  await id("new-dood").click()
+  // The merged first run owns an empty account; do not race it to click the old rail action.
+  await id("welcome-skip").click()
+  await id("welcome-hello").click()
+  await id("welcome-name").fill("Pico")
+  await id("welcome-named").click()
+  await id("welcome-think").click()
+  await id("welcome-start").click()
   await id("composer").waitFor()
   const api = await browser.newContext({ baseURL: API })
   const login = await api.request.post("/api/auth/sign-in/email", { data: { email, password } })
@@ -143,6 +149,12 @@ try {
   ).agent.id
   await page.reload()
   await id("composer").waitFor()
+  if (sameOrigin)
+    assert.equal(
+      (await page.request.get(`${API}/api/me`)).status(),
+      200,
+      "the server-served page has the browser cookie",
+    )
   await api.request.patch(`/api/agents/${agentId}`, {
     data: { name: "Pico", avatar: { seed: "pico", color: "honey" } },
   })
@@ -169,6 +181,20 @@ try {
   await page.waitForTimeout(350)
   await id(`computer-connect-${computerId}`).selectOption(agentId)
   await id(`computer-disconnect-${computerId}-${agentId}`).waitFor()
+  await page.goto(`${EXACT}/a/${agentId}`)
+  await id("composer").waitFor()
+  if (await id("hello-face").count()) await id("hello-face").click()
+  await id("panel-toggle-dood").click()
+  await id(`panel-computer-${computerId}`).waitFor()
+  await shot("exact-wide-light-panel-computers")
+  await page.emulateMedia({ colorScheme: "dark" })
+  await shot("exact-wide-dark-panel-computers")
+  await page.emulateMedia({ colorScheme: "light" })
+  await id("panel-toggle-dood").click()
+  console.log(
+    "PASS: the merged creature panel lists the paired computer without a second directory resource",
+  )
+  await route("computers")
   const paired = await (
     await api.request.post("/api/computers/pair/poll", { data: { pollToken: started.pollToken } })
   ).json()
@@ -229,13 +255,21 @@ try {
       (r) => r.computer.id === computerId,
     )
     assert(asked, "the Dood made a request")
-    await route("computers")
-    await id(`computer-${approve ? "allow" : "deny"}-${asked.id}`).click()
+    if (approve) {
+      await id("panel-toggle-dood").click()
+      await id(`panel-request-${asked.id}`).waitFor()
+      await shot("exact-wide-light-panel-request")
+      await id(`panel-computer-allow-${asked.id}`).click()
+    } else {
+      await route("computers")
+      await id(`computer-deny-${asked.id}`).click()
+    }
     await page.waitForTimeout(400)
     const row = (await (await api.request.get("/api/computers")).json()).computers.find(
       (c) => c.id === computerId,
     )
     assert.equal(row.agentIds.includes(agentId), approve)
+    await route("computers")
     if (!approve) {
       await id(`computer-connect-${computerId}`).selectOption(agentId)
       await id(`computer-disconnect-${computerId}-${agentId}`).waitFor()
@@ -289,6 +323,7 @@ try {
   await id("connector-authorize").click()
   await id("connector-notice").waitFor()
   assert.match(await id("connector-notice").innerText(), /connected/i)
+  await expect.poll(() => new URL(page.url()).searchParams.has("code")).toBe(false)
   listing = (await (await api.request.get(`/api/agents/${agentId}/connectors`)).json()).connectors
   assert.equal(listing.find((c) => c.name === "Calendar").status, "connected")
   console.log(

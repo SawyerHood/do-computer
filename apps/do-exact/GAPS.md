@@ -83,6 +83,32 @@ Within a session Back and Forward follow the browser's history.
 **Browser history cannot be stepped in a test.** `tap "app" history 1` works in a drive and
 is a syntax error in a `.test.contract`, so Forward is checked by drive only (PORTING.md).
 
+## A Dood as a creature
+
+**The flight from the island is the sky's own.** welcome/stage.ts moves the creature's canvas
+from the island to the chat's picture of it with a CSS transition. The first run's creature is
+inside `do-sky`'s shadow DOM, not a Contract node, so Exact's `sharedElement` flight cannot carry
+it: `do-sky`'s `fly` finds the target by its test id, waits for it to stop moving and moves its
+own picture there on Exact's clock (modules/web/README.md). The page's picture is hidden by
+`welcome.contract` until the sky says `flown`.
+
+**A sleeping creature is woken only by what the app sees.** use-mascot-mood.ts lets it doze
+after four quiet minutes and wakes it on any pointer move, key, wheel or press on the window.
+Exact hands a view no window-wide pointer, so here the quiet is broken by what the app itself
+sees change: the draft, the chat's messages and work, the end of a run, another Dood opened.
+
+**What a chat's last `send` was is not in the view's chat.** `chatMood`'s rule that a Dood that
+has said its last word and only finishes up is idle reads the `send` tool, which data/chat.ts
+leaves out of the blocks it hands the view; here such a Dood shows the work it is finishing.
+
+**A pat reaches the creature petted, not every drawing of it.** The React app's `petMascot`
+leans every moving picture of the agent (panel, pill, sidebar) into a hand on any one of them.
+Each `do-creature` here is its own view; the others are told nothing.
+
+**The box's Wear it is the app's colour, not the Dood's.** box-window.tsx's buttons take the
+Dood's deepened colour as `--primary`; as under "Type and colour", a token cannot be mixed from a
+colour known only at run time.
+
 ## Exact bugs worked around
 
 **`exactTime()` fails the build of an app that draws Markdown.** The build renders the app once
@@ -102,10 +128,10 @@ than relying on npm or outside-folder imports in the browser. Exact's hatch cloc
 animation; the mascot package's deferred GPU-resource disposal and WebGL retry bookkeeping
 still use its wall clock (no visible animation depends on it). Sky particles use its unseeded
 randomness, so clock stepping controls their timing but does not promise pixel-identical
-confetti on every launch. The native view's box contains the whole picture;
-React's `AgentAvatar` overscans its span by 12%. The first-run view includes the sky, fall and
-hatch from `components/welcome/stage.ts`, but not the UI's flight from island to chat: the
-screen that owns both boxes must implement that transition. Petting emits `message="pet"`;
+confetti on every launch. React's `AgentAvatar` overscans its span by 12%; `do-creature`
+does too with `overscan="true"`, which DoodFace and Hatchling set. The first-run view includes the sky, fall and
+hatch from `components/welcome/stage.ts`, and the flight from island to chat (`fly`, below
+under "A Dood as a creature"). Petting emits `message="pet"`;
 the Contract caller must apply server care limits and mutations, as React's creature care
 does. If WebGL is unavailable, `do-creature` uses the protocol's plain SVG; it has no clothes,
 seed-specific silhouette or egg, like React's stand-in. Rich message content is now implemented
@@ -125,9 +151,11 @@ made.
 
 **Settings share the final frame, rather than overlaying a live chat.** Skills and connectors
 use the final `settings-kit.contract` from `exact-client`; Computers uses its workspace frame.
-The only tools integration edits to that kit are the workspace Computers destination and
-heading hyphenation at the largest text size. The model's Computers link opens
-`/w/:workspaceId/computers`; `/w/:workspaceId/settings` is now the section list, so a phone's back link opens navigation instead of looping back into Computers. Automations
+The integration edits to that kit are the workspace Computers destination and real wrapping
+of long headings/navigation labels at the largest text size. The phone's workspace back link
+and close control share the available width instead of pushing the close control offscreen.
+The model's Computers link opens `/w/:workspaceId/computers`; `/w/:workspaceId/settings` is the
+section list, so a phone's back link opens navigation instead of looping back into Computers. Automations
 remains a Dood page, as in React, not a settings section. Filled buttons still use the app's
 default accent, not the Dood's (see Type and colour).
 
@@ -160,10 +188,12 @@ start/stop/configure Electron's local daemon. Install/read-only commands, pairin
 removal and adapter diagnostics work through the remote API. A daemon fixture confirms
 receipt of the update command; installing a daemon on a real host was not exercised.
 
-**Requests are answered in Computers, not above the composer yet.** The actual request,
-approve/deny and grant endpoints are wired and browser-tested. The merged composer provides
-its own computer picker and running jobs, but not React's `computer-requests.tsx` card.
-This is still a chat integration seam, not silently represented by the picker. The merged
+**Requests are answered in Computers and the wide Dood panel, not above the composer yet.**
+The panel reuses the Computers directory resource for connected machines, folders, permission
+requests and Allow/Not now; its running-command section reuses the composer's jobs and Stop
+action. No duplicate directory/job source is added. The merged composer has its own computer
+picker, but not React's above-composer `computer-requests.tsx` card. On a phone requests remain
+in Computers: this is still a placement gap, not silently represented by the picker. The merged
 Model and computers page now supplies the Dood's default and connected-computer controls;
 those are no longer a missing settings integration.
 
@@ -352,9 +382,12 @@ persisted offline queue: keep a failed save open and retry it before closing the
 port. They are not mounted by this branch's basic transcript, so real chat tool-result
 file cards and multiple-picture keyboard navigation are not end-to-end tested here.
 `openLibraryPanel(fileId)` and `LibraryDocumentPanel` are mounted, and a real pinned file
-opens the panel over the chat (tested). `LibraryPinsDock` temporarily occupies the bottom
-of the existing wide Dood panel; the chat port should mount `PinsShelf` in its own scroll
-column and remove that dock. The document panel is a bounded overlay, not a draggable
+opens the panel over the chat (tested). `PinsShelf` is now mounted at the real Dood panel's pinned slot and scrolls with it; the
+temporary absolute `LibraryPinsDock` was removed when joining the creature panel, so it no
+longer covers Computers or other sections. The panel's padded folding buttons use border-box
+sizing. The page pill and long headings wrap at maximum body size; chat notices also stay
+within their column. None of these fixes reduces the user's chosen text size or hides a
+finding. The document panel is a bounded overlay, not a draggable
 split, and has a whole-screen presentation on a phone.
 
 **Pins have dates, not transient change flashes.** The first pin has an image, Markdown or
