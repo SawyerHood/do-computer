@@ -9,6 +9,7 @@ import { doodSettingsSources } from './data/settings-dood.ts';
 import { accountSettingsSources } from './data/settings-account.ts';
 import { modelSettingsSources } from './data/settings-models.ts';
 import { passwordSources } from './data/settings-passwords.ts';
+import { notificationSources } from './data/settings-notifications.ts';
 
 // The deployment's address, a setting (app.json "env") that only this file may read: the
 // environment's value, else the server server.ts starts. `./x` sets it per checkout.
@@ -26,6 +27,7 @@ const sources: Sources = {
   ...accountSettingsSources,
   ...modelSettingsSources,
   ...passwordSources,
+  ...notificationSources,
   // A new area spreads its sources here.
 };
 

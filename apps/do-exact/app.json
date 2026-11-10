@@ -37,7 +37,8 @@
     "do-portrait",
     "do-gift",
     "do-wardrobe",
-    "do-sky"
+    "do-sky",
+    "do-push"
   ],
   "env": [
     "API_BASE_URL"

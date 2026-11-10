@@ -1,7 +1,80 @@
 // Whether this browser is told when a Dood has something for the person, as the React app's
-// NotificationsSettings (apps/web/src/components/settings/notifications.tsx).
-use Page from "./shapes.contract"
-use AccountSettings, SettingsSection, Hint from "./settings-kit.contract"
+// NotificationsSettings (apps/web/src/components/settings/notifications.tsx). Set for each
+// browser and phone apart, since each one has to be asked. The browser's side is the do-push
+// view (modules/web/push.js); data/settings-notifications.ts tells the server.
+use Session, Reply, Page from "./shapes.contract"
+use AccountSettings, SettingsSection, ErrorLine, Hint, OutlineButton, StatusWords from "./settings-kit.contract"
+use PrimaryButton from "./styles.contract"
+
+shape PushKey
+  owner: string
+  key: string
+
+shape PushTest
+  ok: bool
+  error: string
+  // The browser's push service took it.
+  sent: bool
+
+fn pushWords(state: string): string = state == "on" ? "On for this browser." : state == "off" ? "Off for this browser." : state == "blocked" ? "This browser was told not to allow notifications from here. Allow them in its settings for this site, then come back." : state == "install" ? "An iPhone or iPad delivers notifications to apps on the Home Screen. Tap Share, then Add to Home Screen. Open Do Computer from there and turn notifications on." : state == "unsupported" ? "This browser cannot show notifications from a website." : " "
+
+members App
+  // --- settings: notifications ---
+  resource pushKey = loadPushKey(session.owner, onRoute == "notifications") as shape PushKey else empty()
+  // What do-push last said of this browser: "" (not yet known), "on", "off", "blocked", "install" or "unsupported".
+  state pushState = ""
+  state pushEndpoint = ""
+  state pushCommand = ""
+  state pushCommands = 0
+  state pushError = ""
+  // Whether a test went: "" not tried, "yes", "no".
+  state pushTested = ""
+  mutation browserRegistered as shape Reply then afterRegister
+  mutation browserForgotten as shape Reply
+  mutation pushTestSent as shape PushTest then afterPushTest
+  derive pushBusy = pending(browserRegistered) or pending(browserForgotten) or pending(pushTestSent) or (pushCommand != "" and pushState == "")
+
+  action pushSaid(word: string)
+    if word.startsWith("state:")
+      pushState = word.slice(6)
+    if word.startsWith("endpoint:")
+      pushEndpoint = word.slice(9)
+    if word.startsWith("subscription:")
+      send browserRegistered = registerBrowser(word.slice(13))
+    if word.startsWith("removed:")
+      send browserForgotten = unregisterBrowser(word.slice(8))
+    if word.startsWith("error:")
+      pushError = word.slice(6)
+  action afterRegister
+    match browserRegistered
+      case some(r)
+        if r.ok
+          pushState = "on"
+        else
+          pushError = r.error
+      case none
+        pushState = pushState
+  action enablePush
+    pushError = ""
+    pushTested = ""
+    let n = pushCommands + 1
+    pushCommands = n
+    pushCommand = `on:${n}`
+  action disablePush
+    pushError = ""
+    pushTested = ""
+    let n = pushCommands + 1
+    pushCommands = n
+    pushCommand = `off:${n}`
+  action testPushNow
+    pushTested = ""
+    send pushTestSent = sendTestPush(pushEndpoint)
+  action afterPushTest
+    match pushTestSent
+      case some(r)
+        pushTested = r.ok and r.sent ? "yes" : "no"
+      case none
+        pushTested = ""
 
 component NotificationsScreen
   props
@@ -9,8 +82,34 @@ component NotificationsScreen
   inject
     admin: bool
     settingsReturn: string
+    session: Session
+    pushKey: PushKey
+    pushState: string
+    pushCommand: string
+    pushError: string
+    pushTested: string
+    pushBusy: bool
+    pushSaid: action
+    enablePush: action
+    disablePush: action
+    testPushNow: action
   view
     AccountSettings(page=page, route="notifications", title="Notifications", lead="Hear from a Dood when it answers in a chat you do not have open, needs your OK, or reports on something it does on a schedule.", listing=false, admin=admin, close=settingsReturn)
+      do-push vapid=(pushKey.owner == session.owner ? pushKey.key : "") ask=pushCommand message=pushSaid width=0 height=0 aria-hidden=true testId="push-view"
       SettingsSection(title="This browser", hint="", testId="notifications-browser")
-        text "This browser cannot show notifications from a website." role="status" class=Hint testId="notifications-state"
+        text pushWords(pushState) role="status" class=Hint margin-top=-10 testId="notifications-state"
+        if pushState == "off"
+          button press=enablePush disabled=(pushBusy or pushKey.key == "") class=PrimaryButton align-self="flex-start" min-height="2rem" testId="notifications-on"
+            text "Turn on notifications"
+        if pushState == "on"
+          row flex-wrap="wrap" gap=8
+            button press=testPushNow disabled=pushBusy class=OutlineButton testId="notifications-test"
+              text "Send a test"
+            button press=disablePush disabled=pushBusy class=OutlineButton testId="notifications-off"
+              text "Turn off"
+        if pushTested == "yes"
+          text "Sent. It should arrive in a moment." role="status" class=StatusWords testId="notifications-tested"
+        if pushTested == "no"
+          text "The test could not be sent. Turn notifications off and on again." role="alert" font-size="0.875rem" color="danger" testId="notifications-test-failed"
+        ErrorLine(text=pushError, testId="notifications-error")
       text "Each browser and phone is turned on by itself. On a phone, add Do Computer to the Home Screen first: it then opens as an app of its own and notifies you like one." class=Hint padding-top=24 border-top="1px solid var(--hairline)"

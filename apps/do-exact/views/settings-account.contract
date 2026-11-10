@@ -223,7 +223,7 @@ component DoodsListScreen
       ErrorLine(text=hatchError, testId="doods-list-error")
       if doodsAbout.owner != session.owner
         progress aria-label="Loading"
-      for g in groups key=g.workspaceId
+      for g, gi in groups key=g.workspaceId
         column gap=6 testId=`doods-of-${g.workspaceId}`
           row align-items="center" justify-content="space-between" gap=12 padding="0 6px"
             text g.name role="heading" aria-level=3 font-size="0.8125rem" font-weight=500 color="ink.muted"
@@ -236,7 +236,7 @@ component DoodsListScreen
             column role="list"
               for d, i in g.doods key=d.id
                 link href=`/a/${d.id}/settings` role="listitem" aria-label=`${d.name}'s settings` display="flex" align-items="center" gap=12 padding="10px 6px"
-                  border-radius=8 border-top=(i == 0 ? "none" : "1px solid var(--border)") text-decoration="none" color="ink" testId=`doods-list-${d.id}`
+                  border-radius=8 border-top=(i == 0 ? "none" : "1px solid var(--border)") text-decoration="none" color="ink" testId=`doods-list-${gi}-${i}`
                   :hover
                     background-color="wash"
                   DoodFace(seed=d.seed, color=d.color, state="idle", name=d.name, size=32)
