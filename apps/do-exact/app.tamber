@@ -66,3 +66,4 @@ icons
   icon.lock = icon(sf "lock", svg "icons/lock.svg")
   icon.dice = icon(sf "dice", svg "icons/dice-five.svg")
   icon.caret-right = icon(sf "chevron.right", svg "icons/caret-right.svg")
+  icon.question-mark = icon(sf "questionmark", svg "icons/question-mark.svg")

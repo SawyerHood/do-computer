@@ -72,8 +72,9 @@ members App
   state welcomeOut = false
   state welcomeLeaving = false
   state welcomeFly = ""
-  // The Dood met in this window, whose first hello in its chat goes by it.
-  state welcomeMet = ""
+  // The Dood met in the first run, whose first hello in its chat goes by it; kept across a reload,
+  // as the React app keeps it for the window (lib/welcome.ts `rememberMeeting`).
+  state welcomeMet = "" persist
   mutation welcomeNamed as shape FirstDood then afterWelcomeNamed
   mutation welcomeThought as shape Reply then afterWelcomeThought
   mutation welcomeSeen as shape Reply refreshes doods
@@ -114,7 +115,7 @@ members App
     if not session.signedIn
       welcomeOn = false
     else if doods.owner == session.owner
-      if doodList.length == 0 and not welcomeOn and welcomeMet == ""
+      if doodList.length == 0 and not welcomeOn
         welcomeOn = true
         welcomeStep = "fall"
         welcomeCard = false

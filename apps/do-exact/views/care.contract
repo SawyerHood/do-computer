@@ -218,10 +218,10 @@ component CreatureCare
   derive mouthX = edge + size / 2
   derive mouthY = edge + size * 0.7
   action takeTreat(e: PointerEvent)
-    holdTreat(edge - 18, edge + size - 14)
+    holdTreat(edge - 22, edge + size - 14)
   // The keyboard's press: from the pile, straight to its mouth.
   action pressTreat
-    holdTreat(edge - 18, edge + size - 14)
+    holdTreat(edge - 22, edge + size - 14)
     giveTreat()
   // Where the pointer is over the carry layer: a finger stays captured by the pile it was put
   // down on, so its moves come there, in the page's terms.
@@ -236,13 +236,13 @@ component CreatureCare
       children
       if ready
         button press=pressTreat aria-label=`Give ${name} a treat` aria-busy=eating title="Press to give it a treat"
-          position="absolute" left=-40 bottom=-8 width=44 height=44 border-radius=12 display="flex" align-items="center" justify-content="center"
+          position="absolute" left=-44 bottom=-8 width=44 height=44 border-radius=12 display="flex" align-items="center" justify-content="center"
           background-color="transparent" border="none" padding=0 touch-action="none" pointerdown=takeTreat pointermove=moveTreat pointerup=dropTreat testId="give-treat"
           :hover
             background-color="wash"
           Pixels(art=artOf(care.treat), width=30)
         button press=openBoxWindow aria-label=boxLabel(care, name, now) aria-disabled=(care.boxes == 0) title=boxLabel(care, name, now)
-          position="absolute" right=-40 bottom=-8 width=44 height=44 border-radius=12 display="flex" align-items="center" justify-content="center"
+          position="absolute" right=-44 bottom=-8 width=44 height=44 border-radius=12 display="flex" align-items="center" justify-content="center"
           background-color="transparent" border="none" padding=0 testId="open-box"
           animation=(care.boxes > 0 ? "box-hop 0.9s steps(4, end) infinite" : "none")
           :hover

@@ -118,7 +118,7 @@ component WardrobeWindow
                   border=(d.id == dressedDood.id ? "1px solid var(--primary)" : "1px solid var(--border)") testId=`dress-${d.id}`
                   do-creature seed=d.seed colour=d.color state="idle" outfit=d.outfit side="24" width=24 height=24 aria-hidden=true
                   text nameOf(d)
-          row role="tablist" aria-label="Where it is worn" height=40 flex-shrink=0 border-bottom="1px solid var(--border)"
+          row role="tablist" aria-label="Where it is worn" height=40 flex-shrink=0 overflow-x="auto" border-bottom="1px solid var(--border)"
             for p in wearPlaces() key=p.slot
               button role="tab" aria-selected=(p.slot == wardrobeSlot) press=pickWardrobeSlot(p.slot) position="relative" display="flex" align-items="center" gap=6 height="100%"
                 padding="0 12px" background-color="transparent" border="none" font-size="0.875rem" font-weight=500 color=(p.slot == wardrobeSlot ? "ink" : "ink.muted")
@@ -150,7 +150,8 @@ component WardrobeWindow
                       column position="absolute" left=10 right=10 bottom=0 height=3 background-color=t.color aria-hidden=true
                   else
                     column aria-label=`Not found yet: ${t.rarity.toLowerCase()}` class=Tile justify-content="center" border="1px dashed var(--border)" color="ink.muted"
-                      text "?" aria-hidden=true width="3.5rem" height="3.5rem" display="flex" align-items="center" justify-content="center" font-size="1.5rem" font-weight=600 color=t.color opacity=0.8
+                      column width="3.5rem" height="3.5rem" align-items="center" justify-content="center" aria-hidden=true
+                        image "symbol:icon.question-mark" font-size="1.5rem" color=t.color opacity=0.8
                       row align-items="center" gap=4
                         image "symbol:icon.lock" font-size="0.75rem" aria-hidden=true
                         text t.rarity
