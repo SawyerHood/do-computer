@@ -122,7 +122,6 @@ members App
   mutation teamChanged as shape TeamChanged refreshes workspaces, teams, doods, workspacesAbout, doodsAbout then teamAfterChange
   mutation teamSent as shape TeamSent refreshes teamInvitations
   mutation teamAnswered as shape TeamAnswered refreshes workspaces, teams, doods, teamAccess then teamAfterAnswer
-  mutation sidebarChanged as shape Reply refreshes doods, workspacesAbout, doodsAbout then sidebarAfterChange
   mutation teamOrdered as shape Reply queue refreshes doods
   state teamInviteWorkspace = ""
   state teamCreateOpen = false
@@ -135,19 +134,9 @@ members App
   state teamInviteNote = ""
   state teamAuth = false
   state teamFolded: string[] = [] persist
-  state sidebarOwner = ""
   state teamOrderOwner = ""
-  state sidebarOperation = ""
-  state sidebarDeleted = ""
-  state sidebarTargetId = ""
-  state sidebarName = ""
-  state sidebarDestination = ""
-  state sidebarTyped = ""
-  derive sidebarTarget = match first(doodList.filter(d => d.id == sidebarTargetId)) { case some(d) => d, case none => Dood(id="", name="", workspaceId="", latest="", latestAt=0, working=false, asking=false, unread=false, seed="", color="", hatched=false, outfit="{}") }
-  derive sidebarTitle = sidebarTarget.name == "" ? "New Dood" : sidebarTarget.name
   derive teamBusy = pending(teamChanged)
   derive teamError = pending(teamChanged) ? "" : match teamChanged { case some(r) => r.owner == session.owner ? r.error : "", case none => "" }
-  derive sidebarError = pending(sidebarChanged) ? "" : match sidebarChanged { case some(r) => sidebarOwner == session.owner ? r.error : "", case none => "" }
   derive teamOrderError = pending(teamOrdered) ? "" : match teamOrdered { case some(r) => teamOrderOwner == session.owner ? r.error : "", case none => "" }
 
   action teamGoFirst
@@ -242,45 +231,6 @@ members App
     teamAuth = false
   action teamFold(id: string)
     teamFolded = teamFolded.includes(id) ? teamFolded.filter(x => x != id) : teamFolded.concat([id])
-  action sidebarAskRename(id: string)
-    hidePopover(`dood-menu-${id}`)
-    sidebarChanged = none
-    sidebarTargetId = id
-    sidebarName = match first(doodList.filter(d => d.id == id)) { case some(d) => d.name == "" ? "New Dood" : d.name, case none => "" }
-    showModal("sidebar-rename")
-  action sidebarAskMove(id: string)
-    hidePopover(`dood-menu-${id}`)
-    sidebarChanged = none
-    sidebarTargetId = id
-    sidebarDestination = ""
-    showModal("sidebar-move")
-  action sidebarAskDelete(id: string)
-    hidePopover(`dood-menu-${id}`)
-    sidebarChanged = none
-    sidebarTargetId = id
-    sidebarTyped = ""
-    showModal("sidebar-delete")
-  action sidebarEditName(v: string)
-    sidebarName = v
-  action sidebarPickDestination(v: string)
-    sidebarDestination = v
-  action sidebarConfirmName(v: string)
-    sidebarTyped = v
-  action sidebarChange(op: string, id: string, value: string)
-    if not pending(sidebarChanged)
-      sidebarOwner = session.owner
-      sidebarOperation = op
-      sidebarDeleted = op == "delete" ? id : ""
-      send sidebarChanged = changeSidebarDood(session.owner, op, id, value)
-  action sidebarAfterChange
-    match sidebarChanged
-      case some(r)
-        if r.ok and sidebarOwner == session.owner
-          close(`sidebar-${sidebarOperation}`)
-          if sidebarDeleted == openAgentId
-            nav = go(nav, "/")
-      case none
-        sidebarDeleted = sidebarDeleted
   action teamNudge(item: string, direction: number)
     hidePopover(`dood-menu-${item}`)
     let workspaceId = match first(doodList.filter(d => d.id == item)) { case some(d) => d.workspaceId, case none => "" }

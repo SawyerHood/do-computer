@@ -45,7 +45,7 @@ test "a team is created, renamed, folded, and deleted with confirmations"
   expect state onRoute == "doods"
   expect state teamList.0.kind == "personal"
 
-test "a Dood is brought into a team, renamed, moved back, and deleted"
+test "a Dood is brought into a team, renamed, moved back, and deleted from its profile"
   size 1280x800
   tap "sign-toggle"
   type "sign-name" "Dood Owner"
@@ -78,27 +78,31 @@ test "a Dood is brought into a team, renamed, moved back, and deleted"
   reload
   clock data
   tap "New Dood's pages and actions"
-  tap "Rename New Dood"
+  tap "Settings"
+  clock data
   clock settle
-  type "Dood name" "Pico"
-  tap "Save"
+  tap "settings-go-profile-settings"
+  clock data
+  clock settle
+  clock data
+  type "profile-name" "Pico"
+  tap "dood-save"
   clock data
   clock settle
   expect state doodList.0.name == "Pico"
-  tap "Pico's pages and actions"
-  tap "Move to a workspace"
-  clock settle
-  type "Move to" "Personal"
-  tap "Move"
+  tap "profile-move-to"
+  tap "Personal"
+  tap "profile-move"
   clock data
   clock settle
-  tap "Pico's pages and actions"
-  tap "Delete Pico"
-  clock settle
-  expect disabled "sidebar-delete-confirm"
-  type "Confirm Dood name" "Pico"
-  tap "sidebar-delete-confirm"
   clock data
+  expect tree has "profile-move-to"
+  tap "profile-delete-open"
+  expect disabled "profile-delete-confirm"
+  type "profile-delete-typed" "Pico"
+  tap "profile-delete-confirm"
+  clock data
+  clock settle
   expect state doodList == []
 
 test "an invitation can be previewed signed out, accepted by a new account, and left"

@@ -131,7 +131,6 @@ component Sidebar
     teamNew: action
     teamFold: action
     teamReorder: action
-    sidebarError: string
     teamOrderError: string
   derive named = workspaceList.filter(w => w.kind == "team").length > 0
   derive shown = named ? workspaceList : workspaceList.filter(w => w.kind == "personal")
@@ -172,8 +171,8 @@ component Sidebar
                   DoodRow(dood=d, current=(d.id == current), now=now, utcOffset=utcOffset)
               if doodList.filter(x => x.workspaceId == w.id).length == 0
                 text (w.kind == "team" ? "This team has no Doods yet." : "You have no Doods yet.") class=TeamHint padding="8px 10px"
-        if sidebarError != "" or teamOrderError != ""
-          text (sidebarError != "" ? sidebarError : teamOrderError) color="danger" role="alert" font-size="0.75rem" padding=8 testId="sidebar-action-error"
+        if teamOrderError != ""
+          text teamOrderError color="danger" role="alert" font-size="0.75rem" padding=8 testId="sidebar-action-error"
         column margin-top=12 padding-top=8 border-top="1px solid var(--hairline)" gap=4
           for i in teamInbox key=i.id
             link href=path("invite", i.id) class=MenuItem testId=`team-inbox-${i.id}`

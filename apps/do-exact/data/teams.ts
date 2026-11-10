@@ -13,7 +13,7 @@ const preview = (i: InvitationPreview) => ({ id: i.id, workspaceId: i.workspace.
 const sent = (i: SentInvitation) => ({ id: i.id, who: i.email ?? `@${i.githubLogin}`, link: `/invite/${i.link.split('/invite/')[1] ?? i.id}`, share: i.link, emailed: i.emailed, github: i.email === null });
 const invites = (r: InviteResult) => ({ links: r.invitations.map(sent), problems: r.problems.map(p => `${p.who}: ${p.error}`) });
 
-export const teamsSources: Pick<Sources, 'loadTeams' | 'loadTeamInvitations' | 'createTeam' | 'changeTeam' | 'sendTeamInvites' | 'loadTeamPreview' | 'answerTeamInvite' | 'changeSidebarDood' | 'orderTeamDoods' | 'loadTeamAccess' | 'loadTeamFirstDood'> = {
+export const teamsSources: Pick<Sources, 'loadTeams' | 'loadTeamInvitations' | 'createTeam' | 'changeTeam' | 'sendTeamInvites' | 'loadTeamPreview' | 'answerTeamInvite' | 'orderTeamDoods' | 'loadTeamAccess' | 'loadTeamFirstDood'> = {
   loadTeams: async ([owner], store): Promise<Result<'loadTeams'>> => {
     if (!current(owner, store)) return { owner: NOBODY, teams: [], inbox: [], colors: [] };
     const me = await get<{ waiting?: boolean }>(store, '/api/me');
@@ -81,14 +81,6 @@ export const teamsSources: Pick<Sources, 'loadTeams' | 'loadTeamInvitations' | '
     });
     return { ...done, owner, workspaceId };
   },
-  changeSidebarDood: ([owner, op, agentId, value], store) => reply(async () => {
-    if (!current(owner, store)) throw new Error("Sign in first");
-    if (op === 'rename') await patch(store, `/api/agents/${seg(agentId)}`, { name: value });
-    else if (op === 'move') await post(store, `/api/agents/${seg(agentId)}/move`, { workspaceId: value });
-    // Preserve computers unless explicitly deleting them in the full profile settings.
-    else if (op === 'delete') await del(store, `/api/agents/${seg(agentId)}?computers=keep`);
-    else throw new Error('Unknown Dood action');
-  }),
   orderTeamDoods: ([owner, workspaceId, ids, reset], store) => reply(async () => {
     if (!current(owner, store)) throw new Error("Sign in first");
     return reset ? del(store, `${base(workspaceId)}/agent-order`) : put(store, `${base(workspaceId)}/agent-order`, { ids });

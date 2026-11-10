@@ -4,7 +4,7 @@ import type { AgentSummary, LibraryFile, LibraryListing, LibraryVersion } from '
 import { embedKind } from '../protocol/embed.ts';
 import { delimiterOf, parseDelimited, TABLE_ROWS } from '../protocol/delimited.ts';
 import { dirOf, resolveLink, pageShownAt } from '../protocol/library-links.ts';
-import { API, current, get, NOBODY, post, patch, del, seg, session, Refused, reply, follow } from './api.ts';
+import { API, authorization, current, get, NOBODY, post, patch, del, seg, Refused, reply, follow } from './api.ts';
 
 type File = Result<'loadLibrary'>['files'][number];
 const base = (id: string) => `/api/agents/${seg(id)}/library`;
@@ -16,8 +16,7 @@ const kindOf = (f: LibraryFile) => {
   return ['markdown', 'page', 'text'].includes(kind) && f.size > 1048576 ? 'other' : kind;
 };
 async function raw(store: Store, path: string, init: RequestInit = {}): Promise<Response> {
-  const token = session(store);
-  const response = await fetch(`${API}${path}`, { ...init, exactTimeout: 20000, headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), ...init.headers } });
+  const response = await fetch(`${API}${path}`, { ...init, exactTimeout: 20000, headers: { ...authorization(store), ...init.headers } });
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as { error?: string };
     throw new Refused(response.status, body.error ?? `The server answered ${response.status}.`);
@@ -76,7 +75,8 @@ export const librarySources: Pick<Sources, 'followLibrary' | 'locateLibrary' | '
     const rendered = kind !== 'markdown' ? text : text.replace(/(!?)\[([^\]]*)\]\(([^\s)]+)\)/g, (whole, image: string, title: string, href: string) => {
       const target = resolveLink(dirOf(path), href);
       if (!target || !paths.has(target)) return whole;
-      return `${image}[${title}](${image ? viewUrl(agentId, listing!.view, target) : `/a/${seg(agentId)}/library?path=${seg(target)}`})`;
+      // Written from the library's root, which is where do-markdown resolves a link against its files.
+      return `${image}[${title}](/${target.split('/').map(encodeURIComponent).join('/')})`;
     });
     const table = kind === 'table' ? parseDelimited(text, delimiterOf(path), { rows: TABLE_ROWS, whole: response.status !== 206 }) : { rows: [], cut: false };
     return { owner, fileId, rev, text, rendered, rows: table.rows.map((cells, i) => ({ id: String(i), cells: cells.map((text, col) => ({ id: String(col), text })) })), cut: table.cut };

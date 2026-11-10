@@ -4,8 +4,15 @@ use DoodHeader from "./shell.contract"
 use LibraryViewer from "./library-viewer.contract"
 use SharedSites, Sites, LibrarySite, librarySiteOf from "./sites.contract"
 use PinsShelf from "./pins.contract"
+use libraryLinksOf from "./chat.contract"
 
 use LibraryFile, LibraryRow, Library, LibraryLocation, LibraryWritten, LibraryContent, LibraryHistory, LibraryPulse, libraryFileOf, libraryVisible from "./library-shapes.contract"
+
+// The file a document's link or picture names: by its id, its path or its picture's address.
+fn libraryFileNamed(files: LibraryFile[], wanted: string): string = match first(files.filter(f => wanted != "" and (f.id == wanted or f.path == wanted or f.url == wanted))) {
+  case some(f) => f.id,
+  case none => ""
+}
 
 members App
   // --- library ---
@@ -22,6 +29,15 @@ members App
   derive libraryWanted = onRoute == "library" or libraryPanelId != "" or panelOpen or onRoute == "dood" or onRoute == "chat"
   resource library = loadLibrary(session.owner, onRoute == "library" or libraryPanelId != "" or panelOpen ? openAgentId : "") with libraryPulse.changes as shape Library else empty()
   derive libraryFiles = library.owner == session.owner and library.agentId == openAgentId ? library.files : []
+  // What a document's Markdown links to (LibraryMarkdown), and what it says when one is pressed:
+  // a file or a picture of the library opens, on its page or beside the chat.
+  derive libraryLinks = libraryLinksOf(libraryFiles)
+  action libraryMarkdownSaid(said: string)
+    let id = libraryFileNamed(libraryFiles, said.startsWith("file:") ? said.slice(5) : (said.startsWith("image:") ? said.slice(6) : ""))
+    if id != "" and onRoute == "library"
+      follow(`${path("library", openAgentId)}?file=${id}`)
+    else if id != ""
+      openLibraryPanel(id)
   derive librarySelected = libraryFileOf(libraryFiles, onRoute == "library" ? libraryLocation.file : libraryPanelId, onRoute == "library" ? libraryLocation.path : "")
   resource libraryContent = readLibrary(session.owner, openAgentId, librarySelected.id, librarySelected.rev, librarySelected.kind, librarySelected.path, librarySelected.size) as shape LibraryContent else empty()
   resource libraryHistory = libraryVersions(session.owner, openAgentId, libraryHistoryOpen ? librarySelected.id : "") with librarySelected.rev as shape LibraryHistory else empty()

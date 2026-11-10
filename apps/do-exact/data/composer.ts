@@ -1,6 +1,6 @@
 import type { Result, Sources, Store, Storage } from '../app.contract.d.ts';
 import { type AgentSummary, type ModelOption, type LibraryFile, type ThinkingLevel, filterModels, nearestThinking, isThinkingLevel, MAX_MESSAGE_IMAGES, MAX_MESSAGE_IMAGE_CHARS } from '../protocol/agent.ts';
-import { API, current, get, NOBODY, patch, post, reply, Refused, seg, session, OFFLINE } from './api.ts';
+import { API, authorization, current, get, NOBODY, patch, post, reply, Refused, seg, OFFLINE } from './api.ts';
 
 type Config = Result<'loadComposer'>;
 const nothing: Config = { owner: NOBODY, agentId: '', model: '', thinking: '', levels: [], models: [], more: 0, sees: false };
@@ -10,8 +10,7 @@ const sourceOf = (m: ModelOption) => m.signIn === undefined ? `Do Computer${m.pr
 
 // Binary requests cannot use api.post, which deliberately sends JSON.
 async function binary<T>(store: Store, path: string, bytes: ArrayBuffer | Uint8Array, mime: string): Promise<T> {
-  const token = session(store);
-  const response = await fetch(`${API}${path}`, { method: 'POST', body: bytes instanceof Uint8Array ? new Uint8Array(bytes).buffer : bytes, headers: { 'content-type': mime, ...(token ? { authorization: `Bearer ${token}` } : {}) } });
+  const response = await fetch(`${API}${path}`, { method: 'POST', body: bytes instanceof Uint8Array ? new Uint8Array(bytes).buffer : bytes, headers: { 'content-type': mime, ...authorization(store) } });
   const body = await response.json() as T & { error?: string };
   if (!response.ok) throw new Refused(response.status, body.error ?? `The server answered ${response.status}.`);
   return body;

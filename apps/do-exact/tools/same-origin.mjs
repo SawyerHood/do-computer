@@ -64,6 +64,18 @@ try {
     await page.getByTestId('screen-library').waitFor({ timeout: 20000 });
     check(true, 'a reload stays in the Exact app');
 
+    // A document read by the library's own requests keeps the cookie: a bearer header the server
+    // cannot read would have signed the browser out of both apps.
+    const agentId = dood.split('/')[2];
+    const doc = await page.request.post(`/api/agents/${agentId}/library?path=notes.md`, {
+      headers: { origin, 'content-type': 'application/octet-stream' }, data: '# Notes\n\nKept.\n',
+    });
+    check(doc.ok(), 'a document is put in the library');
+    await page.goto(`${dood}/library?file=${(await doc.json()).id}`);
+    await page.getByTestId('library-markdown').waitFor({ timeout: 20000 });
+    await page.waitForTimeout(2000);
+    check((await page.request.get('/api/me')).ok() && await page.getByTestId('sign-submit').count() === 0, 'reading a document keeps the browser signed in');
+
     // Signed out in the Exact app: the React app is signed out too.
     await page.goto('/');
     await page.getByTestId('account').click();

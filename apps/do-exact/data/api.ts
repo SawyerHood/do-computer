@@ -39,8 +39,11 @@ export const keep = (store: Store, value: string | null): void => {
   if (value === null) store.forget(SESSION);
   else store.set(SESSION, value);
 };
-/** What says who is asking, where the browser does not. */
-const authorization = (store: Store): Record<string, string> => {
+/**
+ * What says who is asking, where the browser does not. Never a header where the session is the
+ * cookie: a bearer the server cannot read would cost the browser its cookie, in both apps.
+ */
+export const authorization = (store: Store): Record<string, string> => {
   const bearer = session(store);
   return bearer === null || cookie ? {} : { authorization: `Bearer ${bearer}` };
 };

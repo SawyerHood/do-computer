@@ -1,6 +1,7 @@
 import { parse, endsInOpenFence, ID_PREFIX, resolveLink, tableCsv, tableMarkdown } from './markdown-built/markdown-source.js';
 import { shell, appearance, themes, button, copy } from './content-style.js';
 import { block } from './code.js';
+import alertIcons from './markdown-built/alert-icons.js';
 import { diagram } from './mermaid.js';
 
 const words = node => node.type === 'text' ? node.value : (node.children || []).map(words).join('');
@@ -44,9 +45,8 @@ function picture(container, node, context) {
         if (props.dataAlone !== undefined) { media.dataset.alone = ''; media.dataset.loading = ''; }
         media.addEventListener('click', () => {
           if (media.closest('a') || props.dataAlone === undefined) return;
+          // The host opens it: the chat's picture viewer, or the library's file.
           context.event(8, 'image:' + src);
-          // The browser's own image tab remains useful without a Contract picture viewer.
-          window.open(src, '_blank', 'noopener,noreferrer');
         });
       } else { media.controls = true; media.preload = 'none'; }
       media.addEventListener('error', () => { if (alive && mounted === media) missing(); }, { once: true });
@@ -59,13 +59,23 @@ function picture(container, node, context) {
     let host;
     try { const url = new URL(source, location.href); if (!/^https?:$/.test(url.protocol)) return missing(); host = url.host; }
     catch { return missing(); }
-    // No request is made to a model-chosen remote host until the reader says Show.
+    // No request is made to a model-chosen remote host until the reader says Show, or has said
+    // Always for it: the React app's list (lib/shown-hosts.ts), kept in this browser.
+    if (host === location.host || shownHosts().includes(host)) { show(); return; }
     dom.className = 'remote';
     const label = document.createElement('span'); label.textContent = `${alt} from ${host}`;
-    dom.append(label, button('Show', '', show));
+    const always = button(`Always from ${host}`, '', () => { alwaysShow(host); show(); });
+    always.title = `Show what is at ${host} without asking, from now on`;
+    dom.append(label, button('Show', '', show), always);
   };
   update(node);
   return { dom, update, destroy() { alive = false; mounted?.pause?.(); dom.remove(); } };
+}
+
+const SHOWN_HOSTS = 'dc-shown-hosts';
+function shownHosts() { try { return (localStorage.getItem(SHOWN_HOSTS) ?? '').split('\n').filter(Boolean); } catch { return []; } }
+function alwaysShow(host) {
+  try { localStorage.setItem(SHOWN_HOSTS, [...new Set([...shownHosts(), host])].join('\n')); } catch { /* shown this once */ }
 }
 
 function rowData(table) {
@@ -139,7 +149,9 @@ function reconcile(parent, records, nodes, context) {
       const target = record.target || record.dom;
       if (kind === 'alert') {
         const alert = node.properties.dataAlert; record.dom.dataset.alert = alert;
-        record.title.textContent = alert[0].toUpperCase() + alert.slice(1);
+        const icon = (alertIcons[alert] || []).map(d => `<path d="${d}"/>`).join('');
+        record.title.innerHTML = icon === '' ? '' : `<svg viewBox="0 0 256 256" aria-hidden="true">${icon}</svg>`;
+        record.title.append(alert[0].toUpperCase() + alert.slice(1));
       } else attributes(target, node.properties);
       if (kind === 'a') {
         const href = record.dom.getAttribute('href') || '';
