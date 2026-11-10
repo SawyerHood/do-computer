@@ -115,8 +115,7 @@ three seconds without fading.
 **Who else is here, and typing.** A team's presence and "Ada is typing…" come over the person's
 own socket in the React app (`useHere`, `noteTyping`). This app has live personal-feed and
 Dood sockets, but has not wired team presence or outgoing typing notifications into them.
-A call held in the chat (`CallInChat`) and the starters a Dood offers when it is first met
-(`meetingWith`, kept in the first run's browser storage) are not here either.
+Calls are now in views/call.contract. The first-run starters are in views/welcome.contract.
 
 **Earlier messages** ("Show earlier messages") are loaded a page at a time from
 `/chats/:id/history`, after the chat was started fresh from the Dood's Memory settings
@@ -320,8 +319,7 @@ sends the audio through `data/composer.ts` to the unchanged `/api/transcribe`. T
 uses Exact's hatch clock. Cancelling or leaving the chat releases the microphone and ignores
 a late answer. The test deployment has no transcription model key, so recording, cancellation
 and the server's transcription refusal are tested; successful recognition needs a configured
-deployment. There is no implementation for native hosts, nor a live voice-call button here
-(the React composer gets that button from `components/call/call.tsx`).
+deployment. There is no implementation for native hosts. The live call button now comes from views/call.contract.
 
 **Other chats open from a small menu above the composer.** React places old side chats in the
 Dood's pill menu, and agent/Slack threads in its panel; here `views/threads.contract` groups
@@ -331,7 +329,7 @@ the Slack address. This React version has no new-side-chat, rename or delete con
 slash-command or mention menu: `chat/commands.tsx` is background shell commands, not slash
 commands. Their running count, last output and Stop live above this composer's box; transcript
 chips and their notices remain the transcript area's responsibility. Team typing indicators,
-the programmatically given initial cursor, gallery gestures and the live call button have not
+the programmatically given initial cursor and gallery gestures have not
 been ported by this area. Model choices use a searchable menu with arrow keys, Enter and Escape
 instead of React's combobox; model/thinking settings are the Dood's saved settings. The
 computer-kind picker is not part of React's composer and remains with computer/settings pages.
@@ -411,7 +409,7 @@ has Settings and Sign out; the name and email over them are left out, since text
 makes the build warn of the sidebar's list on iOS (`lower-list-beside-fixed`). Starting a team
 ("New team" under Workspaces) and answering an invitation (its View goes to `/invite/:id`,
 which this app has no page for) are the teams area's. A Dood's Voice shows only where calls can
-be made, which the test server cannot, so it is drawn but untested. Global models and the
+be made; DC_CALLS_SCRIPT opens it without a provider key for call tests. Global models and the
 waiting list are only for those who look after the deployment, which an account made with an
 email on an open server never is; they were checked by a drive (`DC_SIGNUP=waitlist
 DC_ADMIN_EMAILS=… ./x agent web …`, the first account on such a server counts as vouched for),
@@ -461,3 +459,31 @@ host theme messages and only accepts open-document messages from its own iframe.
 URLs are the existing `/s/:siteId` pages on the API origin, including that origin's sign-in
 for restricted links; Exact does not duplicate the public website or promise an Exact
 bearer session is also a cookie there. All three hatches are web-only.
+
+## Calls
+
+**The media is a web native view, not a Contract audio primitive.** `do-call` in
+modules/web/call.js holds the shared `packages/client` caller, its actual WebRTC adapter,
+remote audio player, microphone and audio analysers. Contract owns the buttons, transcript,
+record and failure card. Authenticated writes cross data/call.ts; the native view gets only
+a one-use socket ticket, never the sign-in. Its waveform uses Exact's hatch clock; the shared
+caller's deadlines and script use its own browser timers, as in React. Calls are web-only.
+The no-key server's real scripted mode tests handoffs, replies and records. A real local
+WebRTC loopback tests capture, playback attachment, the data channel, mute and cleanup, not
+OpenAI. A real provider call, voice quality, provider voice selection, interruption and billing
+limits have not been exercised end to end without a provider sign-in.
+
+**Leaving the page always stops its media; cross-origin write-up may wait.** The React
+lib/call.ts sends a cookie-authenticated keepalive end request on pagehide. This view does
+the same on a same-origin deployment, and emits the authenticated Exact end request too.
+Across origins the native view has no bearer, and unloading may beat Exact's callback; the
+server then writes up the call at its deadline rather than immediately. Normal End is
+acknowledged through the data module and is tested. No server behaviour was changed for it.
+
+**The call keeps a compact window card on phones and outside its chat panel.** Like React's
+web CallCard, not the mobile app's separate full-screen call route. It keeps its controls,
+words and a link back while navigating. The card uses the app's dark primary mix rather than
+the Dood's own exact hue, has no animated rings, and does not move left for a document beside
+chat. The panel's creature reacts to listening, thinking, speaking and work; sidebar/pill
+creatures do too. Call records keep a plain speaker-labelled transcript rather than React's
+two-column rows. The old side-chat link is drawn when the server's record names one.

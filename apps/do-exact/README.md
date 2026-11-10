@@ -77,6 +77,14 @@ what Exact cannot do yet.
   React and Exact; `tools/teams-integration-shots.sh` captures the merged sidebar, settings and
   a second account accepting an invitation.
 
+## Calls
+
+The web client can call a Dood from its panel, the name menu or an empty composer, wherever
+the server offers calls. Its microphone, WebRTC and player live in `modules/web/call.js`;
+the lifecycle and voice events are the shared client's, not a copy. The call stays on while
+navigating, keeps its live transcript in the chat and leaves a folded record. CALLS.md has
+its test commands; GAPS.md states what the no-key tests cannot prove.
+
 ## Run it
 
 Exact has no releases. An app uses a checkout of it by path, and the files that hold the path are
@@ -142,7 +150,7 @@ In the order it would be built:
    the public Dood page (`/dood/:id`, `/hatch`) remain outside this signed-in client.
 2. **The rest of a chat.** Slash commands, MCP apps, authenticated screen pictures, visual
    message bridging and what GAPS.md's "Chat transcript" lists.
-3. **The rest of the shell.** Touch drag ordering, calls, team live presence, and the React
+3. **The rest of the shell.** Touch drag ordering, team live presence, and the React
    app's wide sidebar that folds to a column of faces.
 4. **Any deployment.** The address is a constant. A person should type it at sign-in, as on the
    phone, which needs the grant `net.fetch https:` and the address kept in the store.

@@ -1,0 +1,16 @@
+test "a Dood without a call sign-in offers no call in the composer, panel or menu"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "call-offer@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock +2500
+  clock data
+  expect state callAvailable == false
+  expect tree missing "call-composer"
+  expect tree missing "call-panel"
+  tap "pages-dood"
+  expect tree missing "call-menu-dood"

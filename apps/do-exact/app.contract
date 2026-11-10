@@ -30,6 +30,7 @@ use WorkspaceSettingsScreen, WorkspaceComputersScreen from "./views/workspace-se
 use TeamDialogs from "./views/teams.contract"
 use TeamInviteScreen, TeamWaitingScreen from "./views/teams-invite.contract"
 use WelcomeScene from "./views/welcome.contract"
+use CallWindow from "./views/call.contract"
 use CreatureWindows from "./views/wardrobe.contract"
 
 // The React app's type: Geist (assets/fonts, from vercel/geist-font, OFL).
@@ -105,10 +106,26 @@ component App
   members "./views/care.contract"
   members "./views/wardrobe.contract"
   members "./views/welcome.contract"
+  members "./views/call.contract"
   // A new area adds its members line here, in its own place, in the order of the routes.
 
   // What any screen may `inject` instead of taking it as a prop.
   provide
+    callView
+    callAvailable
+    callStart
+    callControl
+    callToggleWords
+    callWords
+    callInPanel
+    callOffer
+    callAnswer
+    callDirective
+    callSerial
+    callAgent
+    callName
+    callChat
+    callMessage
     session
     doodList
     workspaceList
@@ -674,5 +691,6 @@ component App
         SidebarDialogs()
         // --- dood --- the creature's windows, and the first run's scene over everything
         CreatureWindows()
+        CallWindow()
         if welcomeOn
           WelcomeScene()

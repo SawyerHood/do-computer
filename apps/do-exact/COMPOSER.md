@@ -33,7 +33,8 @@ Reference read: `chat/composer.tsx`, `attached-files.tsx`, `commands.tsx`, `thin
 - Not in this React composer: slash menu, mention menu, computer-kind picker. Text beginning
   with `/` or `@` is normal text. `/tool` is only the test echo model's directive syntax.
 - Not done: team typing broadcast, the special initial cursor that does not expand the box,
-  live voice-call button, gallery gestures. These are explicit in GAPS.md.
+  gallery gestures. These are explicit in GAPS.md. The call button is now a single CallSend
+  use from views/call.contract, in the empty composer where React places it.
 
 ## Merge notes
 

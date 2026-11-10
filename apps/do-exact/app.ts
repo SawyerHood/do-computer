@@ -1,6 +1,7 @@
 // The data module: it only gathers each area's sources (data/<area>.ts) into one table and
 // answers from it. Shared plumbing is data/api.ts.
 import type { Answer, Sources } from './app.contract.d.ts';
+import { callSources } from './data/call.ts';
 import { setApi } from './data/api.ts';
 import { composerJobSources } from './data/composer-jobs.ts';
 import { composerSources } from './data/composer.ts';
@@ -34,6 +35,7 @@ export const grants = `net.fetch ${API}\nnet.websocket ${SOCKETS}\nsecret.keep s
 
 const sources: Sources = {
   ...sessionSources,
+  ...callSources,
   ...shellSources,
   ...chatSources,
   ...teamsSources,

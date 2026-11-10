@@ -1,3 +1,4 @@
+use CallMenu, CallRow from "./call.contract"
 // The frame around everything behind sign-in, as the React app's AppShell
 // (apps/web/src/components/shell): the sidebar of Doods under their workspaces with the account
 // at its foot, the pill over a Dood's pages that leads to its other pages, and the scaffolds a
@@ -248,8 +249,9 @@ component DoodRow
               text ago(dood.latestAt, now, utcOffset) class=RowTime color=(dood.unread ? "notice" : "ink.muted") font-weight=(dood.unread ? 500 : 400)
           if dood.latest != "" or dood.unread
             row align-items="center" gap=6
-              text dood.latest flex=1 min-width=0 class=RowLine color=(dood.unread ? "ink" : "ink.muted")
-                overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`dood-latest-${dood.id}`
+              CallRow(agentId=dood.id)
+                text dood.latest flex=1 min-width=0 class=RowLine color=(dood.unread ? "ink" : "ink.muted")
+                  overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`dood-latest-${dood.id}`
               if dood.unread
                 column width=8 height=8 border-radius=4 background-color="notice" flex-shrink=0 role="img" aria-label="Something new" testId=`dood-unread-${dood.id}`
 
@@ -332,6 +334,7 @@ component DoodHeader
         PageLink(href=path("computers", page.agentId), label="Computers", on=(route == "computers"), testId=`go-computers-${route}`)
         PageLink(href=path("permissions", page.agentId), label="Permissions", on=(route == "permissions"), testId=`go-permissions-${route}`)
         hr
+        CallMenu(route=route)
         PageLink(href=path("profile", page.agentId), label="Profile", on=(route == "profile"), testId=`go-profile-${route}`)
         PageLink(href=path("settings", page.agentId), label=`${nameOf(dood)}'s settings`, on=(route == "settings"), testId=`go-settings-${route}`)
 

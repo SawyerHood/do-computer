@@ -1,3 +1,4 @@
+use CallHistory from "./call.contract"
 // The rows of a chat's transcript, as the React app draws them
 // (apps/web/src/components/chat/transcript.tsx and the parts it uses): a person's message in a
 // bubble on the right, the Dood's as what it wrote and what it delivered, a notice as a line
@@ -245,7 +246,7 @@ component NoticeRow
         text block.text flex-shrink=0
         column flex=1 height=1 background-color="border"
     else if block.status == "call"
-      CallRecord(block=block, time=time)
+      CallHistory(block=block, time=time, name=nameOf(doodOf(doodList, agentId)), agentId=agentId)
     else
       column class=EventLine testId=`notice-${block.status}`
         row gap=8 align-items="center" flex-wrap="wrap"

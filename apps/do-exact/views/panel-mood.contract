@@ -1,3 +1,4 @@
+use callMood from "./call.contract"
 // What a Dood's creature is doing, everywhere it is drawn (lib/use-mascot-mood.ts): the open
 // Dood's as its chat says (thinking, working at what kind of work, answering), with what goes on
 // around it (the person typing, a run that just finished or failed, an OK it waits for, a page
@@ -25,7 +26,7 @@ members App
   derive openBase = not ours ? Mood(state="idle", variant="") : pending(said) and not chat.busy ? Mood(state="thinking", variant="") : chatMood(chat)
   derive quietKey = `${openAgentId}:${draft}:${chat.messages.length}:${chat.busy}:${moodEnd}`
   derive openMood = openBase.state != "idle" and openBase.state != "error" ? openBase : moodEnd != "" ? Mood(state=moodEnd, variant="") : openDood.asking ? Mood(state="waiting", variant="") : draft != "" and draft != moodHeard ? Mood(state="listening", variant="") : moodDozed == quietKey ? Mood(state="asleep", variant="") : Mood(state="idle", variant="")
-  derive liveFaces = doodList.map(d => liveFace(d, openAgentId, openMood, hatchingFor, hatchedHere))
+  derive liveFaces = doodList.map(d => callMood(liveFace(d, openAgentId, openMood, hatchingFor, hatchedHere), callView))
   derive liveSeeds = liveFaces.map(f => f.seed)
 
   task listening key=draft

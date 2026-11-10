@@ -1,3 +1,4 @@
+use CallPanel, CallFace, CallPanelMood from "./call.contract"
 // A Dood's panel beside its chat on a wide window (components/chat/agent-panel.tsx): its creature
 // at a size to be watched, hatched, petted and fed, with its box; its name and what it is doing;
 // its wardrobe; and the sections about this chat that fold under their headings. Here too is
@@ -105,11 +106,12 @@ component DoodPanel
             button press=openWardrobe aria-label=`${name}'s wardrobe` title="Wardrobe" class=IconButton position="absolute" top=10 right=10 testId="panel-wardrobe"
               image "symbol:icon.t-shirt" color="ink.muted" font-size="1rem"
           CreatureCare(dood=dood, name=(dood.name == "" ? "it" : dood.name), size=112)
-            Hatchling(dood=dood, size=112, feed=careFeed, crumb=crumbOf(care.treat), testId="panel-face")
+            CallFace(dood=dood)
+              Hatchling(dood=dood, size=112, feed=careFeed, crumb=crumbOf(care.treat), testId="panel-face")
           text name role="heading" aria-level=2 margin-top=12 font-size="1.125rem" font-weight=500 testId="panel-name"
           // The line in the transcript is the one announced; this repeats it beside the creature.
-          text doing font-size="0.875rem" color="ink.muted" testId="panel-status"
-          // --- call --- (a call with the Dood is placed here, under its name: CallButton)
+          CallPanelMood(agentId=dood.id, doing=doing)
+          CallPanel(dood=dood)
         // --- pinned --- what is pinned to the Dood (pins.contract)
         PinsShelf()
         // --- screen --- (the screen it last used here: UseNow)
