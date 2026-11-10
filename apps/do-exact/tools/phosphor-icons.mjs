@@ -39,6 +39,7 @@ const ICONS = {
   "sliders-horizontal": "SlidersHorizontal",
   eye: "Eye",
   "eye-slash": "EyeSlash",
+  copy: "Copy",
 }
 const pnpm = resolve(here, "../../../node_modules/.pnpm")
 const dir = readdirSync(pnpm).find((name) => name.startsWith("@phosphor-icons+react@"))

@@ -130,6 +130,7 @@ members App
     signingSubscription = subscription
     signingScope = modelsScopeId
     signingChose = false
+    loginCodeCopied = false
     loginId = ""
     loginTyped = ""
     send loginStarted = startModelLogin(modelsScopeId, providerId, type)
@@ -152,6 +153,10 @@ members App
       refresh modelProviders
       refresh doodModels
       refresh allModels
+  state loginCodeCopied = false
+  action copyLoginCode
+    copyText(modelLogin.deviceCode)
+    loginCodeCopied = true
   action typeLogin(v: string)
     loginTyped = v
   action answerLogin
@@ -235,10 +240,10 @@ component ModelsBody
       if not providersOurs
         progress aria-label="Loading"
       else
-        row align-items="center" gap=12 padding=14 border-radius=16 border="1px solid var(--border)" testId="models-own"
+        row flex-wrap="wrap" align-items="center" gap=12 padding=14 border-radius=16 border="1px solid var(--border)" testId="models-own"
           column width="2rem" height="2rem" border-radius=8 background-color="secondary" align-items="center" justify-content="center" flex-shrink=0
             image "symbol:icon.cpu" aria-hidden=true color="ink.muted"
-          column flex=1 min-width=0
+          column flex="1 1 10rem" min-width=0
             text "Do Computer's models" font-weight=500
             text modelProviders.own class=Hint testId="models-own-words"
         section aria-label="Model providers" display="flex" flex-direction="column" gap=8
@@ -305,6 +310,8 @@ component ModelSignIn
     chooseLogin: action
     retryLogin: action
     cancelLogin: action
+    loginCodeCopied: bool
+    copyLoginCode: action
   derive key = signingType == "api_key"
   derive problem = loginStartError != "" ? loginStartError : (loginOurs and modelLogin.status == "failed" ? (modelLogin.error == "" ? "It failed." : modelLogin.error) : "")
   derive description = key ? `Paid for by the token, on your account with ${signingProviderName}.` : signingSubscription ? `Use a ${signingShort} subscription for ${whose(scopeId, w)} Doods.` : `Use your own ${signingProviderName} account for ${whose(scopeId, w)} Doods.`
@@ -373,8 +380,12 @@ component ModelSignIn
               column gap=12
                 text modelLogin.deviceCode aria-label="The code to enter" padding="16px 0" border-radius=12 border="1px solid var(--border)" background-color="surface"
                   text-align="center" font-family="Geist Mono" font-size="1.875rem" font-weight=600 letter-spacing="0.1em" testId="model-sign-in-code"
-                link href=modelLogin.deviceUri target="_blank" class=OutlineButton align-self="flex-start" text-decoration="none"
-                  text "Open the page to enter it"
+                row flex-wrap="wrap" gap=8
+                  link href=modelLogin.deviceUri target="_blank" class=OutlineButton text-decoration="none"
+                    text "Open the page to enter it"
+                  button press=copyLoginCode class=GhostButton testId="model-sign-in-copy"
+                    image (loginCodeCopied ? "symbol:icon.check" : "symbol:icon.copy") aria-hidden=true
+                    text (loginCodeCopied ? "Copied" : "Copy the code")
                 row align-items="center" gap=8
                   progress aria-label="Waiting" width=16 height=16
                   text "Waiting for you to enter it there. This closes by itself." class=Hint

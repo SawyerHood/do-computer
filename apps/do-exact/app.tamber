@@ -79,3 +79,4 @@ icons
   icon.sliders = icon(sf "slider.horizontal.3", svg "icons/sliders-horizontal.svg")
   icon.eye = icon(sf "eye", svg "icons/eye.svg")
   icon.eye-slash = icon(sf "eye.slash", svg "icons/eye-slash.svg")
+  icon.copy = icon(sf "doc.on.doc", svg "icons/copy.svg")

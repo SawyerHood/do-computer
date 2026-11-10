@@ -199,6 +199,8 @@ component App
     chooseLogin
     retryLogin
     cancelLogin
+    loginCodeCopied
+    copyLoginCode
     // --- settings: passwords ---
     savedLogins
     savedCards

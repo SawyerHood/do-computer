@@ -390,6 +390,7 @@ component DeleteDood
 // "Save changes", at the foot of whichever of the form's pages is showing, with how the last save went.
 component SaveBar
   inject
+    wide: bool
     doodFormDirty: bool
     formOver: bool
     doodSaving: bool
@@ -397,7 +398,9 @@ component SaveBar
     doodSavedOk: bool
     saveDoodForm: action
   view
-    row position="sticky" bottom=0 justify-content="flex-end" align-items="center" gap=12 padding="8px 0" flex-wrap="wrap"
+    // Afloat at the foot of a wide window's card, as the React app's; a phone's is the page's last row,
+    // since one afloat there covers what is under it.
+    row position=(wide ? "sticky" : "static") bottom=0 justify-content="flex-end" align-items="center" gap=12 padding="8px 0" flex-wrap="wrap"
       ErrorLine(text=doodSaveError, testId="dood-save-error")
       if doodSavedOk
         text "Saved" role="status" class=StatusWords testId="dood-saved"
@@ -625,7 +628,7 @@ component UsageScreen
           tbody
             for m in doodUsage.models key=m.model
               tr border-top="1px solid var(--border)"
-                td padding="6px 0" overflow-wrap="anywhere"
+                td padding="6px 0"
                   text m.model
                 td text-align="end" padding="6px 8px" font-variant-numeric="tabular-nums"
                   text m.tokens

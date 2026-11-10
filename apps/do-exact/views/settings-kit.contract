@@ -235,8 +235,11 @@ component SettingsHeading
     route: string
     title: string
     lead: string
+  inject
+    wide: bool
   view
-    column gap=4 padding-right=32
+    // Clear of the card's cross, which a phone has in its bar instead.
+    column gap=4 padding-right=(wide ? 32 : 0)
       text title role="heading" aria-level=2 class=SettingsTitle testId=`heading-${route}`
       if lead != ""
         text lead class=SettingsLead
@@ -288,10 +291,10 @@ component SettingsNav
           background-color=(e.route == route and not phone ? "wash" : "transparent") testId=`settings-go-${e.route}-${route}`
           :hover
             background-color="wash"
-          image e.icon aria-hidden=true font-size="1rem"
-          text e.label flex=1
+          image e.icon aria-hidden=true font-size="1rem" flex-shrink=0
+          text e.label flex=1 min-width=0
           if phone
-            image "symbol:icon.caret-right" aria-hidden=true color="ink.muted" font-size="0.875rem"
+            image "symbol:icon.caret-right" aria-hidden=true color="ink.muted" font-size="0.875rem" flex-shrink=0
 
 // --- A frame for each whose ---
 
