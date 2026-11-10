@@ -1,4 +1,4 @@
-import { THREE, AgentOrbCore, AgentOrbWardrobe, AgentOrbSky, AgentOrbPortrait, avatarLook } from './engine.js';
+import { THREE, AgentOrbCore, AgentOrbWardrobe, AgentOrbSky, AgentOrbPortrait, avatarLook, avatarSvg } from './engine.js';
 
 let engine;
 export function drawing() {
@@ -13,17 +13,25 @@ export function drawing() {
 
 // One session-clock ticket, not one browser loop or WebGL context per avatar.
 const views = new Set();
-let stop, previous, current = 0;
+let stop, previous, current = 0, published = -1e9;
 export const now = () => current;
 export function start() {
   if (stop || !views.size || !globalThis.exact?.hatches) return;
   previous = undefined;
   stop = globalThis.exact.hatches.frames(frame => {
     current = frame.now;
+    if (document.hidden) { previous = current; return; }
     const seconds = previous === undefined ? 0 : Math.max(0, Math.min((current - previous) / 1000, .25));
     previous = current;
     for (const view of views) view.frame?.(seconds, current);
-    if (engine) engine.core.Runner.tick(current);
+    if (engine) {
+      engine.core.Runner.tick(current);
+      if (current - published >= 1000) {
+        published = current;
+        const orbs = engine.core.Runner.orbs;
+        globalThis.exact.diagnostics?.publish('mascot', { at: current, orbs: orbs.length, held: orbs.filter(orb => orb.paused).length });
+      }
+    }
   });
 }
 export function watch(view) { views.add(view); start(); return () => { views.delete(view); if (!views.size) { stop?.(); stop = null; } }; }
@@ -36,6 +44,9 @@ export function look(props) {
   const color = props.color || props.colour;
   if (/^#[\da-f]{6}$/i.test(color || '')) picked.color = color;
   return picked;
+}
+export function standIn(picked) {
+  return 'data:image/svg+xml,' + encodeURIComponent(avatarSvg({ seed: picked.seed, color: 'clay' }, picked.seed).replace(look({ colour: 'clay' }).color, picked.color));
 }
 export function outfit(props) {
   let result = {};

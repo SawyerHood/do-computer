@@ -24,7 +24,7 @@ clients: a `"pet"` is for the caller to send to the server if appropriate.
 - `still`: render and hold, redrawing for props/size changes. Default true at side ≤64, false
   above that. Held expressions settle for twelve steps as the React still avatar does.
   Forty sidebar stills plus a live chat creature share **one** retro WebGL renderer, not forty
-  contexts. The forty-avatar stress gallery also has the six animated moods, three small
+  contexts. The forty-avatar stress gallery also has the eleven moods and all four work variants, three small
   sizes, a separate hatching egg and scene views. Held orbs retain their scene but do no
   animation or draw work; the shared loop visits them cheaply. There is no claim of an
   unlimited list or a measured hardware frame-rate guarantee. Virtualised rows should destroy
@@ -46,7 +46,8 @@ smoothing. The entire stage stays within the tag's box (React's avatar lets its 
 A still player-card island, made by `AgentOrbPortrait` itself. `seed`, `colour`, the outfit
 slots and `outfit` work as above. `grid` is its internal pixel side (32–256, default 120),
 `hour` 0–3 (default sunrise, 2), `zoom` .2–1 (default 1), `egg` shows the egg. `island="false"`
-uses the plain deep-colour backdrop; a failed island uses it too and messages `backdrop`.
+uses the plain deep-colour backdrop; a failed island uses it too and messages `backdrop`. Without WebGL it overlays the plain
+SVG and messages `fallback`.
 The sky renderer used for the still is disposed immediately, not held per portrait.
 
 ## do-gift
@@ -84,7 +85,20 @@ After `pnpm install`, run `bun modules/web/build.mjs` from `apps/do-exact` to re
 imports are not. The bundle is generated and committed, never hand-edited. The rest of the
 files remain ordinary modules so other tags can be added without rebuilding the mascot.
 
-Use `tests/creature-gallery/./x test web creature.test.contract` from that folder (see
-PORTING.md). `./x verify` checks the isolated gallery at both widths and schemes. For the
+From `tests/creature-gallery`, use `./x test web creature.test.contract` (see PORTING.md).
+Run it once with `--size 390x844` and once with `--size 1280x1300`. A server-free `./x verify`
+currently races its own parallel drives on the pinned port; use sequential `agent … "check
+both"` for its light/dark checks, as PORTING.md explains. For the
 real app run the root `./x test web` and `./x verify` too. These tests need no server account:
 they are a separate, data-free app. Do not add its route to the real app.
+
+The gallery prepare step runs `bun modules/web/build.mjs --check` to catch stale generated
+code. `reference.mjs` captures the actual React Dood page for seed `pip0`, colour `moss`,
+while a root `./x agent` drive holds the test server open; it never starts another server.
+For example, clear `.exact/reference.done` in the gallery, start root
+`./x agent web "clock +30000 real until tests/creature-gallery/.exact/reference.done"`, then
+run `bun reference.mjs` in the gallery while that drive is live. Supply `CHROME` if its
+Playwright Chromium is not installed at the default location.
+
+The browser fallback for gift and wardrobe tiles is the plain creature, without the box or
+clothes. Nothing silently pretends a failed WebGL drawing is a successfully rendered garment.

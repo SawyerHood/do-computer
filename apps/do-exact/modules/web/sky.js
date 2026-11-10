@@ -1,5 +1,5 @@
 import { Creature } from './creature.js';
-import { drawing, watch, observe, surface, calm, flag, number } from './shared.js';
+import { drawing, watch, observe, surface, calm, flag, number, look, outfit } from './shared.js';
 
 // The sky places the egg; its drawing stays in the mascot package. This mirrors welcome/Stage.
 export function create(element, props, event) {
@@ -13,6 +13,7 @@ export function create(element, props, event) {
   const view = {
     element, root, box, canvas, props: {}, creature, sky,
     setProps(props) {
+      outfit(props);
       const old = this.props;
       this.props = props;
       creature.setProps({ ...props, state: 'egg', side: String(creature.side), dark: 'true', still: 'false', slow: 'false', pettable: 'false' });
@@ -21,8 +22,13 @@ export function create(element, props, event) {
         sky.calm = calm(props);
         if (old.dawn !== props.dawn || !this.initialised) sky.dawn(number(props.dawn, 0, 0, 3), sky.calm);
         if (!this.initialised || old.restart !== props.restart) {
-          if (props.fall === 'false' || sky.calm) sky.land(); else sky.fall();
-        } else if (props.fall === 'false' && old.fall !== 'false') sky.land();
+          if (!flag(props.hatching)) creature.orb.setState('egg');
+          if (props.fall === 'false' || sky.calm) {
+            const wasFalling = sky.falling;
+            sky.land();
+            if (!wasFalling) event(8, 'land');
+          } else sky.fall();
+        } else if ((props.fall === 'false' && old.fall !== 'false') || (sky.calm && sky.falling)) sky.land();
         if (props.clear !== old.clear) sky.clear(props.clear === undefined ? null : number(props.clear, 0, 0, 1000));
       }
       this.initialised = true; this.resize();
@@ -53,7 +59,7 @@ export function create(element, props, event) {
     destroy() { this.unwatch?.(); this.unobserve?.(); creature.destroy(); sky?.dispose(); root.replaceChildren(); },
   };
   creature.event = (kind, text) => {
-    if (text === 'out') { sky?.chips(); sky?.confetti(); sky?.dawn(3, calm(view.props)); }
+    if (text === 'out') { sky?.chips(look(view.props).color); sky?.confetti(); sky?.dawn(3, calm(view.props)); }
     if (kind !== 7) event(kind, text);
   };
   if (sky) sky.onLand = () => event(8, 'land'); else event(8, 'fallback');

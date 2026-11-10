@@ -140,8 +140,8 @@ To add another (Shiki and Mermaid follow this recipe):
    milliseconds in `frame.now`, and returns a stop function; `exact.hatches.after(ms, fn)`
    does the same for a wait. Stop tickets and observers in `destroy`. The mascot uses
    `new core.Orb`, `Runner.add`, and one shared `Runner.tick(frame.now)`, never `createOrb`
-   (which starts its own browser loop). Its GPU-resource retirement alone uses the package's
-   wall-clock timers; movement, hearts, gift opening and sky/hatching use the test clock.
+   (which starts its own browser loop). Its GPU-resource retirement and WebGL retry bookkeeping still use the package's
+   wall clock; movement, hearts, gift opening and sky/hatching use the test clock.
 8. Test it outside the app. `tests/creature-gallery` is a second small app with its own `./x`
    taking the same machine lock and ports. Its prepare script mirrors the production page
    module, not a second implementation. From that folder:
@@ -159,3 +159,14 @@ To add another (Shiki and Mermaid follow this recipe):
 
 The mascot tags and their full prop/event list are in `modules/web/README.md`. Leave
 `app.contract`, `app.ts` and screen components alone when adding another native tag.
+
+The data-free gallery exposes one limitation of this Exact checkout: `verify.mjs:1371` starts
+its tests, large-text tour and first-screen drives in parallel when an app has no server.
+With `./x` pinning port 8766, they race and report `port 8766 (--port or EXACT_PORT) is in use`.
+Do not change Exact, remove the machine lock or start extra servers. Run the gallery's tests
+at `--size 390x844` and `--size 1280x1300`, and its `agent … "check both"` sequentially. The
+large-text part of verify still runs; its last run found nothing spilling in this gallery.
+Native animation is culled offscreen by the mascot Runner, as in React: the gallery's Hatch
+and Open actions scroll their view into sight before starting it. `state` includes the last
+frame's mascot counts under `hatches.scopes.module.published.mascot` (64 orbs, 46 held in the
+full gallery); `at` is Exact time. These diagnostics do nothing in production.

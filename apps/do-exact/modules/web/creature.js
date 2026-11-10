@@ -1,9 +1,9 @@
-import { avatarSvg } from './engine.js';
-import { drawing, watch, now, flag, number, look, outfit, surface, observe, calm, dark } from './shared.js';
+import { drawing, watch, now, flag, number, look, outfit, surface, observe, calm, dark, standIn } from './shared.js';
 
 export function create(element, props, event) { return new Creature(element, props, event); }
 export class Creature {
   constructor(element, props, event) {
+    outfit(props);
     this.element = element; this.event = event; this.props = {};
     Object.assign(this, surface(element));
     const { core } = drawing();
@@ -15,7 +15,7 @@ export class Creature {
     this.down = e => this.pointer(e, true); this.move = e => this.pointer(e, false);
     this.up = () => { this.hand.pressed = false; };
     this.leave = () => Object.assign(this.hand, { at: -1e9, rubbed: 0, owed: 0, pressed: false, petting: false });
-    this.click = e => {
+    this.click = () => {
       // Exact handles the authored press; emitting it again would press twice.
       if (this.orb.getState() === 'hatching') this.orb.skipHatch();
       // Agent taps are clicks without pointer input. A real pointer already patted on down.
@@ -57,13 +57,16 @@ export class Creature {
     this.initialised = true;
   }
   fallback(picked) {
-    if (!this.orb.owed) { this.fallbackImage?.remove(); return; }
+    if (!this.orb.owed) { this.fallbackImage?.remove(); this.fallbackImage = null; this.canvas.style.visibility = ''; this.failed = false; return; }
     if (!this.fallbackImage) { this.fallbackImage = document.createElement('img'); this.box.prepend(this.fallbackImage); }
-    this.fallbackImage.src = 'data:image/svg+xml,' + encodeURIComponent(avatarSvg({ seed: picked.seed, color: this.props.colour || this.props.color || 'clay' }, picked.seed));
+    this.fallbackImage.src = standIn(picked);
+    this.canvas.style.visibility = 'hidden';
     this.fallbackImage.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
-    this.event(8, 'fallback');
+    if (!this.failed) this.event(8, 'fallback');
+    this.failed = true;
   }
   resize() {
+    if (this.gone) return;
     const rect = this.element.getBoundingClientRect();
     this.side = number(this.props.side, Math.min(rect.width || 160, rect.height || rect.width || 160), 16, 600);
     this.orb.resize(this.side);
@@ -84,7 +87,6 @@ export class Creature {
     Object.assign(hand, { x: e.clientX, y: e.clientY, at });
     if (hand.rubbed >= .9) hand.petting = true;
     if (pressed || (hand.petting && hand.owed >= .14)) { hand.owed = 0; this.pet(x / .44, pressed ? .75 : 1, x + .5, y + .5); }
-    if (this.orb.notice) this.orb.attend(x * 2, -y * 2, 1);
   }
   pet(x, amount, left = .5, top = .5) {
     if (!flag(this.props.pettable) || ['egg', 'hatching'].includes(this.orb.getState())) return;
@@ -98,6 +100,7 @@ export class Creature {
   }
   frame(seconds, time) {
     if (document.hidden) return;
+    if (this.orb.owed !== !!this.failed) this.fallback(look(this.props));
     for (const heart of [...this.liveHearts]) {
       const age = (time - heart.at) / 1000;
       if (age > 1.2) { heart.element.remove(); this.liveHearts.splice(this.liveHearts.indexOf(heart), 1); continue; }
