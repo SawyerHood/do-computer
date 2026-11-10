@@ -1,0 +1,4 @@
+/.exact/
+/target/
+/modules/
+/app.contract.d.ts

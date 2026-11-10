@@ -1,0 +1,26 @@
+{
+  "name": "Creature gallery",
+  "app": {
+    "id": "computer.do.exact.creatures",
+    "name": "Creature gallery"
+  },
+  "host": {
+    "web": {}
+  },
+  "modules": [
+    "do-creature",
+    "do-portrait",
+    "do-gift",
+    "do-wardrobe",
+    "do-sky"
+  ],
+  "before_build": [
+    "bun",
+    "prepare.mjs"
+  ],
+  "deploy": {
+    "store": {
+      "web": "0"
+    }
+  }
+}
