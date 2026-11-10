@@ -42,6 +42,9 @@ const ICONS = {
   eye: "Eye",
   "eye-slash": "EyeSlash",
   copy: "Copy",
+  "t-shirt": "TShirt",
+  "dice-five": "DiceFive",
+  "question-mark": "QuestionMark",
   // --- chat transcript ---
   "warning-circle": "WarningCircle",
   "arrow-clockwise": "ArrowClockwise",

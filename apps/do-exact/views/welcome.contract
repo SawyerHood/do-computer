@@ -1,0 +1,493 @@
+// The first run (components/welcome/scene.tsx): someone with no Dood yet meets their first. An
+// egg comes down out of the night onto its island and says hello; they name it and pick its
+// colour, then what it thinks with, and each answer cracks its shell a little more; it hatches as
+// the sun comes up, says so, and flies from the island to its place in its chat, where it says
+// hello again (chat-view.tsx `Welcome`). It is shown over the page, so the chat comes up under
+// it. Making the account is the sign-in card's (sign-in.contract); a Dood made any other way
+// sends the scene away. data/dood.ts answers it.
+use Reply, Dood, Session, Viewport from "./shapes.contract"
+use nameOf from "./shell.contract"
+use Hatchling from "./creature.contract"
+use Menu, MenuItem from "./styles.contract"
+
+// What naming the first Dood answers: the agent it is, and the model it was made with.
+shape FirstDood
+  ok: bool
+  error: string
+  agentId: string
+  model: string
+
+shape ModelChoice
+  id: string
+  name: string
+
+// Somewhere the Dood can think from (lib/welcome-models.ts `Source`): what the deployment
+// includes, or a provider the person signed in to, with the few of its models offered here.
+shape ModelSource
+  key: string
+  label: string
+  // How it is paid for, said beside it; "" for what is included.
+  tag: string
+  // The model it is on until another is picked.
+  first: string
+  models: ModelChoice[]
+
+shape WelcomeModels
+  owner: string
+  sources: ModelSource[]
+
+shape Swatch
+  id: string
+  label: string
+  hex: string
+
+// A thing a new Dood offers to do first, in its first hello (lib/starters.ts, in a browser).
+shape Starter
+  label: string
+  say: string
+
+members App
+  // --- welcome ---
+  state welcomeOn = false
+  // fall, hello, name, model, out. `welcomeCard` is whether its card is on show: it goes between steps.
+  state welcomeStep = "fall"
+  state welcomeCard = false
+  state welcomeTyped = 0
+  state welcomeTitled = false
+  state welcomeName = ""
+  state welcomeSuggested = 0
+  state welcomeColor = "tide"
+  state welcomeSeed = ""
+  state welcomeAgent = ""
+  state welcomeModel = ""
+  state welcomePick = ""
+  state welcomeChanged = ""
+  state welcomeCrack = 0
+  state welcomeDawn = 0
+  state welcomeGlow = 0
+  state welcomeCheer = 0
+  state welcomeLanded = false
+  state welcomeSkipped = false
+  state welcomeHatching = false
+  state welcomeOut = false
+  state welcomeLeaving = false
+  state welcomeFly = ""
+  // The Dood met in the first run, whose first hello in its chat goes by it; kept across a reload,
+  // as the React app keeps it for the window (lib/welcome.ts `rememberMeeting`).
+  state welcomeMet = "" persist
+  mutation welcomeNamed as shape FirstDood then afterWelcomeNamed
+  mutation welcomeThought as shape Reply then afterWelcomeThought
+  mutation welcomeSeen as shape Reply refreshes doods
+  resource doodColors = loadDoodColors() as shape Swatch[] else empty()
+  resource welcomeModels = loadWelcomeModels(session.owner, welcomeOn ? session.userId : "", welcomeModel) as shape WelcomeModels else empty()
+  derive welcomeFirst = firstName(session.name)
+  derive welcomeLine = lineOf(welcomeStep, welcomeFirst, welcomeName.trim())
+  derive welcomeSaid = welcomeTyped >= welcomeLine.length
+  derive welcomeError = welcomeStep == "name" ? welcomeReplyError(welcomeNamed, pending(welcomeNamed)) : welcomeStep == "model" ? welcomeReplyErrorOf(welcomeThought, pending(welcomeThought)) : ""
+  derive welcomeSources = welcomeModels.owner == session.owner ? welcomeModels.sources : []
+  derive welcomeChosen = chosenSource(welcomeSources, welcomePick, welcomeModel)
+  derive welcomePicked = pickedModel(welcomeChosen, welcomeChanged)
+  derive welcomePause = typingPause(welcomeLine, welcomeTyped)
+  derive welcomeBusy = pending(welcomeNamed) or pending(welcomeThought)
+  derive welcomeModelsLoading = pending(welcomeModels)
+
+  // Someone signed in with no Dood, at the list (`/`, which the React app sends to /welcome
+  // then): the egg comes down for them. One who has a Dood, made any other way, is sent on to
+  // it, and another page opened takes the scene away, as leaving /welcome does. It comes a
+  // moment after the list says there are none, as the React app's scene comes once its drawing
+  // has loaded, so a Dood made in that moment (the sidebar's + pressed at once) is opened and
+  // the scene never comes.
+  task welcomeCheck key=`${session.owner}:${doods.owner}:${doodList.length}:${onRoute}`
+    after(400, maybeWelcome)
+  // The title over the night while the egg falls.
+  task welcomeTitle key=`${welcomeOn}:${welcomeStep}`
+    after(250, showWelcomeTitle)
+  task welcomeUntitle key=`${welcomeTitled}`
+    after(1650, hideWelcomeTitle)
+  // Words written out as they are said: a letter at a time, a pause after a stop.
+  task welcomeTyping when welcomeCard and not welcomeSaid and not welcomePause key=`${welcomeStep}:${welcomeTyped}`
+    after(24, typeWelcome)
+  task welcomeTypingPause when welcomeCard and not welcomeSaid and welcomePause key=`${welcomeStep}:${welcomeTyped}`
+    after(190, typeWelcome)
+  // The card goes, and comes back asking the next thing.
+  task welcomeCardBack key=`${welcomeStep}:${welcomeCard}:${welcomeHatching}:${welcomeLeaving}`
+    after(230, welcomeCardIn)
+
+  action maybeWelcome
+    if not session.signedIn
+      welcomeOn = false
+    else if welcomeOn and not welcomeLeaving and onRoute != "doods"
+      welcomeOn = false
+    else if doods.owner == session.owner
+      if doodList.length == 0 and not welcomeOn and onRoute == "doods"
+        welcomeOn = true
+        welcomeStep = "fall"
+        welcomeCard = false
+        welcomeTyped = 0
+        welcomeLanded = false
+        welcomeSkipped = false
+        welcomeOut = false
+        welcomeLeaving = false
+        welcomeFly = ""
+        welcomeAgent = ""
+        welcomeName = ""
+        welcomeColor = "tide"
+        welcomeSeed = `d${round(time.epochAtZero + performanceNow())}`
+      else if doodList.length > 0 and welcomeOn and welcomeAgent == ""
+        welcomeOn = false
+  action showWelcomeTitle
+    welcomeTitled = welcomeOn and welcomeStep == "fall" and not welcomeLanded
+  action hideWelcomeTitle
+    welcomeTitled = false
+  // The egg is down: it hops, and says hello.
+  action welcomeHeard(word: string)
+    if word == "land" and not welcomeLanded
+      welcomeLanded = true
+      welcomeTitled = false
+      welcomeCheer = welcomeCheer + 1
+      welcomeStep = "hello"
+    if word == "hatched"
+      welcomeHatching = false
+      welcomeOut = true
+      welcomeStep = "out"
+      welcomeTyped = 0
+    if word == "flown"
+      welcomeOn = false
+  action welcomeSkipFall
+    welcomeSkipped = true
+    welcomeHeard("land")
+  action typeWelcome
+    if welcomeOn and welcomeCard and welcomeTyped < welcomeLine.length
+      welcomeTyped = welcomeTyped + 1
+  action welcomeCardIn
+    if welcomeOn and not welcomeCard and welcomeStep != "fall" and not welcomeHatching and not welcomeLeaving
+      welcomeCard = true
+      welcomeTyped = 0
+  // A press on the card while it is speaking says the rest at once.
+  action welcomeHurry
+    if not welcomeSaid
+      welcomeTyped = 9999
+  action welcomeSay(step: string)
+    welcomeCard = false
+    welcomeStep = step
+  action welcomeHello
+    // Knowing who they are is the first crack.
+    welcomeCrack = 0.34
+    welcomeDawn = 1
+    welcomeSay("name")
+  action editWelcomeName(v: string)
+    welcomeName = v
+  action suggestWelcomeName
+    welcomeName = suggestion(welcomeSuggested)
+    welcomeSuggested = welcomeSuggested + 1
+  action pickWelcomeColor(id: string)
+    welcomeColor = id
+    welcomeGlow = welcomeGlow + 1
+  action nameWelcome
+    if welcomeName.trim() != "" and not pending(welcomeNamed)
+      send welcomeNamed = nameFirstDood(welcomeAgent, welcomeName.trim(), welcomeColor, welcomeSeed, session.name)
+  action afterWelcomeNamed
+    match welcomeNamed
+      case some(r)
+        if r.agentId != ""
+          welcomeAgent = r.agentId
+        if r.ok
+          welcomeModel = r.model
+          welcomeCrack = 0.67
+          welcomeDawn = 2
+          welcomeSay("model")
+      case none
+        welcomeCrack = welcomeCrack
+  action pickWelcomeSource(key: string)
+    welcomePick = key
+  action pickWelcomeModel(key: string, id: string)
+    welcomePick = key
+    welcomeChanged = `${welcomeChanged.replaceAll(`|${key}=`, "|-=")}|${key}=${id}|`
+  action thinkWelcome
+    if welcomePicked != "" and welcomeAgent != "" and not pending(welcomeThought)
+      if welcomePicked != welcomeModel
+        send welcomeThought = thinkWith(welcomeAgent, welcomePicked)
+      else
+        welcomeHatch()
+  action afterWelcomeThought
+    match welcomeThought
+      case some(r)
+        if r.ok
+          welcomeModel = welcomePicked
+          welcomeHatch()
+      case none
+        welcomeCrack = welcomeCrack
+  // The shell breaks, the sun comes up, and then it is out and has something to say.
+  action welcomeHatch
+    welcomeGlow = welcomeGlow + 1
+    welcomeCard = false
+    welcomeHatching = true
+    hatchedHere = `${hatchedHere}|${welcomeAgent}|`
+  // The scene is over: the chat comes up under it, and the creature goes to its place there.
+  action welcomeFinish
+    if welcomeAgent != "" and not welcomeLeaving
+      welcomeMet = welcomeAgent
+      welcomeLeaving = true
+      welcomeCard = false
+      send welcomeSeen = markHatched(welcomeAgent)
+      follow(path("dood", welcomeAgent))
+      welcomeFly = wide and panelOpen ? "panel-face" : "hello-face"
+  // Fresh from the first run, it is asked to do one of the things it offers.
+  action welcomeStart(text: string)
+    // No files with it: the composer's own (empty) kind of list.
+    if ours and not pending(said)
+      send said = sendComposer(chat.agentId, chat.chatId, text, composerAttachments.filter(f => false), false, `x-hello-${round(time.epochAtZero + performanceNow())}`)
+
+fn firstName(full: string): string = match full.trim().split(" ").filter(w => w != "").at(0) { case some(w) => w, case none => "you" }
+// What the egg, and then the creature, says at each step.
+fn lineOf(step: string, first: string, name: string): string = step == "hello" ? "Oof. That was a long way down. Hello? Is somebody out there?" : step == "name" ? `Nice to meet you, ${first}. I don’t have a name yet. What will you call me?` : step == "model" ? `${name}. I like that. What should I think with?` : step == "out" ? `There you are, ${first}! Shall we get started?` : ""
+fn typingPause(line: string, typed: number): bool = typed > 0 and ".,!?:".includes(line.slice(typed - 1, typed))
+fn suggestion(n: number): string = match ["Pip", "Mochi", "Juniper", "Biscuit", "Tarn", "Wren", "Sorrel", "Nori", "Pebble"].at(n - floor(n / 9) * 9) { case some(s) => s, case none => "Pip" }
+fn welcomeReplyError(r: option<FirstDood>, busy: bool): string = busy ? "" : match r { case some(x) => x.error, case none => "" }
+fn welcomeReplyErrorOf(r: option<Reply>, busy: bool): string = busy ? "" : match r { case some(x) => x.error, case none => "" }
+// The place chosen, else the one its model comes from, else the first.
+fn chosenSource(sources: ModelSource[], pick: string, model: string): ModelSource = match first(sources.filter(s => s.key == pick)) {
+  case some(s) => s,
+  case none => match first(sources.filter(s => s.models.filter(m => m.id == model).length > 0)) {
+    case some(s) => s,
+    case none => match first(sources) { case some(s) => s, case none => ModelSource(key="", label="", tag="", first="", models=[]) }
+  }
+}
+fn pickedModel(source: ModelSource, changed: string): string = match changed.split(`|${source.key}=`).at(1) {
+  case some(rest) => match rest.split("|").at(0) { case some(id) => id, case none => source.first },
+  case none => source.first
+}
+fn modelName(source: ModelSource, id: string): string = match first(source.models.filter(m => m.id == id)) { case some(m) => m.name, case none => id }
+// A colour's hex, from the protocol's colours (data/dood.ts); its own id until they are in.
+fn hexOf(colors: Swatch[], id: string): string = match first(colors.filter(s => s.id == id)) { case some(s) => s.hex, case none => id }
+fn starters(): Starter[] = [Starter(label="Make me a little game", say="Make me a little game with you in it that I can play right here in the chat."), Starter(label="Research three things at once", say="Pick three things worth knowing about today and research them all at once with sub-agents. Tell me what they find."), Starter(label="Check in with me every morning", say="Check in with me every morning at 9 with something worth knowing.")]
+
+// The scene over the page: the night, the egg and its island (`do-sky`), the title as it falls,
+// and the card under the egg with what it says and asks.
+component WelcomeScene
+  inject
+    doodColors: Swatch[]
+    session: Session
+    wide: bool
+    welcomeStep: string
+    welcomeCard: bool
+    welcomeLine: string
+    welcomeTyped: number
+    welcomeSaid: bool
+    welcomeTitled: bool
+    welcomeLanded: bool
+    welcomeSkipped: bool
+    welcomeName: string
+    welcomeColor: string
+    welcomeSeed: string
+    welcomeCrack: number
+    welcomeDawn: number
+    welcomeGlow: number
+    welcomeCheer: number
+    welcomeHatching: bool
+    welcomeOut: bool
+    welcomeLeaving: bool
+    welcomeFly: string
+    welcomeError: string
+    welcomeBusy: bool
+    welcomeSources: ModelSource[]
+    welcomeChosen: ModelSource
+    welcomePicked: string
+    welcomeModelsLoading: bool
+    welcomeHeard: action
+    welcomeSkipFall: action
+    welcomeHurry: action
+    welcomeHello: action
+    editWelcomeName: action
+    suggestWelcomeName: action
+    pickWelcomeColor: action
+    nameWelcome: action
+    pickWelcomeSource: action
+    pickWelcomeModel: action
+    thinkWelcome: action
+    welcomeFinish: action
+  derive tag = welcomeOut ? welcomeName.trim() : welcomeStep == "model" ? `${welcomeName.trim()}, in the egg` : "The egg"
+  view
+    column position="absolute" inset=0 z-index=50 overflow="hidden" color="ink.on-night" font-family="Geist"
+      background-color=(welcomeLeaving ? "transparent" : "night") transition="background-color 700ms" pointer-events=(welcomeLeaving ? "none" : "auto")
+      testId="welcome"
+      do-sky seed=welcomeSeed colour=hexOf(doodColors, welcomeColor) crack=`${welcomeCrack}` dawn=`${welcomeDawn}` glow=`${welcomeGlow}` cheer=`${welcomeCheer}` talk=`${welcomeTyped}`
+        fall=(welcomeSkipped ? "false" : "true") hatching=(welcomeHatching or welcomeOut ? "true" : "false") out=(welcomeOut ? "true" : "false")
+        state=(welcomeCard and not welcomeSaid ? "speaking" : "idle") card="welcome-card" fly=welcomeFly message=welcomeHeard
+        position="absolute" inset=0 width="100%" height="100%" aria-label=(welcomeOut ? welcomeName : "An egg on its island") testId="welcome-sky"
+      column position="absolute" left=0 right=0 top="36%" align-items="center" opacity=(welcomeTitled ? 1 : 0) transition="opacity 1s" pointer-events="none" aria-hidden=(not welcomeTitled)
+        text "Do Computer" font-size="2.25rem" font-weight=600 letter-spacing="-0.025em" text-shadow="0 3px 0 rgb(0 0 0 / 0.3)"
+      if not welcomeLanded
+        row position="absolute" top=14 right=16 gap=4
+          button press=welcomeSkipFall padding="4px 12px" border-radius=999 font-size="0.75rem" color="ink.on-night" opacity=0.55 background-color="transparent" border="none" testId="welcome-skip"
+            text "Skip"
+      // What it says, and asks, in the card under the egg. It goes between steps.
+      column position="absolute" bottom=24 left=0 right=0 margin="0 auto" width="min(37.5rem, calc(100% - 2rem))" max-height="calc(100% - 6.5rem)" translate=(welcomeCard ? "0px 0px" : "0px 16px")
+        opacity=(welcomeCard ? 1 : 0) transition="opacity 200ms, translate 200ms" pointer-events=(welcomeCard ? "auto" : "none") aria-hidden=(not welcomeCard)
+        padding=20 border-radius=16 background-color="canvas" color="ink" box-shadow="0 0 0 1px var(--border), 0 25px 50px -12px rgb(0 0 0 / 0.25)" box-sizing="border-box"
+        testId="welcome-card"
+        column position="absolute" top=-7 left="calc(50% - 7px)" width=14 height=14 rotate="45deg" border-radius="3px 0 0 0" background-color="canvas"
+          border-top="1px solid var(--border)" border-left="1px solid var(--border)" aria-hidden=true
+        row position="absolute" top=-14 left=20 height=28 align-items="center" gap=6 padding="0 10px" border-radius=999 background-color="ink" color="canvas"
+          font-size="0.75rem" font-weight=600 testId="welcome-tag"
+          column width=10 height=10 border-radius=5 background-color=hexOf(doodColors, welcomeColor) box-shadow="inset 0 0 0 1.5px rgb(255 255 255 / 0.5)"
+          text tag
+        scroll min-height=0 margin="0 -20px -20px" padding="0 20px 20px"
+          text (welcomeSaid ? welcomeLine : welcomeLine.slice(0, welcomeTyped)) role="status" margin-top=4 min-height="3.2rem" font-size="1.0625rem" line-height=1.5
+            press=welcomeHurry testId="welcome-line"
+          if welcomeSaid
+            column animation="welcome-open 300ms both" testId=`welcome-step-${welcomeStep}`
+              if welcomeStep == "hello"
+                row margin-top=12 justify-content="flex-end"
+                  button press=welcomeHello autofocus=true class=WelcomeButton testId="welcome-hello"
+                    text "Hello!"
+              else if welcomeStep == "name"
+                WelcomeNaming()
+              else if welcomeStep == "model"
+                WelcomeThinking()
+              else if welcomeStep == "out"
+                row margin-top=12 justify-content="flex-end"
+                  button press=welcomeFinish disabled=welcomeLeaving autofocus=true class=WelcomeButton testId="welcome-start"
+                    text `Start chatting with ${welcomeName.trim()}`
+
+keyframes welcome-open
+  from opacity=0 translate="0px 6px"
+
+// A name for it, and its colour, which the egg takes as it is picked.
+component WelcomeNaming
+  inject
+    doodColors: Swatch[]
+    welcomeName: string
+    welcomeColor: string
+    welcomeError: string
+    welcomeBusy: bool
+    editWelcomeName: action
+    suggestWelcomeName: action
+    pickWelcomeColor: action
+    nameWelcome: action
+  view
+    column margin-top=12 gap=12
+      row gap=8
+        input value=welcomeName input=editWelcomeName submit=nameWelcome placeholder="A name for it" aria-label="A name for it" maxlength=40
+          autocomplete="off" autofocus=true class=WelcomeField flex=1 min-width=0 testId="welcome-name"
+        button press=suggestWelcomeName aria-label="Suggest a name" title="Suggest a name" class=WelcomeOutline width=40 min-width=40 padding=0 testId="welcome-dice"
+          image "symbol:icon.dice" font-size="1.125rem"
+      row role="radiogroup" aria-label="Its color" flex-wrap="wrap" align-items="center" gap=10
+        for c in doodColors key=c.id
+          button role="radio" aria-checked=(welcomeColor == c.id) aria-label=c.label title=c.label press=pickWelcomeColor(c.id) width=26 height=26 border-radius=13 border="none" padding=0
+            background-color=c.hex box-shadow=(welcomeColor == c.id ? `0 0 0 2px var(--canvas), 0 0 0 4px ${c.hex}` : "none") testId=`welcome-color-${c.id}`
+      if welcomeError != ""
+        text welcomeError role="alert" font-size="0.875rem" color="danger" testId="welcome-error"
+      row align-items="center" gap=8
+        text "Both can be changed later." flex=1 font-size="0.75rem" color="ink.muted"
+        button press=nameWelcome disabled=(welcomeBusy or welcomeName.trim() == "") class=WelcomeButton testId="welcome-named"
+          text (welcomeBusy ? "One moment…" : "That’s your name")
+
+// What it thinks with (thinking.tsx): what the deployment includes and each provider the person
+// signed in to, each with the model it would use and a way to another.
+component WelcomeThinking
+  inject
+    welcomeName: string
+    welcomeError: string
+    welcomeBusy: bool
+    welcomeSources: ModelSource[]
+    welcomeChosen: ModelSource
+    welcomePicked: string
+    welcomeModelsLoading: bool
+    pickWelcomeSource: action
+    pickWelcomeModel: action
+    thinkWelcome: action
+  view
+    column margin-top=12 gap=10
+      if welcomeSources.length == 0
+        column height=56 border-radius=12 background-color="muted" align-items="center" justify-content="center"
+          if welcomeModelsLoading
+            progress aria-label="Loading" width=16 height=16
+          else
+            text "Nothing to think with yet." font-size="0.875rem" color="ink.muted"
+      else
+        column role="radiogroup" aria-label="What it thinks with" max-height="min(15rem, 30vh)" overflow-y="auto" border="1px solid var(--border)" border-radius=12
+          for s, i in welcomeSources key=s.key
+            row role="radio" aria-checked=(s.key == welcomeChosen.key) press=pickWelcomeSource(s.key) align-items="center" gap=12 padding="10px 12px"
+              border-top=(i == 0 ? "none" : "1px solid var(--border)") background-color=(s.key == welcomeChosen.key ? "wash" : "transparent") testId=`welcome-source-${s.key}`
+              column width=16 height=16 border-radius=8 flex-shrink=0 align-items="center" justify-content="center"
+                border=(s.key == welcomeChosen.key ? "1px solid var(--primary)" : "1px solid var(--input)") background-color=(s.key == welcomeChosen.key ? "primary" : "transparent")
+                if s.key == welcomeChosen.key
+                  column width=6 height=6 border-radius=3 background-color="primary.ink"
+              column flex=1 min-width=0 gap=2
+                text s.label font-size="0.875rem" font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+                row align-items="center" gap=6 font-size="0.75rem" color="ink.muted" min-width=0
+                  text modelName(s, (s.key == welcomeChosen.key ? welcomePicked : s.first)) overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`welcome-model-${s.key}`
+                  if s.models.length > 1
+                    text "·" aria-hidden=true
+                    button popovertarget=`welcome-models-${s.key}` aria-label=`Change the model of ${s.label}` padding=0 background-color="transparent" border="none"
+                      font-size="0.75rem" color="ink.muted" text-decoration="underline" testId=`welcome-change-${s.key}`
+                      text "Change"
+                    column id=`welcome-models-${s.key}` popover="auto" role="menu" aria-label=`The model of ${s.label}` class=Menu
+                      for m in s.models key=m.id
+                        button role="menuitemradio" aria-checked=(m.id == (s.key == welcomeChosen.key ? welcomePicked : s.first)) press=pickWelcomeModel(s.key, m.id)
+                          popovertarget=`welcome-models-${s.key}` popovertargetaction="hide" class=MenuItem testId=`welcome-pick-${m.id}`
+                          text m.name flex=1
+                          if m.id == (s.key == welcomeChosen.key ? welcomePicked : s.first)
+                            image "symbol:icon.check" aria-hidden=true
+              if s.tag != ""
+                text s.tag font-size="0.75rem" color="ink.muted" flex-shrink=0
+      if welcomeError != ""
+        text welcomeError role="alert" font-size="0.875rem" color="danger" testId="welcome-error"
+      row align-items="center" gap=8
+        text "This can be changed later." flex=1 font-size="0.75rem" color="ink.muted"
+        button press=thinkWelcome disabled=(welcomeBusy or welcomePicked == "") autofocus=true class=WelcomeButton testId="welcome-think"
+          text (welcomeBusy ? "One moment…" : welcomePicked == "" ? "Choose one" : `Use ${modelName(welcomeChosen, welcomePicked)}`)
+
+// A new Dood's first hello in its empty chat (chat-view.tsx `Welcome`): its creature, hatching
+// as its owner watches, unless the panel beside has it; and fresh from the first run, what it
+// offers to do first. Nothing once the chat has something in it.
+component FirstHello
+  props
+    dood: Dood
+    // The chat is empty, and the panel beside it (which has the creature) is not open.
+    empty: bool
+    beside: bool
+  inject
+    session: Session
+    viewport: Viewport
+    welcomeMet: string
+    welcomeOn: bool
+    welcomeStart: action
+  derive met = welcomeMet == dood.id and dood.name != ""
+  view
+    if empty
+      // In a scroller of its own, so that at the largest text it scrolls and does not run under the header.
+      scroll flex=1 min-height=0 testId="first-hello"
+        column min-height="100%" align-items="center" justify-content="center" gap=12 padding=(viewport.height > 600 ? "64px 16px" : "24px 16px") text-align="center" box-sizing="border-box"
+          if not beside
+            // Hidden while the creature from the first run is on its way here.
+            column margin-bottom=24 visibility=(welcomeOn and met ? "hidden" : "visible")
+              Hatchling(dood=dood, size=max(96, min(224, viewport.height - 552)), feed="", crumb="", testId="hello-face")
+          if met
+            text `Hi ${firstName(session.name)}, I’m ${dood.name}.` role="heading" aria-level=1 font-size="1.25rem" font-weight=500 testId="hello-title"
+            text "What should we do first?" font-size="0.875rem" color="ink.muted"
+            row margin-top=8 flex-wrap="wrap" justify-content="center" gap=8
+              for s in starters() key=s.label
+                button press=welcomeStart(s.say) class=WelcomeOutline border-radius=999 min-height="2rem" font-size="0.8125rem" testId=`starter-${s.label}`
+                  text s.label
+          else
+            text (dood.name == "" ? "Say hello" : dood.name) role="heading" aria-level=1 font-size="1.25rem" font-weight=500 testId="hello-title"
+            text (dood.name == "" ? "Your Dood is brand new. It has no name yet. Start talking and work out together who it is." : "What would you like to do?")
+              max-width="24rem" font-size="0.875rem" color="ink.muted"
+
+style WelcomeButton
+  min-height="2.25rem" padding="0 14px" border-radius=8 font-size="0.875rem" font-weight=500
+  background-color="primary" color="primary.ink" border="none"
+  :disabled
+    opacity=0.5
+
+style WelcomeOutline
+  min-height="2.25rem" padding="0 14px" border-radius=8 font-size="0.875rem" font-weight=500 display="flex" align-items="center" justify-content="center"
+  background-color="transparent" color="ink" border="1px solid var(--border)"
+  :hover
+    background-color="wash"
+
+style WelcomeField
+  min-height="2.5rem" padding="0 12px" border-radius=8 border="1px solid var(--input)" font-size="1rem"
+  background-color="transparent" color="ink" font-family="Geist"

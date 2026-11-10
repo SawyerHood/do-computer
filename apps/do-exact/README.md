@@ -25,6 +25,16 @@ what Exact cannot do yet.
 - A wide window has the sidebar beside the page; a phone has the list, then a Dood's chat over
   it. Every page has its address (`/a/:agentId`, `/a/:agentId/c/:chatId`,
   `/a/:agentId/library`, `/w/:workspaceId/people`, …): deep links, reload, Back and Forward work.
+- A Dood from its first moment (views/welcome, panel, panel-mood, care, wardrobe): someone with
+  no Dood watches an egg come down out of the night onto its island, says hello, names it, picks
+  its colour and what it thinks with, sees it hatch as the sun comes up, and follows it as it flies
+  into its chat, where it offers what to do first. A Dood hatched from the sidebar's + is met as
+  an egg that hatches while its owner watches. Its panel beside the chat has its creature, petted
+  with a click or by rubbing, treats beside it, its box filling with the hours until the next,
+  opened over the page, and its wardrobe, where anything the workspace found is worn by any of its
+  Doods. Every picture of a Dood is in its egg until it has hatched, wears what it has on, and
+  acts out what its chat says: listening, thinking, at which kind of work, answering, done,
+  troubled, waiting for an OK, asleep.
 - A Dood's chat, as the React app's transcript draws it: opened at its newest message and
   following it, with a way back to the newest when the reader has scrolled away, the reply
   arriving as it is written over the Dood's WebSocket, and earlier messages a page at a time.
@@ -63,8 +73,9 @@ what Exact cannot do yet.
   computers, permissions, profile, settings; and a workspace's page, people and settings. Each
   is a titled placeholder for now.
 - Tests (`chat.test.contract`, `chat-transcript.test.contract`, `shell.test.contract`, `sign-in.test.contract`, `library*.test.contract`,
-  `pins.test.contract`) that drive all
-  of that against Do Computer's own server on the web host, and `./x verify` clean.
+  `pins.test.contract`, `welcome.test.contract`, `panel.test.contract`, `care.test.contract`,
+  `wardrobe.test.contract`) that drive all of that against Do Computer's own server on the web
+  host, and `./x verify` clean.
 
 ## Run it
 
@@ -127,10 +138,9 @@ React app (`apps/web/src/server/exact-app.ts`). Node only for now. `tools/same-o
 In the order it would be built:
 
 1. **The pages' bodies.** Pages other than chat and library are placeholders (PORTING.md says how to fill
-   one in). The creature is drawn, but not petted, dressed or hatched in the shell yet.
-2. **The rest of a chat.** The composer's side (attachments, Stop, slash commands), code blocks
-   with highlighting and tables (the Markdown area), MCP apps, and what GAPS.md's "Chat
-   transcript" lists.
+   one in). Of the creature: claiming a Dood hatched in a post, the waiting list's own first run,
+   and the public Dood page (`/dood/:id`, `/hatch`), which nothing in the signed-in app links to.
+2. **The rest of a chat.** Slash commands, MCP apps, and what GAPS.md's "Chat transcript" lists.
 3. **The rest of the shell.** Naming and hatching with the egg, starting a team and answering
    invitations, putting Doods in order by dragging, folding a workspace, calls, and the
    React app's wide sidebar that folds to a column of faces.

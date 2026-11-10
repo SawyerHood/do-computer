@@ -8,12 +8,13 @@ use Reply, Dood, Page, Workspace from "./shapes.contract"
 use Screen, Card, OutlineButton, QuietButton, FloatPill, JumpButton from "./styles.contract"
 use DoodHeader, doodOf, nameOf, stateOf from "./shell.contract"
 use DoodFace from "./creature.contract"
-use MessageRow, Working, TranscriptPlaceholder, Welcome from "./chat-rows.contract"
+use MessageRow, Working, TranscriptPlaceholder from "./chat-rows.contract"
+use DoodPanel from "./panel.contract"
+use FirstHello from "./welcome.contract"
 use Asks from "./chat-asks.contract"
 use ComposerBox from "./composer.contract"
 use ComposerJob from "./composer-jobs.contract"
 use ThreadRow, ThreadListing from "./threads.contract"
-use PinsShelf from "./pins.contract"
 use LibraryPicture, LibraryPictureViewer from "./library-card.contract"
 use LibraryFile, Library from "./library-shapes.contract"
 use chatHref, Block, Message, Chat, Opened, Earlier, ApprovalAsk, SecretField, SecretAsk, SecretAsks, SignInAsk, SignIns, SignInReply, ComputerAsk, ComputerAsks from "./chat-shapes.contract"
@@ -48,6 +49,12 @@ members App
   state deliveredGone = ""
   // Whether the reader is at the newest message; away from it, a button brings them back.
   state atEnd = true
+  // Whether the transcript keeps to its end as it grows: until the reader scrolls up from it.
+  // Rich text (markdown.contract) takes its height a moment after its row is laid out, which the
+  // list's own following does not see, so the chat keeps to the end itself as well.
+  state following = true
+  // The reader has a finger or the pointer on the transcript: what moves it now is them.
+  state readerHolds = false
   state latestAsked = 0
   // The chat on screen among the Dood's chats (views/threads.contract): its kind, how it is getting on.
   derive chatThread = threadOf(threadsListing.chats, openChatId)
@@ -59,7 +66,9 @@ members App
   derive pendingSignIns = signIns.owner == session.owner and signIns.agentId == openAgentId ? signIns.connectors : []
   // The library's listing as the chat's pages read it (library.contract's loader): a file card's
   // view address, a link in a message, whether a visual's file is still there.
-  resource chatLibrary = loadLibrary(session.owner, onRoute == "dood" or onRoute == "chat" ? openAgentId : "") with asks.library as shape Library else empty()
+  // Asked again as each message comes: a file the Dood sends or draws is in the library by then,
+  // and the Dood's socket says nothing of the library (its workspace's library socket does).
+  resource chatLibrary = loadLibrary(session.owner, onRoute == "dood" or onRoute == "chat" ? openAgentId : "") with asks.library * 1000 + chat.messages.length as shape Library else empty()
   derive chatLibraryHere = chatLibrary.owner == session.owner and chatLibrary.agentId == openAgentId
   derive chatLibraryFiles = chatLibraryHere ? chatLibrary.files : []
   derive filesBase = chatLibraryHere ? chatLibrary.base : ""
@@ -72,6 +81,9 @@ members App
   // Dood), joined here once rather than in each row.
   derive liveRows = composerJobList.length == 0 ? chat.messages : chat.messages.map(m => m.blocks.filter(b => b.kind == "command").length == 0 ? m : Message(m, blocks=m.blocks.map(b => b.kind == "command" ? withJob(b, composerJobList) : b)))
   derive transcriptRows = (hasEarlier ? [markerRow("earlier")] : []).concat(earlierRows).concat(ours ? liveRows : []).concat(ours and chat.activity != "" ? [markerRow("working")] : [])
+  derive lastRowId = match transcriptRows.at(-1) { case some(m) => m.id, case none => "" }
+  // What makes the transcript taller: a row more, or the newest one written further.
+  derive chatGrowth = `${transcriptRows.length}:${lastRowId}:${match chat.messages.at(-1) { case some(m) => sum(m.blocks.map(b => b.text.length)), case none => 0 }}`
   derive subagentStatuses = threadsListing.chats.filter(c => c.kind == "subagent").map(c => `${c.id}=${c.status}`)
   derive chatTeam = match first(workspaceList.filter(w => w.id == openDood.workspaceId and w.kind == "team")) { case some(w) => w.name, case none => "" }
   derive pendingComputers = computerAsks.owner == session.owner and computerAsks.agentId == openAgentId ? computerAsks.asks : []
@@ -93,7 +105,11 @@ members App
   task computerPoll mount
     every(15000, pullComputerAsks)
   task latest key=latestAsked
-    after(600, toEnd)
+    after(600, stickToEnd)
+  task stick key=chatGrowth
+    after(250, stickToEnd)
+  task stickLater key=chatGrowth
+    after(900, stickToEnd)
   task delivered key=chat.justDelivered
     after(3000, deliveredLeaves)
 
@@ -105,8 +121,9 @@ members App
       scrollIntoView("transcript", lastId, block="end")
   // Smoothly, and once more when that is done: rich text below may have grown meanwhile.
   action toLatest
-    if lastId != ""
-      scrollIntoView("transcript", lastId, block="end", behavior="smooth")
+    if lastRowId != ""
+      following = true
+      scrollIntoView("transcript", lastRowId, block="end", behavior="smooth")
       latestAsked = latestAsked + 1
   // There is no running a reply again as such: asking again is what works, so the button asks.
   action retry
@@ -125,7 +142,24 @@ members App
   action deliveredLeaves
     deliveredGone = chat.justDelivered
   action scrolled(x: number, y: number, e: ScrollEvent)
-    atEnd = e.scrollHeight - y - e.clientHeight < 48
+    let end = e.scrollHeight - y - e.clientHeight < 48
+    atEnd = end
+    // Only the reader takes it away from the end (a wheel, a drag, a key); a list that moves by
+    // itself as rows are measured and the composer opens keeps following.
+    following = end or (following and not readerHolds)
+  action readerWheel(e: WheelEvent)
+    if e.deltaY < 0
+      following = false
+  action readerDown
+    readerHolds = true
+  action readerUp
+    readerHolds = false
+  action readerKey(k: string)
+    if k == "PageUp" or k == "ArrowUp" or k == "Home"
+      following = false
+  action stickToEnd
+    if following and lastRowId != ""
+      scrollIntoView("transcript", lastRowId, block="end")
   // Words for the composer from something in the chat (a visual's "Tell …"), with the caret in it.
   action putInComposer(text: string)
     editDraft(text)
@@ -217,8 +251,12 @@ component ChatScreen
     hasEarlier: bool
     earlierLoading: bool
     showEarlier: action
-    atEnd: bool
+    following: bool
     scrolled: action
+    readerWheel: action
+    readerDown: action
+    readerUp: action
+    readerKey: action
     toLatest: action
     composerStop: action
     chatPicture: LibraryPicture
@@ -272,14 +310,15 @@ component ChatScreen
             column flex=1 justify-content="flex-end" overflow="hidden"
               TranscriptPlaceholder()
           else if own
-            Welcome(dood=dood, name=threadsListing.name, tagline=threadsListing.tagline, showFace=not (wide and panelOpen))
+            // The greeting of an empty chat, the first run's hello among them (welcome.contract).
+            FirstHello(dood=dood, empty=true, beside=(wide and panelOpen))
           else
             column flex=1
         else
           // Short, the transcript sits on the composer, as the React app's does.
           column flex=1 min-height=0 justify-content="flex-end" position="relative"
             list id="transcript" appearance="none" virtualized=true scroll-start="end" scrollFollowEnd=true flex="0 1 auto" min-height=0 max-height="100%"
-              scroll=scrolled aria-label="Messages" role="log" testId="transcript"
+              scroll=scrolled wheel=readerWheel pointerdown=readerDown pointerup=readerUp key=readerKey aria-label="Messages" role="log" testId="transcript"
               for m in transcriptRows key=m.id
                 column width="100%"
                   if m.role == "earlier"
@@ -290,7 +329,7 @@ component ChatScreen
                     Working(dood=dood, activity=chat.activity)
                   else
                     MessageRow(message=m, agentId=page.agentId, doodName=threadsListing.name, asker=(sub ? name : ""), canRetry=(own and m.id == lastKey and not chat.busy))
-            if not atEnd
+            if not following
               row position="absolute" bottom=12 left=0 right=0 justify-content="center" pointer-events="none"
                 button press=toLatest aria-label="Scroll to end" class=JumpButton pointer-events="auto" testId="to-latest"
                   image "symbol:icon.arrow-down" font-size="1rem"
@@ -395,20 +434,3 @@ component SlackFoot
         if info.url != ""
           link href=info.url target="_blank" color="primary" font-weight=500 text-decoration="none"
             text "Open in Slack"
-
-// The Dood's panel, beside its chat on a wide window: where it is looked after. The React app
-// draws its creature here, with its things; this is the entry point, with the face a placeholder
-// until the creature lands (creature.contract).
-component DoodPanel
-  props
-    dood: Dood
-    busy: bool
-  view
-    column width="20rem" flex-shrink=0 border-left="1px solid var(--hairline)" align-items="center" padding="40px 24px" gap=10 overflow-y="auto"
-      testId="dood-panel"
-      DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=96)
-      text nameOf(dood) font-size="1.0625rem" font-weight=500 margin-top=8 testId="panel-name"
-      text (dood.asking ? "Waiting on you" : (busy or dood.working) ? "Working" : "Ready") font-size="0.875rem" color="ink.muted" testId="panel-status"
-      // What is pinned to it, under its face (pins.contract).
-      column align-self="stretch" margin-top=16
-        PinsShelf()

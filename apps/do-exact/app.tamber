@@ -17,6 +17,8 @@ theme
   muted = light-dark(oklch(0.9534 0.0014 212), oklch(0.267 0.0042 212))
   secondary = light-dark(oklch(0.9461 0.0015 212), oklch(0.2739 0.0042 212))
   surface = light-dark(oklch(0.9679 0.0013 212), oklch(0.2464 0.0041 212))
+  // `rail` at half over the page: the panel beside a chat.
+  panel = light-dark(oklch(0.986 0.0011 212), oklch(0.189 0.004 212))
   popover = light-dark(oklch(0.997 0.001 212), oklch(0.2464 0.0041 212))
   border = light-dark(oklch(0.9025 0.0019 212), oklch(0.3014 0.0043 212))
   input = light-dark(oklch(0.8371 0.0025 212), oklch(0.3496 0.0044 212))
@@ -32,6 +34,9 @@ theme
   ink.on-asking = #ffffff  scheme=fixed
   // What a Dood's colour is deepened with, under its initial (creature.contract).
   shade = #000000  scheme=fixed
+  // The first run's night, and words over it.
+  night = #05071a  scheme=fixed
+  ink.on-night = #ffffff  scheme=fixed
   // Words on a Dood's or a workspace's own colour.
   ink.on-color = #ffffff  scheme=fixed
 
@@ -82,6 +87,9 @@ icons
   icon.eye = icon(sf "eye", svg "icons/eye.svg")
   icon.eye-slash = icon(sf "eye.slash", svg "icons/eye-slash.svg")
   icon.copy = icon(sf "doc.on.doc", svg "icons/copy.svg")
+  icon.t-shirt = icon(sf "tshirt", svg "icons/t-shirt.svg")
+  icon.dice = icon(sf "dice", svg "icons/dice-five.svg")
+  icon.question-mark = icon(sf "questionmark", svg "icons/question-mark.svg")
   // --- chat transcript ---
   icon.warning-circle = icon(sf "exclamationmark.circle", svg "icons/warning-circle.svg")
   icon.arrow-clockwise = icon(sf "arrow.clockwise", svg "icons/arrow-clockwise.svg")

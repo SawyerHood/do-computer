@@ -12,12 +12,13 @@ import { siteHost } from '../protocol/screen.ts';
 import { digest, type AgentSocketMessage, type AgentSocketRequest } from '../protocol/socket.ts';
 import { current, follow, get, NOBODY, post, reply, seg } from './api.ts';
 import { activityOf, rowsOf, startsMidway, waitingRows } from './chat-rows.ts';
+import { chatMood } from '../protocol/activity.ts';
 
 type Chat = Result<'followChat'>;
 
 const NO_CHAT: Chat = {
   owner: NOBODY, agentId: '', chatId: '', busy: false, lost: false, messages: [],
-  loaded: false, activity: '', midway: false, firstId: '', justDelivered: '', thought: '',
+  loaded: false, activity: '', midway: false, firstId: '', justDelivered: '', thought: '', moodState: 'idle', moodVariant: '',
 };
 
 /** The user an owner is (data/api.ts `ownerOf`), whose own messages carry no name. */
@@ -40,7 +41,13 @@ function chatOf(owner: string, agentId: string, chatId: string, state: ChatState
     midway: startsMidway(first),
     firstId: first?.id ?? '',
     thought: thoughtOf(state),
+    ...moodOf(state),
   };
+}
+
+function moodOf(state: ChatState): { moodState: string; moodVariant: string } {
+  const mood = chatMood(state);
+  return { moodState: mood.state, moodVariant: mood.variant ?? '' };
 }
 
 /** The thinking of the Dood's newest message, not drawn but read by the transport's checks. */

@@ -85,6 +85,10 @@ shape Chat
   // What the Dood is thinking in its newest message. The transcript does not draw it, as the
   // React app does not; the transport's tests and tools/stream-check.mjs read it.
   thought: string
+  // What the Dood is doing, for its creature to act out (protocol/activity.ts `chatMood`):
+  // "idle", "thinking", "working", "speaking" or "error"; for working, the kind of work.
+  moodState: string
+  moodVariant: string
 
 // Which chat is a Dood's main one: what `/a/:agentId` opens.
 shape Opened

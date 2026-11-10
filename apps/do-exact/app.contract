@@ -26,6 +26,8 @@ use NotificationsScreen from "./views/settings-notifications.contract"
 use WorkspaceHomeScreen from "./views/workspace.contract"
 use PeopleScreen from "./views/people.contract"
 use WorkspaceSettingsScreen from "./views/workspace-settings.contract"
+use WelcomeScene from "./views/welcome.contract"
+use CreatureWindows from "./views/wardrobe.contract"
 
 // The React app's type: Geist (assets/fonts, from vercel/geist-font, OFL).
 font "Geist" = "assets/fonts/Geist-Variable.ttf"
@@ -92,6 +94,11 @@ component App
   members "./views/library.contract"
   members "./views/pins.contract"
   members "./views/sites.contract"
+  members "./views/panel.contract"
+  members "./views/panel-mood.contract"
+  members "./views/care.contract"
+  members "./views/wardrobe.contract"
+  members "./views/welcome.contract"
   // A new area adds its members line here, in its own place, in the order of the routes.
 
   // What any screen may `inject` instead of taking it as a prop.
@@ -116,8 +123,12 @@ component App
     hasEarlier
     earlierLoading = pending(earlier)
     showEarlier
-    atEnd
+    following
     scrolled
+    readerWheel
+    readerDown
+    readerUp
+    readerKey
     toLatest
     deliveredNow
     filesBase
@@ -401,6 +412,90 @@ component App
     librarySelected
     libraryFiles
     libraryOpen
+    // --- dood --- (the creature, its panel, care, wardrobe and first run: views/panel, care, wardrobe, welcome)
+    viewport
+    openDood
+    liveFaces
+    liveSeeds
+    skipHatch
+    hatchDone
+    panelTop
+    panelScrolled
+    panelToTop
+    panelFolds
+    foldPanelSection
+    care = careOf
+    careFeed
+    eating
+    treatMoved
+    treatBites
+    treatCount
+    treatHeld
+    treatX
+    treatY
+    treatNear
+    holdTreat
+    carryTreat
+    dropTreat
+    giveTreat
+    openBoxWindow
+    boxStage
+    boxRound
+    boxFound
+    boxProblem
+    pressBox
+    boxHeard
+    wearFound
+    anotherBox
+    openWardrobe
+    wardrobeSlot
+    wardrobeDoods
+    dressedDood
+    dressedOutfit
+    pickWardrobeSlot
+    dressDood
+    putOn
+    doodColors
+    welcomeOn
+    welcomeMet
+    welcomeStep
+    welcomeCard
+    welcomeLine
+    welcomeTyped
+    welcomeSaid
+    welcomeTitled
+    welcomeLanded
+    welcomeSkipped
+    welcomeName
+    welcomeColor
+    welcomeSeed
+    welcomeCrack
+    welcomeDawn
+    welcomeGlow
+    welcomeCheer
+    welcomeHatching
+    welcomeOut
+    welcomeLeaving
+    welcomeFly
+    welcomeError
+    welcomeBusy
+    welcomeSources
+    welcomeChosen
+    welcomePicked
+    welcomeModelsLoading
+    welcomeHeard
+    welcomeSkipFall
+    welcomeHurry
+    welcomeHello
+    editWelcomeName
+    suggestWelcomeName
+    pickWelcomeColor
+    nameWelcome
+    pickWelcomeSource
+    pickWelcomeModel
+    thinkWelcome
+    welcomeFinish
+    welcomeStart
 
   // The Dood whose page is open (the deepest one in the stack), and the chat a `/c/` page names.
   derive openAgentId = match stack(nav).filter(e => e.params.agentId != "").at(-1) { case some(e) => e.params.agentId, case none => "" }
@@ -506,3 +601,7 @@ component App
           // --- chat transcript --- a picture opened from the chat, large; its trigger is the chat's.
           column height=0 overflow="hidden" aria-hidden=true
             LibraryPictureViewer(pictures=[chatPicture], tag="chat")
+        // --- dood --- the creature's windows, and the first run's scene over everything
+        CreatureWindows()
+        if welcomeOn
+          WelcomeScene()

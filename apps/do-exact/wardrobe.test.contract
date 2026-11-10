@@ -1,0 +1,76 @@
+// The wardrobe of a Dood's workspace, over the page: everything there is to wear a place at a
+// time, what the workspace has on the creature itself and what it has not as a blank in its
+// rarity's colour; put on, taken off. Against the real server; each test makes an account of
+// its own (`wardrobe-<n>@example.com`).
+
+test "the wardrobe lists every place's things a place at a time, and counts what a box held"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "wardrobe-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "hello-face"
+  clock data
+  tap "panel-toggle-dood"
+  clock data
+  tap "panel-wardrobe"
+  clock settle
+  expect tree has "wardrobe"
+  expect text "wardrobe-name" == "New Dood"
+  expect text "wardrobe-found" == "0 of 200 found"
+  expect state wardrobeSlot == "hat"
+  expect text "wardrobe-tab-hat" == "Hats0/81"
+  expect tree missing "take-off-hat"
+  tap "wardrobe-tab-neck"
+  expect state wardrobeSlot == "neck"
+  expect text "wardrobe-tab-neck" == "Neck0/39"
+  tap "wear-nothing"
+  clock data
+  expect state worn.ok == true
+  tap "wardrobe-close"
+  clock settle
+  tap "open-box"
+  clock settle
+  tap "box-press"
+  clock data
+  clock +9000
+  clock settle
+  tap "box-keep"
+  clock settle
+  expect state creature.owned == 1
+  tap "panel-wardrobe"
+  clock settle
+  expect text "wardrobe-found" == "1 of 200 found"
+  expect state wardrobeSlot == "hat"
+
+test "on a phone the face in the pill opens the wardrobe, once the Dood is out of its egg"
+  size 390x844
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "wardrobe-2@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  expect disabled "pill-wardrobe-dood"
+  tap "hello-face"
+  clock data
+  expect enabled "pill-wardrobe-dood"
+  tap "pill-wardrobe-dood"
+  clock settle
+  clock data
+  expect text "wardrobe-name" == "New Dood"
+  expect tree has "give-treat"
+  tap "give-treat"
+  clock data
+  clock +1300
+  expect state creature.fed == 1

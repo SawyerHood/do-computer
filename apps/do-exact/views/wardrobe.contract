@@ -1,0 +1,188 @@
+// The wardrobe of a Dood's workspace (components/creature/wardrobe-window.tsx), over the page:
+// the creature with its treats and its box, and beside or under it everything there is to wear,
+// a place at a time. What the workspace has is shown on the creature itself, with which Dood
+// found it and which have it on; what it has not is a blank in its rarity's colour. Picking a
+// thing puts it on, picking it again takes it off. With other Doods in the workspace, any of
+// them can be picked to be dressed instead. Opened from the panel's corner, and on a phone from
+// the face in the pill.
+use Dood from "./shapes.contract"
+use nameOf from "./shell.contract"
+use Hatchling from "./creature.contract"
+use Creature, Thing, CreatureCare, BoxWindow, Window from "./care.contract"
+use crumbOf from "./care-pixels.contract"
+use IconButton from "./styles.contract"
+
+shape WearPlace
+  slot: string
+  name: string
+  many: string
+
+members App
+  // --- wardrobe ---
+  // Which place's things are listed, and which Dood is being dressed ("" for the open one).
+  state wardrobeSlot = "hat"
+  state wardrobeFor = ""
+  derive wardrobeDoods = doodList.filter(d => d.workspaceId == openDood.workspaceId and d.hatched)
+  derive dressedDood = match first(doodList.filter(d => d.id == (wardrobeFor == "" ? openAgentId : wardrobeFor))) { case some(d) => d, case none => openDood }
+  // Its own outfit is the creature's answer; another Dood's is what the list says it has on.
+  derive dressedOutfit = dressedDood.id == careOf.agentId ? careOf.outfit : dressedDood.outfit
+
+  action openWardrobe
+    wardrobeFor = ""
+    wardrobeSlot = "hat"
+    showModal("wardrobe")
+  action pickWardrobeSlot(slot: string)
+    wardrobeSlot = slot
+  action dressDood(id: string)
+    wardrobeFor = id
+  // Put a thing on in its place, or take off what is there ("").
+  action putOn(slot: string, id: string)
+    send worn = wearThing(dressedDood.id, dressedOutfit, slot, id)
+
+fn wearPlaces(): WearPlace[] = [WearPlace(slot="hat", name="Hat", many="Hats"), WearPlace(slot="glasses", name="Glasses", many="Glasses"), WearPlace(slot="face", name="Face", many="Face"), WearPlace(slot="neck", name="Neck", many="Neck")]
+// What a Dood has on in a place, by the outfit's JSON ("" for nothing).
+fn wornIn(outfit: string, slot: string): string = match outfit.split(`"${slot}":"`).at(1) { case some(rest) => match rest.split("\"").at(0) { case some(id) => id, case none => "" }, case none => "" }
+fn thingNamed(things: Thing[], id: string): string = match first(things.filter(t => t.id == id)) { case some(t) => t.name, case none => "" }
+fn thingColor(things: Thing[], id: string): string = match first(things.filter(t => t.id == id)) { case some(t) => t.color, case none => "transparent" }
+fn doodNamed(doods: Dood[], id: string): string = match first(doods.filter(d => d.id == id)) { case some(d) => nameOf(d), case none => "a new Dood" }
+
+// The creature's windows over whichever of the open Dood's pages is showing: its wardrobe, and
+// a box being opened, which opens over the wardrobe when that is where it was pressed
+// (creature/windows.tsx). Drawn once, at the root.
+component CreatureWindows
+  inject
+    openDood: Dood
+  view
+    column position="absolute" width=0 height=0
+      WardrobeWindow()
+      BoxWindow(dood=openDood, name=(openDood.name == "" ? "It" : openDood.name))
+
+component WardrobeWindow
+  inject
+    care: Creature
+    careFeed: string
+    wide: bool
+    wardrobeSlot: string
+    wardrobeDoods: Dood[]
+    dressedDood: Dood
+    dressedOutfit: string
+    pickWardrobeSlot: action
+    dressDood: action
+    putOn: action
+  derive own = dressedDood.id == care.agentId
+  derive name = nameOf(dressedDood)
+  derive others = wardrobeDoods.length - 1
+  derive here = care.things.filter(t => t.slot == wardrobeSlot)
+  derive wornHere = wornIn(dressedOutfit, wardrobeSlot)
+  view
+    dialog id="wardrobe" closedby="any" aria-label=`${name}'s wardrobe` class=Window padding=0 overflow="hidden"
+      width=(wide ? "min(64rem, calc(100% - 3rem))" : "100%") max-width=(wide ? "64rem" : "100%") height=(wide ? "min(43rem, calc(100dvh - 3rem))" : "100dvh")
+      max-height="100dvh" border-radius=(wide ? 16 : 0) testId="wardrobe"
+      row display="flex" flex-direction=(wide ? "row" : "column") height="100%" min-height=0
+        column flex-shrink=0 align-items="center" text-align="center" background-color="panel"
+          width=(wide ? "19rem" : "auto") padding=(wide ? "48px 20px 20px" : "36px 56px 20px")
+          border-right=(wide ? "1px solid var(--hairline)" : "none") border-bottom=(wide ? "none" : "1px solid var(--hairline)") box-sizing="border-box"
+          if own
+            CreatureCare(dood=dressedDood, name=(dressedDood.name == "" ? "it" : dressedDood.name), size=(wide ? 192 : 144))
+              Hatchling(dood=dressedDood, size=(wide ? 192 : 144), feed=careFeed, crumb=crumbOf(care.treat), testId="wardrobe-face")
+          else
+            for d in [dressedDood] key=d.id
+              Hatchling(dood=d, size=(wide ? 192 : 144), feed="", crumb="", testId="wardrobe-face")
+          // Its name has the focus as it opens, and not the first button in it, which would be the treats.
+          text name role="heading" aria-level=2 tabindex=-1 autofocus=true outline="none" margin-top=16 font-size="1.125rem" font-weight=600 testId="wardrobe-name"
+          text `${care.owned} of ${care.total} found${others > 0 ? " by your Doods" : ""}` margin-top=4 font-size="0.875rem" color="ink.muted" testId="wardrobe-found"
+          if wide
+            column aria-label=`What ${name} has on` role="list" margin-top=20 width="100%" gap=6
+              for p in wearPlaces() key=p.slot
+                row role="listitem" height=34 align-items="center" gap=8 padding="0 10px" border="1px solid var(--border)" border-radius=8 text-align="start" font-size="0.875rem"
+                  text p.name width="3.5rem" flex-shrink=0 font-size="0.75rem" color="ink.muted"
+                  if wornIn(dressedOutfit, p.slot) == ""
+                    text "Nothing" color="ink.muted"
+                  else
+                    column width=8 height=8 flex-shrink=0 background-color=thingColor(care.things, wornIn(dressedOutfit, p.slot)) aria-hidden=true
+                    text thingNamed(care.things, wornIn(dressedOutfit, p.slot)) flex=1 min-width=0 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+                      testId=`wearing-${p.slot}`
+                    button press=putOn(p.slot, "") aria-label=`Take off the ${thingNamed(care.things, wornIn(dressedOutfit, p.slot)).toLowerCase()}` title="Take it off"
+                      class=IconButton min-width=24 min-height=24 margin-right=-4 testId=`take-off-${p.slot}`
+                      image "symbol:icon.x" font-size="0.875rem"
+            text (others > 0 ? "Six hours after a box is opened another turns up, with something new inside. Any of your Doods can open it, and all of them can wear what it held." : `Six hours after ${name}'s box is opened another turns up, with something new to wear inside. Treats are only because it likes them.`)
+              margin-top=16 font-size="0.75rem" color="ink.muted"
+        column flex=1 min-width=0 min-height=0 padding=(wide ? "28px 28px 12px" : "12px 16px 12px")
+          if wide
+            text "Wardrobe" role="heading" aria-level=2 padding-bottom=12 font-size="1.25rem" font-weight=600
+          if others > 0
+            row role="radiogroup" aria-label="Who to dress" gap=6 flex-shrink=0 overflow-x="auto" padding-bottom=12
+              for d in wardrobeDoods key=d.id
+                button role="radio" aria-checked=(d.id == dressedDood.id) press=dressDood(d.id) display="flex" align-items="center" gap=6 height=32 flex-shrink=0
+                  padding="0 12px 0 4px" border-radius=999 font-size="0.875rem" color="ink" background-color="transparent"
+                  border=(d.id == dressedDood.id ? "1px solid var(--primary)" : "1px solid var(--border)") testId=`dress-${d.id}`
+                  do-creature seed=d.seed colour=d.color state="idle" outfit=d.outfit side="24" width=24 height=24 aria-hidden=true
+                  text nameOf(d)
+          row role="tablist" aria-label="Where it is worn" height=40 flex-shrink=0 overflow-x="auto" border-bottom="1px solid var(--border)"
+            for p in wearPlaces() key=p.slot
+              button role="tab" aria-selected=(p.slot == wardrobeSlot) press=pickWardrobeSlot(p.slot) position="relative" display="flex" align-items="center" gap=6 height="100%"
+                padding="0 12px" background-color="transparent" border="none" font-size="0.875rem" font-weight=500 color=(p.slot == wardrobeSlot ? "ink" : "ink.muted")
+                testId=`wardrobe-tab-${p.slot}`
+                text p.many
+                text `${care.things.filter(t => t.slot == p.slot and t.owned).length}/${care.things.filter(t => t.slot == p.slot).length}` font-size="0.6875rem" font-weight=400 color="ink.muted"
+                if p.slot == wardrobeSlot
+                  column position="absolute" left=8 right=8 bottom=0 height=2 border-radius=1 background-color="primary"
+          scroll flex=1 min-height=0
+            column role="list" aria-label=wardrobeSlot display="grid" grid-template-columns=(wide ? "repeat(6, minmax(0, 1fr))" : "repeat(3, minmax(0, 1fr))") gap=8 padding="16px 2px 8px"
+              column role="listitem"
+                button press=putOn(wardrobeSlot, "") aria-label="Nothing" aria-pressed=(wornHere == "") class=Tile
+                  border=(wornHere == "" ? "1px solid var(--primary)" : "1px solid var(--border)") testId="wear-nothing"
+                  for d in [dressedDood] key=`${d.id}:nothing`
+                    do-wardrobe seed=d.seed colour=d.color item="" side="56" width=56 height=56 aria-label="Nothing"
+                  text "Nothing" min-height=30 display="flex" align-items="center"
+              for t in here key=t.id
+                column role="listitem"
+                  if t.owned
+                    button press=putOn(t.slot, (wornHere == t.id ? "" : t.id)) aria-label=t.name aria-pressed=(wornHere == t.id) title=t.rarity class=Tile
+                      border=(wornHere == t.id ? "1px solid var(--primary)" : "1px solid var(--border)") testId=`wear-${t.id}`
+                      WornBy(thing=t, doods=wardrobeDoods, dressed=dressedDood, outfit=dressedOutfit, show=(others > 0))
+                      for d in [dressedDood] key=`${d.id}:${t.id}`
+                        do-wardrobe seed=d.seed colour=d.color item=t.id side="56" width=56 height=56 aria-label=t.name
+                      text t.name min-height=30 display="flex" align-items="center" justify-content="center"
+                      if others > 0 and t.foundBy != ""
+                        text `found by ${doodNamed(wardrobeDoods, t.foundBy)}` margin-top=-4 max-width="100%" padding="0 4px" font-size="0.625rem" color="ink.muted"
+                          overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+                      column position="absolute" left=10 right=10 bottom=0 height=3 background-color=t.color aria-hidden=true
+                  else
+                    column aria-label=`Not found yet: ${t.rarity.toLowerCase()}` class=Tile justify-content="center" border="1px dashed var(--border)" color="ink.muted"
+                      column width="3.5rem" height="3.5rem" align-items="center" justify-content="center" aria-hidden=true
+                        image "symbol:icon.question-mark" font-size="1.5rem" color=t.color opacity=0.8
+                      row align-items="center" gap=4
+                        image "symbol:icon.lock" font-size="0.75rem" aria-hidden=true
+                        text t.rarity
+                      column position="absolute" left=10 right=10 bottom=0 height=3 background-color=t.color aria-hidden=true
+          row role="list" aria-label="Rarities" flex-wrap="wrap" justify-content="center" gap="4px 16px" padding-top=10 flex-shrink=0 font-size="0.6875rem" color="ink.muted"
+            for r in care.rarities key=r.id
+              row role="listitem" align-items="center" gap=6
+                column width=8 height=8 background-color=r.color aria-hidden=true
+                text r.name
+      button commandfor="wardrobe" command="close" aria-label="Close" position="absolute" top=16 right=16 z-index=1 min-width=30 min-height=30 border-radius=8
+        display="flex" align-items="center" justify-content="center" background-color="secondary" color="ink" border="none" padding=0 testId="wardrobe-close"
+        image "symbol:icon.x" font-size="0.875rem"
+
+// Which of the workspace's Doods have a thing on, in its tile's corner.
+component WornBy
+  props
+    thing: Thing
+    doods: Dood[]
+    dressed: Dood
+    outfit: string
+    show: bool
+  derive wearers = doods.filter(d => wornIn(d.id == dressed.id ? outfit : d.outfit, thing.slot) == thing.id)
+  view
+    if show and wearers.length > 0
+      row role="img" aria-label=`Worn by ${wearers.map(d => nameOf(d)).join(", ")}` title=`Worn by ${wearers.map(d => nameOf(d)).join(", ")}`
+        position="absolute" top=4 right=4 flex-direction="row-reverse"
+        for d in wearers.slice(0, 3) key=d.id
+          column margin-left=-6 width=18 height=18 border-radius=9 overflow="hidden" background-color="surface" box-shadow="0 0 0 1px var(--border)"
+            do-creature seed=d.seed colour=d.color state="idle" outfit=d.outfit side="18" width=18 height=18 aria-hidden=true
+
+// One thing in the wardrobe.
+style Tile
+  position="relative" display="flex" flex-direction="column" align-items="center" gap=4 min-height=108 overflow="hidden" border-radius=12
+  background-color="surface" padding="10px 4px 12px" text-align="center" font-size="0.75rem" line-height=1.25 color="ink" width="100%" box-sizing="border-box"

@@ -14,8 +14,7 @@ test "what the Dood does on its own is one line while it does it, and its answer
   clock data
   clock settle
   clock data
-  expect text "welcome-title" == "Say hello"
-  expect text "welcome-lead" == "Your Dood is brand new. It has no name yet. Start talking and work out together who it is."
+  expect text "hello-title" == "Say hello"
   type "composer" "/tool bash {\"command\":\"sleep 3; echo rested\"}"
   tap "send"
   clock data
@@ -340,11 +339,11 @@ test "away from the newest message, a button brings the reader back to it"
   expect tree missing "to-latest"
   tap "transcript" wheel 0 -3000
   clock +500 real
-  expect state atEnd == false
+  expect state following == false
   expect tree has "to-latest"
   tap "to-latest"
   clock +1500 real
-  expect state atEnd == true
+  expect state following == true
   expect tree missing "to-latest"
 
 test "something the Dood pins is a card that can take the pin off, and put it back as it was"

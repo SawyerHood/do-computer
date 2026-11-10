@@ -1,0 +1,66 @@
+// Looking after a Dood's creature: treats from the pile beside it, its box, opened over the page,
+// and what was inside worn or kept. Against the real server; each test makes an account of its
+// own (`care-<n>@example.com`). What a box holds is the server's roll, so the tests say what is
+// true of any thing.
+
+test "a treat, pressed or carried to its mouth, is eaten one at a time and counted, and the box opens on something to wear"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "care-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "hello-face"
+  clock data
+  tap "panel-toggle-dood"
+  clock data
+  expect state creature.loaded == true
+  expect state creature.fed == 0
+  expect state creature.boxes == 1
+  tap "give-treat"
+  expect state eating == true
+  tap "give-treat"
+  expect state treatCount == 1
+  clock data
+  clock +1300
+  expect state eating == false
+  expect state treatBites == 3
+  expect state creature.fed == 1
+  tap "give-treat"
+  clock data
+  clock +1300
+  expect state creature.fed == 2
+  tap "give-treat" drag 74 -20
+  clock data
+  clock +1300
+  expect state creature.fed == 3
+  expect state treatHeld == false
+  tap "give-treat" drag -10 120
+  clock data
+  clock +1300
+  expect state creature.fed == 3
+  expect state treatHeld == false
+  tap "open-box"
+  clock settle
+  expect tree has "box-window"
+  expect text "box-said" == "Press it to open."
+  tap "box-press"
+  expect state boxStage == "opening"
+  clock data
+  clock +9000
+  clock settle
+  expect state boxStage == "shown"
+  expect state boxFound.ok == true
+  expect state creature.boxes == 0
+  expect state creature.owned == 1
+  expect tree has "box-item"
+  expect tree missing "box-another"
+  tap "box-wear"
+  clock data
+  clock settle
+  expect state worn.ok == true

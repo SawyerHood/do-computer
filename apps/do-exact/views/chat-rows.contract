@@ -533,19 +533,3 @@ component TranscriptPlaceholder
       column width="48%" gap=10 padding="16px 14px" border-radius=16 background-color="secondary"
         column height=10 width="100%" border-radius=5 background-color="muted"
         column height=10 width="64%" border-radius=5 background-color="muted"
-
-// An empty main chat: the Dood, its name and what it is for, or the hello of a new one.
-component Welcome
-  props
-    dood: Dood
-    name: string
-    tagline: string
-    showFace: bool
-  view
-    column flex=1 align-items="center" justify-content="center" gap=12 padding="64px 24px" text-align="center" testId="welcome"
-      if showFace
-        column margin-bottom=24
-          DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=160)
-      text (name != "" ? name : "Say hello") role="heading" aria-level=2 font-size="1.25rem" font-weight=500 testId="welcome-title"
-      text (name != "" ? (tagline != "" ? tagline : "What would you like to do?") : "Your Dood is brand new. It has no name yet. Start talking and work out together who it is.")
-        max-width="24rem" font-size="0.875rem" color="ink.muted" testId="welcome-lead"
