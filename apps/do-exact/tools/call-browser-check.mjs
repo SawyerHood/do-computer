@@ -28,7 +28,7 @@ async function account(context, suffix) {
   return { email, agentId: agent.id, chatId: chat.id };
 }
 try {
-  for (const size of (process.env.CALL_MEDIA_ONLY ? [] : [{ width: 1280, height: 800 }, { width: 390, height: 844 }])) for (const scheme of ['light', 'dark']) {
+  for (const size of (process.env.CALL_MEDIA_ONLY || process.env.CALL_GUARDS_ONLY ? [] : [{ width: 1280, height: 800 }, { width: 390, height: 844 }])) for (const scheme of ['light', 'dark']) {
     const context = await browser.newContext({ viewport: size, colorScheme: scheme });
     const made = await account(context, `${size.width}-${scheme}`);
     const page = await exact(context, made.email);
@@ -68,14 +68,18 @@ try {
     const call = page.getByRole('button', { name: `Call ${name}`, exact: true });
     await call.waitFor();
     await page.getByRole('textbox', { name: 'Message', exact: true }).fill('A draft');
+    await call.waitFor({ state: 'hidden' });
     assert.equal(await call.count(), 0, 'Writing keeps Send instead of Call.');
     await page.getByRole('textbox', { name: 'Message', exact: true }).fill('');
     let release, arrived;
     const gate = new Promise(resolve => { release = resolve; });
     const upload = new Promise(resolve => { arrived = resolve; });
     await page.route('**/api/agents/*/library?*', async route => { if (route.request().method() === 'POST') { arrived(); await gate; } await route.continue(); });
-    await page.getByLabel('Choose files to attach', { exact: true }).setInputFiles({ name: 'guard.txt', mimeType: 'text/plain', buffer: Buffer.from('attachment guard') });
-    await Promise.race([upload, new Promise((_, reject) => setTimeout(() => reject(new Error('The attachment request did not arrive.')), 10000))]);
+    // A local path uses CDP's trusted picker event; a payload FileList is untrusted to Exact.
+    writeFileSync('.exact/guard.txt', 'attachment guard');
+    await page.getByLabel('Choose files to attach', { exact: true }).setInputFiles('.exact/guard.txt');
+    await Promise.race([upload, new Promise((_, reject) => setTimeout(() => reject(new Error('The attachment request did not arrive.')), 10000))]).catch(async error => { console.log(await page.locator('body').innerText()); await page.screenshot({ path: `${out}/attachment-diagnostics.png` }); throw error; });
+    await call.waitFor({ state: 'hidden' });
     assert.equal(await call.count(), 0, 'A pending attachment keeps Send instead of Call.');
     release();
     await page.getByRole('button', { name: 'Remove guard.txt', exact: true }).waitFor();

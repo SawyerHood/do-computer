@@ -137,7 +137,7 @@ component CallFace
   view
     if callView.active and callView.agentId == dood.id
       column align-items="center" gap=12
-        text `On a call · ${callView.clock}` font-size="0.8125rem" color="primary"
+        text `On a call · ${callView.clock}` font-size="0.8125rem" color="ink"
         do-creature seed=dood.seed colour=dood.color outfit=dood.outfit state=(callView.phase == "speaking" ? "speaking" : callView.phase == "working" ? "working" : callView.phase == "starting" or callView.phase == "connecting" ? "thinking" : "listening") side="112" width=112 height=112 aria-label=`${callNameOf(dood)} on a call` testId="call-face"
     else
       children
@@ -296,6 +296,6 @@ component CallRow
   slot
   view
     if callView.active and callView.agentId == agentId
-      text "On a call" font-size="0.75rem" color="primary" testId=`call-row-${agentId}`
+      text "On a call" font-size="0.75rem" color="ink" testId=`call-row-${agentId}`
     else
       children
