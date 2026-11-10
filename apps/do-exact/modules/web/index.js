@@ -4,8 +4,11 @@ import * as portrait from './portrait.js';
 import * as gift from './gift.js';
 import * as wardrobe from './wardrobe.js';
 import * as sky from './sky.js';
+import * as libraryDownload from './library-download.js';
+import * as libraryFormat from './library-format.js';
+import * as libraryFrame from './library-frame.js';
 import { start, ended } from './shared.js';
-const views = { 'do-creature': creature, 'do-portrait': portrait, 'do-gift': gift, 'do-wardrobe': wardrobe, 'do-sky': sky };
+const views = { 'do-creature': creature, 'do-portrait': portrait, 'do-gift': gift, 'do-wardrobe': wardrobe, 'do-sky': sky, 'do-library-download': libraryDownload, 'do-library-format': libraryFormat, 'do-library-frame': libraryFrame };
 export const abi = 1;
 export const roster = Object.fromEntries(Object.keys(views).map(tag => [tag, { snapshot: false }]));
 export function create(tag, element, json, event) {

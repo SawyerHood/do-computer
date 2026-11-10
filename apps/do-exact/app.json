@@ -37,7 +37,10 @@
     "do-portrait",
     "do-gift",
     "do-wardrobe",
-    "do-sky"
+    "do-sky",
+    "do-library-download",
+    "do-library-format",
+    "do-library-frame"
   ],
   "env": [
     "API_BASE_URL"

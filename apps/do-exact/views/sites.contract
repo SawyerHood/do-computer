@@ -1,0 +1,128 @@
+use Reply, Workspace, Dood from "./shapes.contract"
+use Field, MenuItem from "./styles.contract"
+
+shape LibrarySite
+  id: string
+  path: string
+  title: string
+  public: bool
+  url: string
+  when: string
+  by: string
+  missing: bool
+
+shape Sites
+  owner: string
+  agentId: string
+  sites: LibrarySite[]
+
+fn librarySiteOf(sites: LibrarySite[], path: string): LibrarySite = match first(sites.filter(s => s.path == path or path == `${s.path}/index.html` or path == `${s.path}/index.htm`)) {
+  case some(s) => s,
+  case none => LibrarySite(id="", path=path, title="", public=false, url="", when="", by="", missing=false)
+}
+
+members App
+  // --- library sites ---
+  resource librarySites = loadLibrarySites(session.owner, onRoute == "library" or libraryPanelId != "" ? openAgentId : "") with libraryPulse.changes, libraryFiles as shape Sites else empty()
+  mutation libraryShared as shape Reply refreshes librarySites
+  state librarySharePath = ""
+  state libraryShareOpen = false
+  derive librarySiteList = librarySites.owner == session.owner and librarySites.agentId == openAgentId ? librarySites.sites : []
+  derive libraryShareSite = librarySiteOf(librarySiteList, librarySharePath)
+  derive librarySharingBusy = pending(libraryShared)
+  derive librarySharingError = pending(libraryShared) ? "" : match libraryShared { case some(r) => r.error, case none => "" }
+  derive libraryWorkspace = match first(workspaceList.filter(w => w.id == openDood.workspaceId)) { case some(w) => w, case none => Workspace(id="", name="", kind="personal", color="", role="owner") }
+  derive libraryAudience = libraryWorkspace.kind == "team" ? `People in ${libraryWorkspace.name}` : "Only you"
+  action shareLibraryPath(path: string)
+    librarySharePath = path
+    libraryShareOpen = true
+    showModal("library-sharing")
+  action libraryCloseShare
+    libraryShareOpen = false
+    close("library-sharing")
+  action libraryShare
+    send libraryShared = shareLibrary(openAgentId, librarySharePath)
+  action librarySetAudience(public: bool)
+    send libraryShared = changeLibrarySite(openAgentId, libraryShareSite.id, public)
+  action libraryStopSharing
+    send libraryShared = stopLibrarySite(openAgentId, libraryShareSite.id)
+
+component SharedSites
+  props
+    sites: Sites
+  inject
+    libraryAudience: string
+    shareLibraryPath: action
+  view
+    if sites.sites.length > 0
+      column gap=12 testId="library-sites"
+        text "Shared with a link" font-size="0.8125rem" color="ink.muted"
+        column border-radius=16 background-color="popover" border="1px solid var(--hairline)" overflow="hidden"
+          for s in sites.sites key=s.id
+            row align-items="center" gap=8 padding="10px 12px" flex-wrap="wrap"
+              image "symbol:link" color="ink.muted"
+              column flex=1 min-width=0 gap=3
+                link href=s.url target="_blank" color="ink" text-decoration="none" testId=`site-${s.id}`
+                  text s.title font-size="0.875rem" font-weight=500 overflow-wrap="anywhere"
+                text `${s.path} · ${s.missing ? "no longer in the library" : s.by + " · " + s.when}` color="ink.muted" font-size="0.75rem" overflow-wrap="anywhere"
+              text (s.public ? "Public" : libraryAudience) color="ink.muted" font-size="0.6875rem"
+              SiteCopy(url=s.url, tag=s.id)
+              button press=shareLibraryPath(s.path) aria-label=`Sharing of ${s.title}` testId=`site-settings-${s.id}`
+                image "symbol:more"
+
+component SiteCopy
+  props
+    url: string
+    tag: string
+  state copied = false
+  action copy
+    copyText(url)
+    copied = true
+  view
+    button press=copy aria-label="Copy link" testId=`site-copy-${tag}`
+      text (copied ? "Copied" : "Copy") font-size="0.8125rem"
+
+component ShareControls
+  inject
+    libraryShareOpen: bool
+    libraryShareSite: LibrarySite
+    librarySharePath: string
+    libraryAudience: string
+    librarySharingBusy: bool
+    librarySharingError: string
+    libraryShare: action
+    libraryCloseShare: action
+    librarySetAudience: action
+    libraryStopSharing: action
+  view
+    dialog id="library-sharing" aria-label="Share with a link" width="min(22rem, calc(100vw - 2rem))" box-sizing="border-box" padding=20 border="1px solid var(--hairline)" border-radius=16 background-color="popover" color="ink" font-family="Geist" testId="library-share-dialog"
+      column gap=14
+        row align-items="center" gap=8
+          text (libraryShareSite.id == "" ? "Share with a link" : "Shared with a link") flex=1 font-weight=600 font-size="0.875rem"
+          button press=libraryCloseShare aria-label="Close sharing" testId="library-share-close"
+            image "symbol:close"
+        text librarySharePath font-size="0.8125rem" color="ink.muted" overflow-wrap="anywhere"
+        if libraryShareSite.id == ""
+          text `This gives it a link of its own, which shows it as it is in the library. ${libraryAudience} can open it, and nobody else until you make it public.` font-size="0.875rem" color="ink.muted"
+          button press=libraryShare disabled=librarySharingBusy testId="library-share-create"
+            text (librarySharingBusy ? "Sharing…" : "Share")
+        else
+          column gap=6
+            link href=libraryShareSite.url target="_blank" font-family="Geist Mono" font-size="0.75rem" overflow-wrap="anywhere" testId="library-share-url"
+              text libraryShareSite.url
+            SiteCopy(url=libraryShareSite.url, tag="dialog")
+          text "Who can open it" font-size="0.8125rem" font-weight=500
+          button press=librarySetAudience(false) disabled=librarySharingBusy aria-pressed=(not libraryShareSite.public) class=MenuItem background-color=(not libraryShareSite.public ? "wash" : "transparent") testId="library-share-private"
+            image "symbol:lock"
+            column gap=3
+              text libraryAudience font-size="0.875rem"
+              text "Signed in to this workspace" font-size="0.75rem" color="ink.muted"
+          button press=librarySetAudience(true) disabled=librarySharingBusy aria-pressed=libraryShareSite.public class=MenuItem background-color=(libraryShareSite.public ? "wash" : "transparent") testId="library-share-public"
+            image "symbol:link"
+            column gap=3
+              text "Anyone with the link" font-size="0.875rem"
+              text "No sign-in needed" font-size="0.75rem" color="ink.muted"
+          button press=libraryStopSharing disabled=librarySharingBusy color="danger" testId="library-share-stop"
+            text (librarySharingBusy ? "Stopping…" : "Stop sharing")
+        if librarySharingError != ""
+          text librarySharingError color="danger" font-size="0.8125rem" role="alert" testId="library-sharing-error"

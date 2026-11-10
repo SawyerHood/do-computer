@@ -1,0 +1,21 @@
+test "an unavailable library offers retry instead of an empty library"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "library-errors-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  fail fetch "http://127.0.0.1:"
+  tap "pages-dood"
+  tap "go-library-dood"
+  clock data
+  expect tree has "library-load-error"
+  expect tree missing "library-empty"
+  pass fetch "http://127.0.0.1:"
+  tap "library-retry"
+  clock data
+  expect tree has "library-empty"

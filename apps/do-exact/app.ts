@@ -5,18 +5,24 @@ import { setApi } from './data/api.ts';
 import { chatSources } from './data/chat.ts';
 import { sessionSources } from './data/session.ts';
 import { shellSources } from './data/shell.ts';
+import { librarySources } from './data/library.ts';
+import { libraryPinSources } from './data/pins.ts';
+import { librarySiteSources } from './data/sites.ts';
 
 // The deployment's address, a setting (app.json "env") that only this file may read: the
 // environment's value, else the server server.ts starts. `./x` sets it per checkout.
 export const API = import.meta.env.API_BASE_URL ?? 'http://127.0.0.1:3911';
 setApi(API);
 // What the module may reach: the deployment and the session in the secret store.
-export const grants = `net.fetch ${API}\nsecret.keep session`;
+export const grants = `net.fetch ${API}\nsecret.keep session\nfs.read app:/tmp/picked`;
 
 const sources: Sources = {
   ...sessionSources,
   ...shellSources,
   ...chatSources,
+  ...librarySources,
+  ...libraryPinSources,
+  ...librarySiteSources,
   // A new area spreads its sources here.
 };
 

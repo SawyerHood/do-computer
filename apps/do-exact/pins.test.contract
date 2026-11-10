@@ -1,0 +1,40 @@
+test "a pinned document opens over the chat and unpinning leaves its file in the library"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "library-pins-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-library-dood"
+  clock data
+  tap "library-new"
+  clock data
+  clock settle
+  clock data
+  tap "library-pin"
+  clock data
+  back
+  clock data
+  clock settle
+  clock data
+  tap "panel-toggle-dood"
+  clock data
+  expect tree has "library-pins"
+  tap "library-pin-preview"
+  clock data
+  clock settle
+  clock data
+  expect tree has "library-document-panel"
+  expect text "library-file-name" == "Untitled.md"
+  tap "library-panel-close"
+  expect tree missing "library-document-panel"
+  tap "Unpin Untitled.md"
+  clock data
+  expect tree missing "library-pins"
+  expect state libraryFiles.length == 1

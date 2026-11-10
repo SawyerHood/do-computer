@@ -5,7 +5,7 @@ A client for Do Computer written with [Exact](https://github.com/expo/exact): th
 and one source could run on the web, iOS, macOS and Linux; for now it is built for the web. It
 talks to a deployment (`apps/web`) over the HTTP API the web and phone apps use.
 
-It is the shell of the app and its chat, not a replacement for the React app yet.
+It has the shell, basic chat and library, not a replacement for the React app yet.
 [What is here](#what-is-here) and [what is not](#what-is-not) say where it stands;
 [PORTING.md](PORTING.md) says how it is laid out and how to add to it, and [GAPS.md](GAPS.md)
 what Exact cannot do yet.
@@ -28,10 +28,16 @@ what Exact cannot do yet.
   reply arriving as it is written over the chat's event stream. Text is drawn as Markdown;
   thinking, tool calls and notices each have a plain row. Sending a message. Its panel beside
   the chat, from its face in the pill.
-- A Dood's other pages, from the pill's menu: library, automations, skills, connectors,
+- The library: recent previews and folder tree, filtering, document creation, multi-upload,
+  image/page/PDF/media/table/text viewers, Markdown editing and split preview, autosave and
+  conflicts, rename/move/download/delete, revision revert and deleted-file restore. Pins open
+  a document over chat. Files/folders can be shared with the workspace or anyone with a link.
+  [LIBRARY-PORT.md](LIBRARY-PORT.md) records the scope and integration seams.
+- A Dood's other pages, from the pill's menu: automations, skills, connectors,
   computers, permissions, profile, settings; and a workspace's page, people and settings. Each
   is a titled placeholder for now.
-- Tests (`chat.test.contract`, `shell.test.contract`, `sign-in.test.contract`) that drive all
+- Tests (`chat.test.contract`, `shell.test.contract`, `sign-in.test.contract`, `library*.test.contract`,
+  `pins.test.contract`) that drive all
   of that against Do Computer's own server on the web host, and `./x verify` clean.
 
 ## Run it
@@ -73,7 +79,7 @@ above pin `EXACT_PORT`.
 
 In the order it would be built:
 
-1. **The pages' bodies.** Every page but the chat is a placeholder (PORTING.md says how to fill
+1. **The pages' bodies.** Pages other than chat and library are placeholders (PORTING.md says how to fill
    one in). The creature is drawn, but not petted, dressed or hatched in the shell yet.
 2. **The rest of a chat.** Approvals, queued messages and Stop, earlier history, attachments and
    pictures, side chats and sub-agents, code blocks with highlighting, tables.
