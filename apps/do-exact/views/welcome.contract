@@ -230,8 +230,9 @@ members App
       welcomeFly = wide and panelOpen ? "panel-face" : "hello-face"
   // Fresh from the first run, it is asked to do one of the things it offers.
   action welcomeStart(text: string)
+    // No files with it: the composer's own (empty) kind of list.
     if ours and not pending(said)
-      send said = sendMessage(chat.agentId, chat.chatId, text, `x-hello-${round(time.epochAtZero + performanceNow())}`)
+      send said = sendComposer(chat.agentId, chat.chatId, text, composerAttachments.filter(f => false), false, `x-hello-${round(time.epochAtZero + performanceNow())}`)
 
 fn firstName(full: string): string = match full.trim().split(" ").filter(w => w != "").at(0) { case some(w) => w, case none => "you" }
 // What the egg, and then the creature, says at each step.

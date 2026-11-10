@@ -2,6 +2,9 @@
 // answers from it. Shared plumbing is data/api.ts.
 import type { Answer, Sources } from './app.contract.d.ts';
 import { setApi } from './data/api.ts';
+import { composerJobSources } from './data/composer-jobs.ts';
+import { composerSources } from './data/composer.ts';
+import { threadsSources } from './data/threads.ts';
 import { chatSources } from './data/chat.ts';
 import { careSources } from './data/care.ts';
 import { doodSources } from './data/dood.ts';
@@ -16,14 +19,17 @@ import { transportSources } from './data/transport.ts';
 export const API = import.meta.env.API_BASE_URL ?? 'http://127.0.0.1:3911';
 export const SOCKETS = import.meta.env.API_SOCKET_URL ?? 'ws://127.0.0.1:3911';
 setApi(API, SOCKETS);
-// What the module may reach: the deployment, its sockets and the session in the secret store.
-export const grants = `net.fetch ${API}\nnet.websocket ${SOCKETS}\nsecret.keep session`;
+// What the module may reach: the deployment, its sockets, the session in the secret store and the files a person picks.
+export const grants = `net.fetch ${API}\nnet.websocket ${SOCKETS}\nsecret.keep session\nfs.read app:/tmp\nfs.write app:/tmp\nfs.read doc:/`;
 
 const sources: Sources = {
   ...sessionSources,
   ...shellSources,
   ...chatSources,
   ...transportSources,
+  ...composerSources,
+  ...composerJobSources,
+  ...threadsSources,
   ...careSources,
   ...doodSources,
   // A new area spreads its sources here.

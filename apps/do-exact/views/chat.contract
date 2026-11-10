@@ -2,12 +2,13 @@
 // arriving as it is written over the Dood's socket, and the composer. Beside it on a wide
 // window, the Dood's panel. data/chat.ts answers it, applying events with the protocol's
 // `reduceChat`.
-use Reply, Dood, Page from "./shapes.contract"
-use Screen, UserBubble, Composer, SendButton from "./styles.contract"
+use Dood, Page from "./shapes.contract"
+use Screen, UserBubble from "./styles.contract"
 use DoodHeader, doodOf, nameOf, stateOf from "./shell.contract"
 use DoodPanel from "./panel.contract"
 use FirstHello from "./welcome.contract"
 use EmptyState from "exact:content"
+use ComposerBox from "./composer.contract"
 
 // One piece of a message: "text" (Markdown), "thinking", "tool" (`name` is the tool, `status`
 // how the call stands), "notice" or "image".
@@ -43,13 +44,10 @@ shape Opened
 
 members App
   // --- chat ---
-  state draft = ""
   resource opened = openChat(session.owner, openAgentId) as shape Opened else empty()
   // The chat on screen: the one a `/c/:chatId` page names, else the open Dood's main chat.
   derive openChatId = chatEntryId != "" ? chatEntryId : (opened.agentId == openAgentId and opened.owner == session.owner ? opened.chatId : "")
   resource chat = followChat(session.owner, openAgentId, openChatId) as shape Chat else empty()
-  mutation said as shape Reply then afterSay
-  derive sayError = pending(said) ? "" : match said { case some(r) => r.error, case none => "" }
   derive ours = chat.owner == session.owner and chat.agentId == openAgentId and chat.chatId == openChatId and openChatId != ""
   derive lastId = match chat.messages.at(-1) { case some(m) => m.id, case none => "" }
 
@@ -63,18 +61,6 @@ members App
   action heal
     if ours and chat.lost
       refresh chat
-  action editDraft(v: string)
-    draft = v
-  // The id a send goes under, which the server takes once however often it arrives: the chat's
-  // newest message and the time, which no two sends share.
-  action say
-    if draft.trim() != "" and ours and not pending(said)
-      send said = sendMessage(chat.agentId, chat.chatId, draft.trim(), `x-${lastId}-${time.epochAtZero + performanceNow()}`)
-    focus("composer")
-  action afterSay
-    if sayError == ""
-      draft = ""
-    toEnd()
   action toEnd
     if lastId != ""
       scrollIntoView("transcript", lastId, block="end")
@@ -122,14 +108,7 @@ component ChatScreen
                 MessageRow(message=m)
           if sayError != ""
             text sayError font-size="0.8125rem" color="danger" padding="0 16px" max-width="45rem" margin="0 auto" testId="say-error"
-        column width="100%" max-width="45rem" margin="0 auto" padding="4px 16px 16px" box-sizing="border-box" flex-shrink=0
-          row class=Composer
-            textarea id="composer" value=draft input=editDraft rows=1 field-sizing="content" max-height=200
-              placeholder=`Message ${nameOf(dood)}` aria-label="Message" flex=1 min-width=0 padding="7px 6px 7px 12px"
-              border="none" outline="none" background-color="transparent" color="ink" font-family="Geist" font-size="1rem" line-height=1.5
-              testId="composer"
-            button press=say disabled=(draft.trim() == "" or sending or not ours) retainFocus=true aria-label="Send" class=SendButton testId="send"
-              image "symbol:icon.arrow-up"
+        ComposerBox(agentId=page.agentId, chatId=chat.chatId, name=nameOf(dood), draft=draft, ours=ours, sending=sending, busy=chat.busy, editDraft=editDraft, say=say)
       if wide and panelOpen
         DoodPanel(dood=dood, busy=(ours and chat.busy))
 

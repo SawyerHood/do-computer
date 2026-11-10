@@ -56,6 +56,9 @@ component App
   members "./views/shell.contract"
   members "./views/chat.contract"
   members "./views/transport.contract"
+  members "./views/composer.contract"
+  members "./views/composer-jobs.contract"
+  members "./views/threads.contract"
   members "./views/panel.contract"
   members "./views/panel-mood.contract"
   members "./views/care.contract"
@@ -78,6 +81,39 @@ component App
     signOut
     togglePanel
     back
+    composerSettings
+    composerModelsLoading = pending(composerConfig)
+    composerModelsFailed = failed(composerConfig)
+    composerRetryModels
+    composerSaving = pending(composerSaved)
+    composerRunning
+    composerStopJob
+    composerJobError
+    composerAttachments
+    composerUploading = pending(composerUploaded)
+    composerUploadError
+    composerError
+    composerStopError
+    composerVoiceError = match composerTranscribed { case some(r) => r.key == composerKey and r.ticket == composerVoiceTicket ? r.error : "", case none => "" }
+    composerSearch
+    composerRestAt
+    composerPick
+    composerDrop
+    composerPaste
+    composerKeys
+    composerRemove
+    composerFind
+    composerChoose
+    composerThink
+    composerStop
+    composerVoiceEvent
+    composerVoiceDone
+    composerVoiceBusy = pending(composerTranscribed)
+    threadsListing
+    threadsReadOnly
+    threadsLoading = pending(threads)
+    threadsFailed = failed(threads)
+    threadsRefresh
     // --- dood --- (the creature, its panel, care, wardrobe and first run: views/panel, care, wardrobe, welcome)
     viewport
     openDood
