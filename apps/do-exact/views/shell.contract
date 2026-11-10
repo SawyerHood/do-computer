@@ -78,6 +78,7 @@ members App
       send seen = markSeen(openAgentId)
   action hatch(workspaceId: string)
     if not pending(hatched)
+      welcomeOn = false
       send hatched = hatchDood(workspaceId)
   action afterHatch
     match hatched
@@ -91,7 +92,7 @@ members App
 
 fn doodOf(doods: Dood[], id: string): Dood = match first(doods.filter(d => d.id == id)) {
   case some(d) => d,
-  case none => Dood(id=id, name="", workspaceId="", latest="", latestAt=0, working=false, asking=false, unread=false, seed=id, color="#5b6672", hatched=false)
+  case none => Dood(id=id, name="", workspaceId="", latest="", latestAt=0, working=false, asking=false, unread=false, seed=id, color="#5b6672", hatched=false, outfit="{}")
 }
 fn nameOf(d: Dood): string = d.name == "" ? "New Dood" : d.name
 fn stateOf(d: Dood): string = d.asking ? "asking" : d.working ? "working" : "idle"
@@ -187,6 +188,10 @@ component WorkspaceMenuButton
   inject
     teamInvite: action
     teamSortLatest: action
+    follow: action
+  action choose(url: string)
+    hidePopover(`workspace-menu-${workspace.id}`)
+    follow(url)
   action invite
     hidePopover(`workspace-menu-${workspace.id}`)
     teamInvite(workspace.id)
@@ -200,7 +205,7 @@ component WorkspaceMenuButton
       button popovertarget=`workspace-menu-${workspace.id}` aria-label=`${workspace.name}: workspace menu` class=IconButton testId=`workspace-menu-${tag}`
         image "symbol:icon.dots" color="ink.muted" font-size="1rem"
       column id=`workspace-menu-${workspace.id}` popover="auto" role="menu" aria-label=workspace.name class=Menu
-        link href=path("workspaceSettings", workspace.id) role="menuitem" class=MenuItem testId=`workspace-settings-${tag}`
+        link href=path("workspaceSettings", workspace.id) press=choose(path("workspaceSettings", workspace.id)) role="menuitem" class=MenuItem testId=`workspace-settings-${tag}`
           image "symbol:icon.gear" aria-hidden=true
           text "Workspace settings"
         if workspace.kind == "team" and workspace.role != "member"
@@ -209,7 +214,7 @@ component WorkspaceMenuButton
         button press=sort role="menuitem" class=MenuItem testId=`workspace-sort-${tag}`
           text "Sort by latest"
         if workspace.kind == "team"
-          link href=path("people", workspace.id) role="menuitem" class=MenuItem testId=`workspace-people-${tag}`
+          link href=path("people", workspace.id) press=choose(path("people", workspace.id)) role="menuitem" class=MenuItem testId=`workspace-people-${tag}`
             image "symbol:icon.users" aria-hidden=true
             text "People"
 
@@ -287,6 +292,7 @@ component DoodHeader
     panelOpen: bool
     togglePanel: action
     back: action
+    openWardrobe: action
   derive dood = doodOf(doodList, page.agentId)
   derive menu = `pages-${page.key}`
   view
@@ -302,7 +308,7 @@ component DoodHeader
               padding=2 border-radius=999 background-color="transparent" border="none" testId=`panel-toggle-${route}`
               DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=28)
           else
-            column padding=2
+            button press=openWardrobe disabled=(not dood.hatched) aria-label=`${nameOf(dood)}'s wardrobe` padding=2 border-radius=999 background-color="transparent" border="none" testId=`pill-wardrobe-${route}`
               DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=28)
           button popovertarget=menu aria-label=`${nameOf(dood)}: pages and settings` class=PillButton min-width=0 testId=`pages-${route}`
             text nameOf(dood) role="heading" aria-level=1 font-size="0.875rem" font-weight=500

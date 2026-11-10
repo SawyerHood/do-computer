@@ -47,3 +47,21 @@ test "the scenes also finish with reduced motion"
   clock +1200
   expect text "scene-last" == "hatched"
   expect text "gift-last" == "shown"
+
+test "a treat is eaten in three bites, and the hatched creature talks and flies to its place"
+  clock data
+  clock +100
+  tap "feed"
+  clock +1500
+  expect state fed == 1
+  clock +10000
+  tap "sky-hatch"
+  clock +6000
+  expect text "scene-last" == "hatched"
+  expect state skyOut == true
+  tap "sky-talk"
+  clock +100
+  expect state talked == 1
+  tap "sky-fly"
+  clock +3000
+  expect text "scene-last" == "flown"

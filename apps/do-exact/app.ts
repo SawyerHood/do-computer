@@ -6,6 +6,8 @@ import { composerJobSources } from './data/composer-jobs.ts';
 import { composerSources } from './data/composer.ts';
 import { threadsSources } from './data/threads.ts';
 import { chatSources } from './data/chat.ts';
+import { careSources } from './data/care.ts';
+import { doodSources } from './data/dood.ts';
 import { sessionSources } from './data/session.ts';
 import { shellSources } from './data/shell.ts';
 import { teamsSources } from './data/teams.ts';
@@ -49,6 +51,8 @@ const sources: Sources = {
   ...librarySources,
   ...libraryPinSources,
   ...librarySiteSources,
+  ...careSources,
+  ...doodSources,
   // A new area spreads its sources here.
 };
 

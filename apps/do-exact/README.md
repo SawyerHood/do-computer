@@ -25,6 +25,16 @@ what Exact cannot do yet.
 - A wide window has the sidebar beside the page; a phone has the list, then a Dood's chat over
   it. Every page has its address (`/a/:agentId`, `/a/:agentId/c/:chatId`,
   `/a/:agentId/library`, `/w/:workspaceId/people`, …): deep links, reload, Back and Forward work.
+- A Dood from its first moment (views/welcome, panel, panel-mood, care, wardrobe): someone with
+  no Dood watches an egg come down out of the night onto its island, says hello, names it, picks
+  its colour and what it thinks with, sees it hatch as the sun comes up, and follows it as it flies
+  into its chat, where it offers what to do first. A Dood hatched from the sidebar's + is met as
+  an egg that hatches while its owner watches. Its panel beside the chat has its creature, petted
+  with a click or by rubbing, treats beside it, its box filling with the hours until the next,
+  opened over the page, and its wardrobe, where anything the workspace found is worn by any of its
+  Doods. Every picture of a Dood is in its egg until it has hatched, wears what it has on, and
+  acts out what its chat says: listening, thinking, at which kind of work, answering, done,
+  troubled, waiting for an OK, asleep.
 - A Dood's main chat: the transcript, opened at its newest message and following it, with the
   reply arriving as it is written, every piece of it, over the Dood's WebSocket. Text is drawn as Markdown;
   thinking, tool calls and notices each have a plain row. Sending a message. Its panel beside
@@ -118,10 +128,11 @@ React app (`apps/web/src/server/exact-app.ts`). Node only for now. `tools/same-o
 In the order it would be built:
 
 1. **The remaining pages.** Automations, skills, connectors and computers still have placeholder
-   bodies. The creature is drawn, but not petted, dressed or hatched in the shell yet.
-2. **The rest of a chat.** Approvals, queued messages and Stop, earlier history, attachments and
-   pictures, side chats and sub-agents, code blocks with highlighting, tables.
-3. **The rest of the shell.** Naming and hatching with the egg, touch drag ordering, calls,
+   bodies. Claiming a Dood hatched in a post, the waiting list's own first run and the public
+   Dood page (`/dood/:id`, `/hatch`) remain outside this signed-in client.
+2. **Transcript parity.** Earlier history, approval and queue interactions, and the remaining
+   tool presentations. Sending files, Stop and helper chats already work; see GAPS.md.
+3. **The rest of the shell.** Touch drag ordering, calls,
    live presence, and the React app's wide sidebar that folds to a column of faces.
 4. **Any deployment.** The address is a constant. A person should type it at sign-in, as on the
    phone, which needs the grant `net.fetch https:` and the address kept in the store.
@@ -132,9 +143,8 @@ In the order it would be built:
    native launch opens at the list of Doods: the open chat is not kept across launches.
 6. **The app served on Cloudflare.** `DC_EXACT_APP` is the Node server's; the Worker would serve
    the build from its static assets, which the deploy would have to build with Exact's tools.
-7. **What Exact has no answer for yet.** Mermaid and Shiki (npm packages with DOM or wasm needs,
-   which would be web native views as the creature is), MCP app and visual embeds beyond a plain
-   `iframe`, push on native hosts, and the desktop app's work: running the daemon and driving the screen
+7. **What Exact has no answer for yet.** MCP app and visual embeds beyond a plain `iframe`,
+   push on native hosts, and the desktop app's work: running the daemon and driving the screen
    and browser. Windows is unfinished in Exact.
 
 ## Things learned about Exact, 2026-11-09

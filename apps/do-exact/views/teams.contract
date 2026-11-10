@@ -125,6 +125,7 @@ members App
   mutation sidebarChanged as shape Reply refreshes doods, workspacesAbout, doodsAbout then sidebarAfterChange
   mutation teamOrdered as shape Reply queue refreshes doods
   state teamInviteWorkspace = ""
+  state teamCreateOpen = false
   state teamCreateName = ""
   state teamCreateColor = "teal"
   state teamCreateMoving: string[] = []
@@ -142,7 +143,7 @@ members App
   state sidebarName = ""
   state sidebarDestination = ""
   state sidebarTyped = ""
-  derive sidebarTarget = match first(doodList.filter(d => d.id == sidebarTargetId)) { case some(d) => d, case none => Dood(id="", name="", workspaceId="", latest="", latestAt=0, working=false, asking=false, unread=false, seed="", color="", hatched=false) }
+  derive sidebarTarget = match first(doodList.filter(d => d.id == sidebarTargetId)) { case some(d) => d, case none => Dood(id="", name="", workspaceId="", latest="", latestAt=0, working=false, asking=false, unread=false, seed="", color="", hatched=false, outfit="{}") }
   derive sidebarTitle = sidebarTarget.name == "" ? "New Dood" : sidebarTarget.name
   derive teamBusy = pending(teamChanged)
   derive teamError = pending(teamChanged) ? "" : match teamChanged { case some(r) => r.owner == session.owner ? r.error : "", case none => "" }
@@ -153,12 +154,17 @@ members App
     if onRoute == "workspace" and teamFirst.owner == session.owner and teamFirst.workspaceId == teamWorkspaceId and teamFirst.agentId != ""
       follow(path("dood", teamFirst.agentId))
   action teamNew
+    // A quick New team must not have the first-run scene laid over its dialog.
+    welcomeOn = false
+    teamCreateOpen = true
     teamCreateName = ""
     teamCreateColor = "teal"
     teamCreateMoving = []
     teamCreateWho = ""
     teamMade = none
     showModal("team-create")
+  action teamCreateClosed
+    teamCreateOpen = false
   action teamEditName(v: string)
     teamCreateName = v
   action teamPickColor(v: string)
@@ -354,6 +360,7 @@ component TeamDialogs
     teamEditWho: action
     teamCreate: action
     teamGoCreated: action
+    teamCreateClosed: action
     teamInviteWorkspace: string
     teamInviteWho: string
     teamInviteRole: string
@@ -367,7 +374,7 @@ component TeamDialogs
   derive made = match teamMade { case some(r) => r.ok and r.owner == session.owner, case none => false }
   derive sent = match teamSent { case some(r) => r.ok and r.owner == session.owner, case none => false }
   view
-    dialog id="team-create" aria-label="New team" class=TeamDialog
+    dialog id="team-create" close=teamCreateClosed aria-label="New team" class=TeamDialog
       column gap=20
         column gap=6
           row gap=8 align-items="center"

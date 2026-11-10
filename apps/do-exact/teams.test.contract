@@ -482,3 +482,50 @@ test "New team in account settings joins the workspace section list"
   clock data
   clock settle
   expect tree has "team-title-people"
+
+test "a team Dood hatches from its workspace plus, and a quick New team keeps the first run out of its dialog"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Hatch Owner"
+  type "sign-email" "teams-hatch@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-team"
+  clock +1000
+  expect state welcomeOn == false
+  type "team-name" "Hatch Studio"
+  tap "team-create-submit"
+  clock data
+  tap "team-created-go"
+  clock data
+  clock settle
+  tap "New Dood in Hatch Studio"
+  clock data
+  clock settle
+  clock data
+  expect state onRoute == "dood"
+  expect state welcomeOn == false
+  expect state openDood.hatched == false
+  clock +1700
+  expect state liveFaces.0 .hatching == true
+  // Start another while this one's animation is still playing. The new one must hatch too.
+  tap "New Dood in Hatch Studio"
+  clock data
+  clock settle
+  clock +1700
+  clock data
+  expect state liveFaces.0 .hatching == true
+  expect state liveFaces.1 .hatched == true
+  tap "panel-toggle-dood"
+  expect text "panel-status" == "About to hatch"
+  tap "panel-face"
+  clock data
+  expect state openDood.hatched == true
+  expect text "panel-status" == "Ready"
+  reload
+  clock data
+  clock settle
+  clock data
+  expect state openDood.hatched == true
+  expect state workspaceList.length == 2

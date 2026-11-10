@@ -1,0 +1,151 @@
+// A Dood's panel beside its chat on a wide window (components/chat/agent-panel.tsx): its creature
+// at a size to be watched, hatched, petted and fed, with its box; its name and what it is doing;
+// its wardrobe; and the sections about this chat that fold under their headings. Here too is
+// its hatch, watched once (chat-view.tsx `useHatch`). What its creature is doing everywhere it is
+// drawn is panel-mood.contract's.
+use Reply, Dood from "./shapes.contract"
+use nameOf from "./shell.contract"
+use Face, Hatchling from "./creature.contract"
+use Creature, CreatureCare from "./care.contract"
+use crumbOf from "./care-pixels.contract"
+use IconButton from "./styles.contract"
+
+members App
+  // --- panel ---
+  // The Dood whose hatch is playing, and those its owner watched hatch here ("|id|…").
+  state hatchingFor = ""
+  state hatchedHere = ""
+  // How each of the panel's sections was left folded or open ("|id:folded|id:open|"), for every Dood alike.
+  state panelFolds = "" persist
+  // How far the panel is scrolled: its name stays in a bar at the top once the face is gone.
+  state panelTop = 0
+  mutation hatchSeen as shape Reply refreshes doods
+
+  // A new Dood is met as an egg, which hatches while its owner watches, 1.6 s in.
+  task eggWait key=`${openAgentId}:${openDood.hatched}:${doodList.length}`
+    after(1600, beginHatch)
+  // Talked to before it hatched, it is out all the same.
+  task talkedTo key=`${openAgentId}:${chat.messages.length}`
+    after(1, outOnceTalked)
+
+  action beginHatch
+    // A second sidebar + can leave a hatch before its view sends "hatched". Finish that one
+    // first, so the new Dood is not left in its egg behind the old hatchingFor. State writes
+    // land together at the end; these bindings are the state this action began with.
+    let before = hatchingFor
+    let watched = hatchedHere
+    let leftHatch = before != "" and before != openAgentId
+    if leftHatch and doodList.filter(d => d.id == before).length > 0 and not watched.includes(`|${before}|`)
+      hatchedHere = `${watched}|${before}|`
+      send hatchSeen = markHatched(before)
+    if doodList.filter(d => d.id == openAgentId).length > 0 and not openDood.hatched and not watched.includes(`|${openAgentId}|`) and (before == "" or leftHatch)
+      hatchingFor = openAgentId
+    else if leftHatch
+      hatchingFor = ""
+  action outOnceTalked
+    if ours and chat.messages.length > 0 and doodList.filter(d => d.id == openAgentId).length > 0 and not openDood.hatched
+      hatchDone(openAgentId)
+  // Leaving the hatch while it plays jumps to its end; before it starts, it is out at once.
+  action skipHatch(id: string)
+    hatchDone(id)
+  action hatchDone(id: string)
+    if not hatchedHere.includes(`|${id}|`)
+      hatchedHere = `${hatchedHere}|${id}|`
+      send hatchSeen = markHatched(id)
+    if hatchingFor == id
+      hatchingFor = ""
+  action foldPanelSection(id: string, folded: bool)
+    panelFolds = `${panelFolds.replaceAll(`|${id}:folded|`, "").replaceAll(`|${id}:open|`, "")}|${id}:${folded ? "open" : "folded"}|`
+  action panelScrolled(x: number, y: number)
+    panelTop = y
+  action panelToTop
+    scrollIntoView("panel-top", behavior="smooth")
+
+// What it is doing, in a few words (agent-panel.tsx `moodWords`).
+fn moodWords(face: Face): string = not face.hatched ? "About to hatch" : face.state == "listening" ? "Listening" : face.state == "thinking" ? "Thinking" : face.state == "working" ? workWords(face.variant) : face.state == "speaking" ? "Answering" : face.state == "waiting" ? "Waiting for your OK" : face.state == "done" ? "Done" : face.state == "error" ? "Something went wrong" : face.state == "asleep" ? "Resting" : "Ready"
+fn workWords(variant: string): string = variant == "file" ? "Working with files" : variant == "search" ? "Looking something up" : variant == "memory" ? "Making a note" : "Running a command"
+fn faceOf(faces: Face[], d: Dood): Face = match first(faces.filter(f => f.id == d.id)) {
+  case some(f) => f,
+  case none => Face(id=d.id, seed=d.seed, state="idle", variant="", outfit=d.outfit, hatched=d.hatched, hatching=false)
+}
+fn folded(folds: string, id: string, startsFolded: bool): bool = folds.includes(`|${id}:folded|`) ? true : folds.includes(`|${id}:open|`) ? false : startsFolded
+
+// The Dood beside its chat. All of it scrolls as one, the face with it; a bar with the Dood's
+// name takes the face's place at the top once it has gone. Its wardrobe is in the corner.
+component DoodPanel
+  props
+    dood: Dood
+    // Its chat is being answered.
+    busy: bool
+  inject
+    liveFaces: Face[]
+    care: Creature
+    careFeed: string
+    panelTop: number
+    panelScrolled: action
+    panelToTop: action
+    openWardrobe: action
+  derive face = faceOf(liveFaces, dood)
+  derive name = nameOf(dood)
+  derive doing = moodWords(face)
+  view
+    aside aria-label=`About ${name}` width="20rem" flex-shrink=0 position="relative" display="flex" flex-direction="column" overflow="hidden"
+      border-left="1px solid var(--hairline)" background-color="panel" testId="dood-panel"
+      if panelTop > 150
+        button press=panelToTop aria-label=`Back to ${name}` title="Back to the top" position="absolute" top=0 left=0 right=0 height=52 z-index=10
+          display="flex" align-items="center" gap=10 padding="0 12px" background-color="panel" border="none" border-bottom="1px solid var(--hairline)" color="ink"
+          text-align="start" testId="panel-bar"
+          Hatchling(dood=dood, size=36, feed="", crumb="", testId="panel-bar-face")
+          text name font-size="0.875rem" font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+          text doing flex=1 min-width=0 font-size="0.875rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+      scroll flex=1 min-height=0 scroll=panelScrolled testId="panel-scroll"
+        column id="panel-top" position="relative" align-items="center" gap=4 padding="28px 24px 20px" text-align="center"
+          if face.hatched
+            button press=openWardrobe aria-label=`${name}'s wardrobe` title="Wardrobe" class=IconButton position="absolute" top=10 right=10 testId="panel-wardrobe"
+              image "symbol:icon.t-shirt" color="ink.muted" font-size="1rem"
+          CreatureCare(dood=dood, name=(dood.name == "" ? "it" : dood.name), size=112)
+            Hatchling(dood=dood, size=112, feed=careFeed, crumb=crumbOf(care.treat), testId="panel-face")
+          text name role="heading" aria-level=2 margin-top=12 font-size="1.125rem" font-weight=500 testId="panel-name"
+          // The line in the transcript is the one announced; this repeats it beside the creature.
+          text doing font-size="0.875rem" color="ink.muted" testId="panel-status"
+          // --- call --- (a call with the Dood is placed here, under its name: CallButton)
+        // --- pinned --- (what is pinned to the Dood: PinnedShelf)
+        // --- screen --- (the screen it last used here: UseNow)
+        // --- running --- PanelSection(id="running", title="Running in the background", …)
+        // --- subagents --- PanelSection(id="subagents", title="Sub-agents at work", …)
+        // --- doods --- PanelSection(id="doods", title="From other Doods", startsFolded=true, …)
+        // --- slack --- PanelSection(id="slack", title="From Slack", startsFolded=true, …)
+        // --- here --- PanelSection(id="here", title="Here now", …) in a team
+        // --- shared --- PanelSection(id="shared", title="Shared here", startsFolded=true, …)
+
+// One section of the panel under a heading that folds it away (panel-section.tsx). Folded, the
+// heading still says how many are inside and, in `said`, whether one wants looking at; how it
+// was left is kept, for every Dood alike. What is inside is the use's children.
+component PanelSection
+  props
+    id: string
+    title: string
+    // How many are inside; -1 to say nothing.
+    count: number
+    said: string
+    startsFolded: bool
+  slot
+  inject
+    panelFolds: string
+    foldPanelSection: action
+  derive shut = folded(panelFolds, id, startsFolded)
+  view
+    section aria-label=title flex-shrink=0 border-top="1px solid var(--hairline)" testId=`panel-section-${id}`
+      h3 margin=0 font-size="0.8125rem" font-weight=500
+        button press=foldPanelSection(id, shut) aria-expanded=(not shut) display="flex" width="100%" min-width=0 align-items="center" gap=6
+          padding=(shut ? "14px 16px" : "14px 16px 8px") background-color="transparent" border="none" color="ink.muted" font-size="0.8125rem" font-weight=500
+          text-align="start" testId=`panel-fold-${id}`
+          image "symbol:icon.caret-right" aria-hidden=true font-size="0.75rem" rotate=(shut ? "0deg" : "90deg") transition="rotate 150ms"
+          text title overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+          column flex=1 min-width=4
+          if shut and said != ""
+            text said font-size="0.75rem" font-weight=400
+          if count >= 0
+            text `${count}` min-width=20 padding="1px 6px" border-radius=999 background-color="secondary" text-align="center" font-size="0.6875rem" font-weight=400
+      if not shut
+        children

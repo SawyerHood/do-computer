@@ -13,6 +13,10 @@ component SidebarDoodMenu
     sidebarAskDelete: action
     sidebarBusy: bool
     teamNudge: action
+    follow: action
+  action choose(url: string)
+    hidePopover(`dood-menu-${dood.id}`)
+    follow(url)
   derive title = dood.name == "" ? "New Dood" : dood.name
   derive canManage = match first(workspaceList.filter(w => w.id == dood.workspaceId)) { case some(w) => w.role != "member", case none => false }
   view
@@ -20,11 +24,11 @@ component SidebarDoodMenu
       button popovertarget=`dood-menu-${dood.id}` aria-label=`${title}'s pages and actions` class=IconButton testId=`dood-menu-${dood.id}`
         image "symbol:icon.dots" width=16 height=16
       column id=`dood-menu-${dood.id}` popover="auto" role="menu" aria-label=`${title} menu` class=Menu
-        link href=path("library", dood.id) role="menuitem" class=MenuItem
+        link href=path("library", dood.id) press=choose(path("library", dood.id)) role="menuitem" class=MenuItem
           text "Library"
-        link href=path("automations", dood.id) role="menuitem" class=MenuItem
+        link href=path("automations", dood.id) press=choose(path("automations", dood.id)) role="menuitem" class=MenuItem
           text "Automations"
-        link href=path("settings", dood.id) role="menuitem" class=MenuItem
+        link href=path("settings", dood.id) press=choose(path("settings", dood.id)) role="menuitem" class=MenuItem
           text "Settings"
         button press=teamNudge(dood.id, -1) aria-label=`Move ${title} up` role="menuitem" class=MenuItem testId=`dood-earlier-${dood.id}`
           text "Move up"

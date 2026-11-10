@@ -4,12 +4,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 out="${1:-.exact/shots/teams/integrated}"
 mkdir -p "$out"
-ops=('tap sign-toggle' 'type sign-name Ada' 'type sign-email teams-merged-owner@example.com' 'type sign-password "correct horse"' 'tap sign-submit' 'clock data' 'tap new-dood' 'clock data' 'clock settle' "tap \"New Dood's pages and actions\"" 'tap "Rename New Dood"' 'clock settle' 'type sidebar-rename-input Pico' 'tap sidebar-rename-save' 'clock data' 'tap new-team' 'clock settle' 'type team-name Studio' 'tap team-create-submit' 'clock data' 'tap "Close new team"' 'clock settle' 'tap "New Dood in Studio"' 'clock data' 'clock settle' 'reload' 'clock data' 'clock settle')
+ops=('tap sign-toggle' 'type sign-name Ada' 'type sign-email teams-merged-owner@example.com' 'type sign-password "correct horse"' 'tap sign-submit' 'clock data' 'tap new-dood' 'clock data' 'clock settle' 'tap hello-face' 'clock data' "tap \"New Dood's pages and actions\"" 'tap "Rename New Dood"' 'clock settle' 'type sidebar-rename-input Pico' 'tap sidebar-rename-save' 'clock data' 'tap new-team' 'clock settle' 'type team-name Studio' 'tap team-create-submit' 'clock data' 'tap "Close new team"' 'clock settle' 'tap "New Dood in Studio"' 'clock data' 'clock settle' 'tap hello-face' 'clock data' 'reload' 'clock data' 'clock settle')
 shots() {
   local screen=$1
   ops+=('resize 1280x800' 'prefer prefers-color-scheme light' 'clock settle' "screenshot $out/wide-$screen-light.png" 'prefer prefers-color-scheme dark' "screenshot $out/wide-$screen-dark.png" 'resize 390x844')
   if [[ "$screen" == sidebar ]]; then ops+=('back'); fi
-  ops+=('clock settle' "screenshot $out/phone-$screen-dark.png" 'prefer prefers-color-scheme light' "screenshot $out/phone-$screen-light.png" 'resize 1280x800' 'clock settle')
+  ops+=('clock settle' "screenshot $out/phone-$screen-dark.png" 'prefer prefers-color-scheme light' "screenshot $out/phone-$screen-light.png" 'prefer root-font-size 53' 'clock settle' 'check both' "screenshot $out/phone-$screen-largest.png" 'prefer root-font-size 16' 'resize 1280x800' 'clock settle')
 }
 shots sidebar
 ops+=('tap "Studio: workspace menu"' 'tap People' 'clock data' 'clock settle')
@@ -18,4 +18,5 @@ ops+=('tap team-invite-open-people' 'clock settle' 'type team-invite-who teams-m
 shots invitation
 ops+=('tap team-accept' 'clock data' 'clock settle' 'reload' 'clock data' 'clock settle' 'tap "Studio: workspace menu"' 'tap People' 'clock data' 'clock settle')
 shots accepted
-exec ./x agent web --size 1280x800 "${ops[@]}" 'check both'
+ops+=('tap close-people' 'clock data' 'clock settle' 'resize 390x844' 'tap pill-wardrobe-dood' 'clock data' 'clock settle' 'prefer root-font-size 53' 'clock settle' 'check both' "screenshot $out/phone-wardrobe-largest.png")
+exec ./x agent web --size 1280x800 "${ops[@]}"

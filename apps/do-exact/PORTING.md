@@ -58,6 +58,11 @@ build compiles Rust for a minute or two; later ones take seconds.
   (`echo 3 > .slot`); without one you share slot 0 and wait your turn. Never start `server.ts`,
   the React dev server or anything else on those ports yourself and leave it running; never
   `pkill` by a broad pattern. The React app for comparison is at the server's port.
+  `verify` opens its initial phone and desktop checks concurrently, so `./x verify` keeps the
+  API and slot lock but gives its page drives ten ports starting at `18766 + 10 * slot`
+  (`PORT_LO`/`PORT_HI` override that range). Its empty local server trusts those page origins.
+  Interactive `web`/`agent` and standalone `test` keep the usual `8766 + slot` page port;
+  do not force a single `EXACT_PORT` through a direct `bun exact.mjs verify` invocation.
 
 ## Structure
 
@@ -102,7 +107,12 @@ views/shell.contract      members: viewport, time, workspaces, Doods, the open D
 views/sign-in.contract    members: the session, signing in and out. SignIn
 views/chat.contract       members: the open chat, sending. ChatScreen, MessageRow, DoodPanel
 views/creature.contract   DoodFace: a Dood's creature, the `do-creature` native view (seed, colour,
-                          state, name, size)
+                          state, name, size), live from `liveFaces`; Hatchling, the large one
+views/panel*.contract     members: the creature's live state (panel-mood), its hatch, the panel's
+                          folds. DoodPanel beside the chat, PanelSection for the panel's sections
+views/care*.contract      members: the creature, treats, the box. CreatureCare, BoxWindow
+views/wardrobe.contract   members: dressing. WardrobeWindow, CreatureWindows (drawn at the root)
+views/welcome.contract    members: the first run. WelcomeScene over everything, FirstHello in a chat
 views/settings-kit.contract  the settings' frame (DoodSettings, AccountSettings,
                           WorkspaceSettingsFrame: the settings window's card, its list of sections
                           beside the open one) and pieces (SettingsSection, SettingsCard,
@@ -358,8 +368,11 @@ controls and text need a browser probe while an official `./x agent` drive owns 
   A Dood's face is `DoodFace` in `views/creature.contract`, which draws `do-creature`: add
   what the creature does (petting, outfits, hatching) there.
 - **Tests.** Every feature gets tests in `<area>.test.contract` that drive it against the real
-  server. Each starts signed out with empty storage, on a server the whole run shares, so it
-  signs up first with the same six lines and an address no other test uses.
+  server. Someone signed in with no Dood, at `/`, gets the first run's scene over everything,
+  400 ms after the list says so: a test that taps `new-dood` (or `first-dood`) at once, as the six lines do
+  followed by that tap, has its Dood before the scene comes, and never sees it. Each starts
+  signed out with empty storage, on a server the whole run shares, so it signs up first with
+  the same six lines and an address no other test uses.
 - **Looks.** The React app's look wins where it and Exact's platform look differ on the web:
   its colours, type and shapes, from `app.tamber` and `views/styles.contract`. Wide windows
   get the sidebar beside the content; narrow ones a stack. Compare against the React app's

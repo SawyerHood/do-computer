@@ -4,6 +4,6 @@ export { AgentOrbCore } from '../../../../packages/mascot/src/orb-core.js';
 export { AgentOrbWardrobe } from '../../../../packages/mascot/src/wardrobe.js';
 export { AgentOrbSky } from '../../../../packages/mascot/src/sky.js';
 export { AgentOrbPortrait } from '../../../../packages/mascot/src/portrait.js';
-export { avatarLook } from '../../../../packages/protocol/src/avatars.ts';
+export { avatarLook, AVATAR_COLORS } from '../../../../packages/protocol/src/avatars.ts';
 export { avatarSvg } from '../../../../packages/protocol/src/avatar-svg.ts';
 export { RARITIES, wearItem } from '../../../../packages/protocol/src/wardrobe.ts';

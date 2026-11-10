@@ -83,6 +83,32 @@ Within a session Back and Forward follow the browser's history.
 **Browser history cannot be stepped in a test.** `tap "app" history 1` works in a drive and
 is a syntax error in a `.test.contract`, so Forward is checked by drive only (PORTING.md).
 
+## A Dood as a creature
+
+**The flight from the island is the sky's own.** welcome/stage.ts moves the creature's canvas
+from the island to the chat's picture of it with a CSS transition. The first run's creature is
+inside `do-sky`'s shadow DOM, not a Contract node, so Exact's `sharedElement` flight cannot carry
+it: `do-sky`'s `fly` finds the target by its test id, waits for it to stop moving and moves its
+own picture there on Exact's clock (modules/web/README.md). The page's picture is hidden by
+`welcome.contract` until the sky says `flown`.
+
+**A sleeping creature is woken only by what the app sees.** use-mascot-mood.ts lets it doze
+after four quiet minutes and wakes it on any pointer move, key, wheel or press on the window.
+Exact hands a view no window-wide pointer, so here the quiet is broken by what the app itself
+sees change: the draft, the chat's messages and work, the end of a run, another Dood opened.
+
+**What a chat's last `send` was is not in the view's chat.** `chatMood`'s rule that a Dood that
+has said its last word and only finishes up is idle reads the `send` tool, which data/chat.ts
+leaves out of the blocks it hands the view; here such a Dood shows the work it is finishing.
+
+**A pat reaches the creature petted, not every drawing of it.** The React app's `petMascot`
+leans every moving picture of the agent (panel, pill, sidebar) into a hand on any one of them.
+Each `do-creature` here is its own view; the others are told nothing.
+
+**The box's Wear it is the app's colour, not the Dood's.** box-window.tsx's buttons take the
+Dood's deepened colour as `--primary`; as under "Type and colour", a token cannot be mixed from a
+colour known only at run time.
+
 ## Exact bugs worked around
 
 **`exactTime()` fails the build of an app that draws Markdown.** The build renders the app once
@@ -102,10 +128,10 @@ than relying on npm or outside-folder imports in the browser. Exact's hatch cloc
 animation; the mascot package's deferred GPU-resource disposal and WebGL retry bookkeeping
 still use its wall clock (no visible animation depends on it). Sky particles use its unseeded
 randomness, so clock stepping controls their timing but does not promise pixel-identical
-confetti on every launch. The native view's box contains the whole picture;
-React's `AgentAvatar` overscans its span by 12%. The first-run view includes the sky, fall and
-hatch from `components/welcome/stage.ts`, but not the UI's flight from island to chat: the
-screen that owns both boxes must implement that transition. Petting emits `message="pet"`;
+confetti on every launch. React's `AgentAvatar` overscans its span by 12%; `do-creature`
+does too with `overscan="true"`, which DoodFace and Hatchling set. The first-run view includes the sky, fall and
+hatch from `components/welcome/stage.ts`, and the flight from island to chat (`fly`, below
+under "A Dood as a creature"). Petting emits `message="pet"`;
 the Contract caller must apply server care limits and mutations, as React's creature care
 does. If WebGL is unavailable, `do-creature` uses the protocol's plain SVG; it has no clothes,
 seed-specific silhouette or egg, like React's stand-in. Rich message content is now implemented
@@ -134,13 +160,12 @@ preview lists their names, not React's row of faces.
 **The waiting-list flow is partial.** Deployment admins use the merged Settings → Waiting
 list to read/admit people; the duplicate workspace waitlist and its data source were removed.
 A waiting account gets an explanation, Check again and Sign out. React also lets it
-hatch and pet its first Dood (the welcome stage and `components/settings/waitlist.tsx`). That
-first-run experience is not added here. Existing shell sources still request the admitted-user
-workspaces/Doods APIs for a waiting session; those APIs return 403. Their waiting-state gating
-remain deployment-mode integration work. The local test server forces `DC_SIGNUP=open`, so
-invitation-only
-sign-up, waiting-account admission and admin-only waitlist controls still need deployment-mode
-integration tests. Normal signed-out preview, sign-up, acceptance and Not now are covered
+hatch and pet its first Dood (the welcome stage and `components/settings/waitlist.tsx`). The
+normal first run now has that egg and care; the waiting-account version is not added here.
+Existing shell sources still request the admitted-user workspaces/Doods APIs for a waiting
+session; those APIs return 403. Their waiting-state gating remains deployment-mode integration
+work. The local test server forces `DC_SIGNUP=open`, so invitation-only sign-up, waiting-account
+admission and admin-only waitlist controls still need deployment-mode integration tests. Normal signed-out preview, sign-up, acceptance and Not now are covered
 against the real server. An email inbox invitation belongs only to an email-verified account;
 verified inbox dismissal and GitHub sign-in need accounts the local password-only harness
 does not supply. Not now treats only the server's expected 404 as leaving a public link alone;
