@@ -1,6 +1,6 @@
 // The session area: who is signed in, signing in or making an account, and signing out.
 import type { Result, Sources } from '../app.contract.d.ts';
-import { keep, ownerOf, post, Refused, reply, session, ask } from './api.ts';
+import { keep, ownerOf, post, Refused, reply, session, ask, stockTickets } from './api.ts';
 
 type Me = { user: { id: string; name: string; email: string } };
 
@@ -19,6 +19,8 @@ export const sessionSources: Pick<Sources, 'loadSession' | 'signIn' | 'signOut'>
     try {
       const { body } = await ask<Me>(store, '/api/me');
       const { id, name, email } = body.user;
+      // Tickets for the sockets the app opens next, ready before anything follows (data/api.ts).
+      await stockTickets(store, 0).catch(() => 0);
       return { signedIn: true, owner: ownerOf(id, store), userId: id, name, email, initials: initialsOf(name) };
     } catch (e) {
       // A session the server no longer knows is over. Anything else fails the read, which keeps the last answer.

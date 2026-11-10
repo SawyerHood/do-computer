@@ -1,7 +1,7 @@
 import { getPlatform } from "#platform"
 import { CALLER_HEADER, encodeCaller } from "@do-computer/agent"
 import { isPersonalWorkspace, personalWorkspaceId } from "@do-computer/protocol"
-import { fromApp, getUser } from "./auth.ts"
+import { socketUser } from "./auth.ts"
 import { roleIn } from "./teams.ts"
 
 /** Where a member's browser connects to say where it is and hear where the others are. */
@@ -21,17 +21,16 @@ export function presenceWorkspace(pathname: string): string | undefined {
 /**
  * Check a request to join a team's presence, or a person's own feed, and resolve with the
  * request to hand its actor: the same one, saying who is asking. Undefined when it is not a
- * member's, not the person's own, or not from the app itself.
+ * member's, not the person's own, or carries neither a ticket nor a cookie from the
+ * app itself.
  */
 export async function admitToPresence(
   request: Request,
   workspaceId: string,
 ): Promise<Request | undefined> {
   const { db } = getPlatform()
-  // A browser sends cookies with a WebSocket to any site that asks, so a page elsewhere could
-  // open one as the signed-in user. Only the app's own pages may.
-  if (!fromApp(request)) return undefined
-  const user = await getUser(request)
+  // A cookie only from the app's own pages, or a ticket (auth.ts).
+  const user = await socketUser(request)
   if (user === undefined) return undefined
   // A personal workspace has nobody to be present for: its address is its owner's own feed,
   // where they hear what their agents are up to, and nobody else's to join.

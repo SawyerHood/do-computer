@@ -53,6 +53,7 @@ component App
   members "./views/sign-in.contract"
   members "./views/shell.contract"
   members "./views/chat.contract"
+  members "./views/transport.contract"
   // A new area adds its members line here, in its own place, in the order of the routes.
 
   // What any screen may `inject` instead of taking it as a prop.

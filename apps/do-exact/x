@@ -12,6 +12,8 @@ export EXACT_FEEDBACK=0
 slot="${DCX_SLOT:-$(cat .slot 2>/dev/null || echo 0)}"
 export EXACT_PORT="${EXACT_PORT:-$((8766 + slot))}"
 export API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:$((3911 + slot))}"
+# Its sockets: the same address, ws: for http: and wss: for https:.
+export API_SOCKET_URL="${API_SOCKET_URL:-${API_BASE_URL/#http/ws}}"
 if [ -z "${CHROME:-}" ]; then
   CHROME="$(ls -d "$HOME"/.cache/ms-playwright/chromium-*/chrome-linux64/chrome 2>/dev/null | sort -V | tail -1 || true)"
   [ -n "$CHROME" ] && export CHROME

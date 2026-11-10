@@ -5,12 +5,21 @@ import type { Result, Sources } from '../app.contract.d.ts';
 // client share: types and one pure function, so nothing of the package's is run but that.
 import { EMPTY_CHAT, reduceChat, type ChatEvent, type ChatMessage, type ChatState, type MessagePart } from '../protocol/chat.ts';
 import type { ChatSummary } from '../protocol/agent.ts';
+import { digest, type AgentSocketMessage, type AgentSocketRequest } from '../protocol/socket.ts';
 import { current, follow, NOBODY, post, reply, seg } from './api.ts';
 
 type Chat = Result<'followChat'>;
 type Block = Chat['messages'][number]['blocks'][number];
 
 const NO_CHAT: Chat = { owner: NOBODY, agentId: '', chatId: '', busy: false, lost: false, messages: [] };
+
+/** The chats last followed, as they stood, so that one followed again is not empty until it is told. */
+const held = new Map<string, ChatState>();
+function hold(key: string, state: ChatState) {
+  held.delete(key);
+  held.set(key, state);
+  if (held.size > 16) held.delete(held.keys().next().value!);
+}
 
 /** A message's parts as the view draws them. What the agent does only to speak (`send`) and what it wrote for nobody are left out. */
 function blocksOf(message: ChatMessage): Block[] {
@@ -52,20 +61,32 @@ export const chatSources: Pick<Sources, 'openChat' | 'followChat' | 'sendMessage
     const { body } = await post<ChatSummary>(store, `/api/agents/${seg(agentId)}/chats/main`);
     return { owner, agentId, chatId: body.id };
   },
-  // The chat as it stands, then again after each event. Events are deltas, so one that Exact
-  // dropped (it coalesces those that come faster than it commits) leaves the chat behind: it is
-  // marked `lost`, and the view follows it again from a fresh snapshot.
+  // The chat as it stands, then again after each change, over the Dood's socket, which carries
+  // every change of each chat it is asked to follow, in order. When the socket ends the chat is
+  // marked `lost`, and the view follows it again; meanwhile, and until the new socket's
+  // snapshot, it shows what it had.
   followChat: ([owner, agentId, chatId], store): Chat | Promise<Chat> => {
     if (agentId === '' || chatId === '' || !current(owner, store)) return NO_CHAT;
-    let state: ChatState = EMPTY_CHAT;
+    const key = `${owner} ${agentId} ${chatId}`;
+    let state: ChatState = held.get(key) ?? EMPTY_CHAT;
     let lost = false;
     const now = () => chatOf(owner, agentId, chatId, state, lost);
-    return follow<Chat, ChatEvent>(store, `/api/agents/${seg(agentId)}/chats/${seg(chatId)}/events`, {
-      each: (change, skipped) => {
-        // Events that were skipped cannot be made up for; a snapshot says where things stand anyway.
-        if (change.type === 'snapshot') lost = false;
-        else if (skipped) lost = true;
-        state = reduceChat(state, change);
+    const follow_ = { type: 'follow', chat: chatId } satisfies AgentSocketRequest;
+    return follow<Chat, AgentSocketMessage>(store, `/api/agents/${seg(agentId)}/socket`, {
+      open: (say) => {
+        say(follow_);
+        return now();
+      },
+      each: (message, say) => {
+        if (message.type === 'chat' && message.chat === chatId) {
+          state = reduceChat(state, message.event);
+          hold(key, state);
+        } else if (message.type === 'resumed' && message.chats[chatId] !== digest(state)) {
+          // The Dood was put away and is back with something other than what is here.
+          say(follow_);
+        } else if (message.type === 'gone' && message.chat === chatId) {
+          lost = true;
+        }
         return now();
       },
       lost: () => {
