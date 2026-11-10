@@ -272,3 +272,48 @@ waiting list are only for those who look after the deployment, which an account 
 email on an open server never is; they were checked by a drive (`DC_SIGNUP=waitlist
 DC_ADMIN_EMAILS=… ./x agent web …`, the first account on such a server counts as vouched for),
 not by a test.
+## Library, pins and sharing
+
+**Library Markdown has one swap point.** `views/library-markdown.contract` wraps Exact's
+`text markup="markdown"`. It is not the React `Markdown` component: code highlighting,
+Mermaid/math, DOM embeds, and the React document typography await the separate Markdown
+port. Inline Markdown images are currently alt text rather than pictures (standalone image
+viewing works). The front page therefore shows shorter previews, and a document's paragraph spacing
+is Exact's. Relative library links/images are resolved in `data/library.ts`; individual
+Markdown nodes do not yet call the chat document-panel action.
+
+**Editors use a textarea, not the React editor DOM.** Read/edit/split, autosave, errors,
+conflict resolution and revision revert use Contract state and the real library API. A
+small `library-format.js` native view applies the toolbar to a textarea's actual selection
+and gives Contract the resulting string. There is no editor scroll synchronisation or
+rich syntax colouring. On phones split keeps the editor; Read switches to the preview rather than
+squeezing two columns together. Folder operations are full-path rename/move; like React,
+folders are implicit and there is no standalone empty-folder operation. Drafts are not a
+persisted offline queue: keep a failed save open and retry it before closing the app.
+
+**Chat has an integration seam, not a second attachment renderer.** `LibraryFileCard` and
+`LibraryPictureViewer` in `views/library-card.contract` are exports for the separate chat
+port. They are not mounted by this branch's basic transcript, so real chat tool-result
+file cards and multiple-picture keyboard navigation are not end-to-end tested here.
+`openLibraryPanel(fileId)` and `LibraryDocumentPanel` are mounted, and a real pinned file
+opens the panel over the chat (tested). `LibraryPinsDock` temporarily occupies the bottom
+of the existing wide Dood panel; the chat port should mount `PinsShelf` in its own scroll
+column and remove that dock. The document panel is a bounded overlay, not a draggable
+split, and has a whole-screen presentation on a phone.
+
+**Pins have dates, not transient change flashes.** The first pin has an image, Markdown or
+sandboxed page preview; subsequent pins are title rows, and deleted pins stay with an
+unpin action. SSE refreshes them after writes and reconnects. The React shelf's live
+"Just changed" label and timed highlight are not reproduced; the file's date is shown.
+A pinned page preview does not receive the host theme message (the full page viewer does).
+
+**Downloads need a browser hatch; shares stay on the server.** Contract's `download` link
+cannot turn a fetched binary response into a named file, so `library-download.js` creates a
+Blob URL in its own web-native button, revokes it and reports success/failure. Uploads use
+Exact's file picker and a read-only grant for `app:/tmp/picked`. Native test drives must
+name a scratch store (`--storage`) or picker reads are unavailable. Sandboxed HTML/PDF
+iframes, new tabs and downloaded files remain browser-owned. `library-frame.js` sends
+host theme messages and only accepts open-document messages from its own iframe. Shared
+URLs are the existing `/s/:siteId` pages on the API origin, including that origin's sign-in
+for restricted links; Exact does not duplicate the public website or promise an Exact
+bearer session is also a cookie there. All three hatches are web-only.

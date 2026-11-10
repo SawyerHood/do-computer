@@ -1,14 +1,339 @@
-// A Dood's library page: a PLACEHOLDER until its area is built. It will hold the pinned documents, all files with their filter, a document open beside the list, new documents and uploads.
-// The React app's is apps/web/src/routes/_app.a.$agentId.library.tsx. To build it: give this file a `members App` block for its
-// resources, mutations and actions (listed in app.contract beside the others), and its data
-// sources in data/library.ts (gathered in app.ts); then pass what the screen reads as props where
-// app.contract draws it. Keep the DoodScreen frame: it is the header, the title and the lead.
-use Page from "./shapes.contract"
-use DoodScreen from "./shell.contract"
+use Page, Reply from "./shapes.contract"
+use Screen, Field, PrimaryButton, MenuItem, IconButton, PageTitle, PageLead from "./styles.contract"
+use DoodHeader from "./shell.contract"
+use LibraryViewer from "./library-viewer.contract"
+use SharedSites, Sites, LibrarySite, librarySiteOf from "./sites.contract"
+use PinsShelf from "./pins.contract"
+
+use LibraryFile, LibraryRow, Library, LibraryLocation, LibraryWritten, LibraryContent, LibraryHistory, LibraryPulse, libraryFileOf, libraryVisible from "./library-shapes.contract"
+
+members App
+  // --- library ---
+  state libraryPanelId = ""
+  resource libraryLocation = locateLibrary(top(nav).url) as shape LibraryLocation else empty(mode="read")
+  resource libraryPulse = followLibrary(session.owner, onRoute == "library" or libraryPanelId != "" or panelOpen ? openAgentId : "") as shape LibraryPulse else empty()
+  task libraryMend mount
+    every(5000, libraryHeal)
+  action libraryHeal
+    if libraryPulse.lost
+      refresh libraryPulse
+  resource library = loadLibrary(session.owner, onRoute == "library" or libraryPanelId != "" or panelOpen ? openAgentId : "") with libraryPulse.changes as shape Library else empty()
+  derive libraryFiles = library.owner == session.owner and library.agentId == openAgentId ? library.files : []
+  derive librarySelected = libraryFileOf(libraryFiles, onRoute == "library" ? libraryLocation.file : libraryPanelId, onRoute == "library" ? libraryLocation.path : "")
+  resource libraryContent = readLibrary(session.owner, openAgentId, librarySelected.id, librarySelected.rev, librarySelected.kind, librarySelected.path, librarySelected.size) as shape LibraryContent else empty()
+  resource libraryHistory = libraryVersions(session.owner, openAgentId, libraryHistoryOpen ? librarySelected.id : "") with librarySelected.rev as shape LibraryHistory else empty()
+  mutation librarySaved as shape LibraryWritten refreshes library, libraryHistory then libraryAfterSave
+  mutation libraryWritten as shape LibraryWritten refreshes library, libraryHistory then libraryAfterWrite
+  mutation libraryChanged as shape Reply refreshes library, libraryHistory
+  mutation libraryUploaded as shape Reply queue refreshes library
+  state libraryFilter = ""
+  state libraryClosed: string[] = []
+  state libraryDir = ""
+  state libraryChosenFor = ""
+  derive libraryDestination = libraryChosenFor == librarySelected.id ? libraryDir : librarySelected.path.split("/").slice(0, -1).join("/")
+  state libraryDeletedOpen = false
+  state libraryHistoryOpen = false
+  state libraryRename = ""
+  state libraryRenaming = false
+  state libraryDraft = ""
+  state libraryDraftId = ""
+  state libraryDraftAgent = ""
+  state libraryDraftOwner = ""
+  state librarySavingId = ""
+  state libraryBaseRev = 0
+  state libraryDirty = false
+  state librarySaveState = ""
+  state libraryMode = "read"
+  derive libraryReady = libraryContent.owner == session.owner and libraryContent.fileId == librarySelected.id and libraryContent.rev == librarySelected.rev and librarySelected.id != ""
+  derive libraryText = libraryDraftId == librarySelected.id ? libraryDraft : (libraryReady ? libraryContent.text : "")
+  derive libraryError = pending(libraryWritten) ? "" : match libraryWritten { case some(r) => r.error, case none => "" }
+  derive libraryChangeError = pending(libraryChanged) ? "" : match libraryChanged { case some(r) => r.error, case none => "" }
+  derive libraryUploadError = pending(libraryUploaded) ? "" : match libraryUploaded { case some(r) => r.error, case none => "" }
+  task libraryRouteMode key=`${top(nav).url}:${libraryLocation.mode}`
+    after(1, libraryReadMode)
+  action libraryReadMode
+    if onRoute == "library"
+      libraryMode = libraryLocation.mode
+  task libraryOpening key=`${librarySelected.id}:${librarySelected.rev}:${libraryReady}`
+    after(1, librarySynchronize)
+  task libraryAutosave when libraryDirty and librarySaveState == "Saving…" and not pending(libraryWritten) and not pending(librarySaved) key=libraryDraft
+    after(700, librarySave)
+
+  action librarySynchronize
+    if libraryReady
+      if libraryDraftId != librarySelected.id or not libraryDirty
+        if libraryDraftId != librarySelected.id
+          librarySave()
+        libraryDraft = libraryContent.text
+        libraryDraftId = librarySelected.id
+        libraryDraftAgent = openAgentId
+        libraryDraftOwner = session.owner
+        libraryBaseRev = librarySelected.rev
+        libraryDirty = false
+      else if libraryBaseRev != librarySelected.rev and not pending(libraryWritten) and not pending(librarySaved)
+        librarySaveState = "conflict"
+  action libraryRefresh
+    refresh library
+    refresh libraryContent
+    refresh librarySites
+    refresh libraryPins
+  action libraryFilterEdit(v: string)
+    libraryFilter = v
+  action libraryFolder(path: string)
+    libraryDir = path
+    libraryChosenFor = librarySelected.id
+    libraryClosed = libraryClosed.includes(path) ? libraryClosed.filter(p => p != path) : libraryClosed.concat([path])
+  action libraryDeletedToggle
+    libraryDeletedOpen = not libraryDeletedOpen
+  action libraryHistoryToggle
+    libraryHistoryOpen = not libraryHistoryOpen
+  action libraryNew
+    librarySave()
+    send libraryWritten = createLibrary(openAgentId, libraryDestination)
+  action libraryUpload
+    showPicker("library-upload")
+  action libraryPicked(files: Picked[])
+    send libraryUploaded = uploadLibrary(openAgentId, libraryDestination, files)
+  action libraryRestore(id: string)
+    send libraryWritten = restoreLibrary(openAgentId, id)
+  action libraryOpen(id: string)
+    librarySave()
+    follow(path("library", openAgentId) + `?file=${id}`)
+    libraryRenaming = false
+    libraryHistoryOpen = false
+    librarySaveState = ""
+  action libraryPageOpen(path: string)
+    match first(libraryFiles.filter(f => f.path == path))
+      case some(f)
+        if onRoute == "library"
+          libraryOpen(f.id)
+        else
+          openLibraryPanel(f.id)
+      case none
+        libraryRefresh()
+  action libraryHome
+    librarySave()
+    follow(path("library", openAgentId))
+    libraryRenaming = false
+  action openLibraryPanel(id: string)
+    if onRoute == "library"
+      libraryOpen(id)
+    else
+      libraryPanelId = id
+    libraryRenaming = false
+    libraryMode = "read"
+  action closeLibraryPanel
+    librarySave()
+    libraryPanelId = ""
+  action librarySetMode(mode: string)
+    libraryMode = mode
+    if onRoute == "library"
+      nav = replace(nav, path("library", openAgentId) + `?file=${librarySelected.id}&mode=${mode}`)
+  action libraryEdit(text: string)
+    libraryDraft = text
+    libraryDraftId = librarySelected.id
+    libraryDraftAgent = openAgentId
+    libraryDraftOwner = session.owner
+    libraryDirty = true
+    librarySaveState = librarySaveState == "conflict" ? "conflict" : "Saving…"
+  action librarySave
+    if libraryDirty and not pending(librarySaved) and libraryDraftId != "" and libraryDraftOwner == session.owner
+      librarySavingId = libraryDraftId
+      send librarySaved = writeLibrary(libraryDraftAgent, libraryDraftId, libraryDraft, libraryBaseRev, false)
+  action libraryKeepMine
+    librarySavingId = libraryDraftId
+    send librarySaved = writeLibrary(libraryDraftAgent, libraryDraftId, libraryDraft, libraryBaseRev, true)
+  action libraryAfterSave
+    if librarySavingId == libraryDraftId
+      match librarySaved
+        case some(r)
+          if r.ok
+            if r.text == libraryDraft
+              libraryDirty = false
+            libraryBaseRev = r.rev
+            librarySaveState = r.text == libraryDraft ? "Saved" : "Saving…"
+          else
+            librarySaveState = r.conflict ? "conflict" : "Could not save"
+        case none
+          librarySaveState = ""
+  action libraryTakeTheirs
+    libraryDraft = libraryContent.text
+    libraryDraftId = librarySelected.id
+    libraryBaseRev = librarySelected.rev
+    libraryDirty = false
+    librarySaveState = ""
+    refresh libraryContent
+  action libraryBeginRename
+    libraryRename = librarySelected.path
+    libraryRenaming = true
+  action libraryEditRename(v: string)
+    libraryRename = v
+  action libraryCancelRename
+    libraryRenaming = false
+  action libraryMove
+    if libraryRename.trim() != ""
+      send libraryWritten = moveLibrary(openAgentId, librarySelected.id, libraryRename.trim())
+  action libraryDelete
+    send libraryWritten = deleteLibrary(openAgentId, librarySelected.id)
+  action libraryRevert(rev: number)
+    send libraryWritten = revertLibrary(openAgentId, librarySelected.id, rev)
+  action libraryAfterWrite
+    match libraryWritten
+      case some(r)
+        if r.ok
+          libraryRenaming = false
+          libraryHistoryOpen = false
+          if r.edit and r.fileId == libraryDraftId
+            if r.text == libraryDraft
+              libraryDirty = false
+            libraryBaseRev = r.rev
+            librarySaveState = r.text == libraryDraft ? "Saved" : "Saving…"
+          if r.open
+            if onRoute == "library"
+              follow(r.fileId == "" ? path("library", openAgentId) : path("library", openAgentId) + `?file=${r.fileId}&mode=${r.text == "# Untitled\n\n" ? "split" : "read"}`)
+              libraryMode = r.text == "# Untitled\n\n" ? "split" : "read"
+            else
+              libraryPanelId = r.fileId
+        else
+          librarySaveState = r.conflict ? "conflict" : "Could not save"
+      case none
+        librarySaveState = ""
 
 component LibraryScreen
   props
     page: Page
+    library: Library
+    files: LibraryFile[]
+    selected: LibraryFile
+    sites: Sites
+    loading: bool
+    failed: bool
+    missing: bool
+    busy: bool
+    error: string
+    query: string
+    closed: string[]
+    deletedOpen: bool
+    onFilter: action
+    folder: action
+    new: action
+    upload: action
+    picked: action
+    restore: action
+    toggleDeleted: action
+    retry: action
+  inject
+    wide: bool
+    shareLibraryPath: action
+  derive wanted = query.trim().toLowerCase()
+  derive shown = files.filter(f => f.path.toLowerCase().includes(wanted))
   view
-    DoodScreen(page=page, route="library", lead="Documents and files made by the Doods of this workspace, and ones you have given them. Every Dood in the workspace shares this library, and what is in it is kept here whatever happens to a computer.")
-      text "Not in this app yet." font-size="0.875rem" color="ink.muted" testId="placeholder-library"
+    column navigationKey=page.key navigationBar="none" position="absolute" inset=0 class=Screen testId="screen-library"
+      DoodHeader(page=page, route="library")
+      input type="file" multiple=true id="library-upload" display="none" change=picked testId="library-upload"
+      if loading and library.agentId != page.agentId
+        column flex=1 align-items="center" justify-content="center"
+          progress aria-label="Loading library" testId="library-loading"
+      else if failed and library.agentId != page.agentId
+        column padding=32 gap=12
+          text "The library could not be read. Try again." role="alert" testId="library-load-error"
+          button press=retry testId="library-retry"
+            text "Try again"
+      else
+        if failed
+          row padding=8 gap=8 align-items="center"
+            text "The library could not be refreshed." color="danger" font-size="0.8125rem"
+            button press=retry class=MenuItem testId="library-refresh-retry"
+              text "Try again"
+        if missing
+          text "That file is no longer in the library. If it was deleted, it may be under Recently deleted." role="alert" color="ink.muted" padding="8px 24px" font-size="0.875rem" testId="library-missing"
+        row flex=1 min-height=0
+          if selected.id == "" or wide
+            column width=(selected.id != "" ? "16rem" : "100%") flex=(selected.id != "" ? "0 0 auto" : "1") min-width=0 min-height=0 border-right=(selected.id != "" ? "1px solid var(--hairline)" : "none")
+              scroll flex=1 min-height=0
+                column width="100%" box-sizing="border-box" max-width=(selected.id == "" and wide ? "56rem" : "100%") margin="0 auto" padding=(selected.id == "" and wide ? "16px 32px 80px" : "4px 4px 32px") gap=20
+                  if selected.id == "" and wide
+                    row align-items="flex-end" gap=16 flex-wrap="wrap"
+                      column gap=6 flex=1 min-width=0 max-width="36rem"
+                        text "Library" class=PageTitle testId="heading-library"
+                        text "Documents and files made by the Doods of this workspace, and ones you have given them. Every Dood in the workspace shares this library, and what is in it is kept here whatever happens to a computer." class=PageLead
+                      button press=new disabled=busy class=PrimaryButton testId="library-new-front"
+                        text "New document"
+                    SharedSites(sites=sites)
+                    PinsShelf()
+                    if files.length > 0
+                      text "Recent" font-size="0.8125rem" color="ink.muted"
+                      view display="grid" grid-template-columns="repeat(auto-fill, minmax(13rem, 1fr))" gap=14
+                        for f in files.slice(0, 8) key=f.id
+                          link href=f.href display="flex" flex-direction="column" overflow="hidden" border-radius=16 background-color="popover" color="ink" text-decoration="none" box-shadow="0 0 0 1px var(--hairline), 0 1px 3px rgb(0 0 0 / 0.05)" testId=`recent-${f.id}`
+                            column height=128 overflow="hidden" border-bottom="1px solid var(--hairline)" justify-content="center" align-items="center"
+                              if f.kind == "image"
+                                image f.url alt="" width="100%" height="100%" object-fit="cover"
+                              else if f.preview != ""
+                                text f.preview markup="markdown" font-size="0.625rem" padding=14 overflow="hidden" aria-hidden=true
+                              else
+                                image "symbol:document" font-size="2.25rem" color="ink.muted"
+                            column padding="10px 12px" gap=3
+                              text f.name font-size="0.875rem" font-weight=500 overflow-wrap="break-word"
+                              text `${f.by} · ${f.when}` font-size="0.75rem" color="ink.muted"
+                  column border-radius=(selected.id == "" and wide ? 16 : 0) border=(selected.id == "" and wide ? "1px solid var(--hairline)" : "none") padding=8 gap=8
+                    row align-items="center" gap=6 flex-wrap="wrap"
+                      text (selected.id == "" and wide ? "All files" : "Library") flex=1 font-size="0.875rem" font-weight=500
+                      button press=new disabled=busy aria-label="New document" class=IconButton testId="library-new"
+                        image "symbol:compose"
+                      button press=upload disabled=busy aria-label="Upload" class=IconButton testId="library-upload-button"
+                        image "symbol:share"
+                    input type="search" value=query input=onFilter placeholder="Filter files" aria-label="Filter files" class=Field min-height=32 box-sizing="border-box" testId="library-filter"
+                    if error != ""
+                      text error color="danger" role="alert" font-size="0.8125rem" testId="library-error"
+                    if files.length == 0
+                      text "Nothing here yet. Ask your Dood to write you something, or start a document yourself." padding=16 color="ink.muted" font-size="0.875rem" testId="library-empty"
+                    else if wanted != ""
+                      if shown.length == 0
+                        text "Nothing matches." color="ink.muted" padding=12 testId="library-no-matches"
+                      column gap=0
+                        for f in shown key=f.id
+                          LibraryFileRow(file=f, label=f.path, selected=(f.id == selected.id))
+                    else
+                      column gap=0
+                        for r in library.rows key=r.id
+                          if libraryVisible(r.path, closed)
+                            if r.folder
+                              row align-items="center" min-height=32 gap=4
+                                button press=folder(r.path) aria-expanded=(not closed.includes(r.path)) display="flex" gap=6 align-items="center" flex=1 min-width=0 padding=`4px 6px 4px ${8 + r.depth * 14}px` class=MenuItem testId=`folder-${r.path}`
+                                  image (closed.includes(r.path) ? "symbol:forward-chevron" : "symbol:menu") font-size="0.75rem" aria-hidden=true
+                                  text r.name overflow-wrap="break-word"
+                                button press=shareLibraryPath(r.path) aria-label=`Share ${r.name}` testId=`share-folder-${r.path}`
+                                  image "symbol:share" font-size="0.875rem"
+                            else
+                              for f in files.filter(f => f.id == r.fileId) key=f.id
+                                LibraryFileRow(file=f, label=f.name, selected=(f.id == selected.id))
+                    text `Kept safe · ${files.length} ${files.length == 1 ? "file" : "files"} · ${library.total}` padding="8px 4px" border-top="1px solid var(--hairline)" color="ink.muted" font-size="0.75rem" testId="library-total"
+                    if library.deleted.length > 0
+                      button press=toggleDeleted aria-expanded=deletedOpen testId="library-deleted-toggle"
+                        text `Recently deleted · ${library.deleted.length}`
+                      if deletedOpen
+                        for f in library.deleted key=f.id
+                          row align-items="center" gap=8
+                            column flex=1 min-width=0
+                              text f.path font-size="0.8125rem" overflow-wrap="break-word"
+                              text `${f.by} · ${f.when}` font-size="0.75rem" color="ink.muted"
+                            button press=restore(f.id) disabled=busy aria-label=`Restore ${f.name}` testId=`restore-${f.id}`
+                              text "Restore"
+          if selected.id != ""
+            LibraryViewer(file=selected, compact=false)
+
+component LibraryFileRow
+  props
+    file: LibraryFile
+    label: string
+    selected: bool
+  inject
+    librarySiteList: LibrarySite[]
+  derive shared = librarySiteOf(librarySiteList, file.path)
+  view
+    link href=file.href class=MenuItem aria-label=`Open ${file.name}` aria-current=(selected ? "page" : "false") background-color=(selected ? "wash" : "transparent") padding=`4px 8px 4px ${26 + file.depth * 14}px` min-height=32 box-sizing="border-box" testId=`file-${file.id}`
+      image (file.kind == "image" ? "symbol:photo" : file.kind == "page" ? "symbol:link" : "symbol:document") color="ink.muted" aria-hidden=true
+      text label min-width=0 overflow-wrap="break-word" font-size="0.875rem"
+      if shared.id != ""
+        image (shared.public ? "symbol:link" : "symbol:lock") aria-label=(shared.public ? "Shared with anyone who has the link" : "Shared with the workspace") margin-left="auto" font-size="0.75rem" color="ink.muted"

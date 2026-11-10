@@ -15,6 +15,9 @@ import { modelSettingsSources } from './data/settings-models.ts';
 import { passwordSources } from './data/settings-passwords.ts';
 import { notificationSources } from './data/settings-notifications.ts';
 import { waitlistSources } from './data/settings-waitlist.ts';
+import { librarySources } from './data/library.ts';
+import { libraryPinSources } from './data/pins.ts';
+import { librarySiteSources } from './data/sites.ts';
 
 // The deployment's address, a setting (app.json "env") that only this file may read: the
 // environment's value, else the server server.ts starts. `./x` sets it per checkout. Its sockets'
@@ -41,6 +44,9 @@ const sources: Sources = {
   ...passwordSources,
   ...notificationSources,
   ...waitlistSources,
+  ...librarySources,
+  ...libraryPinSources,
+  ...librarySiteSources,
   // A new area spreads its sources here.
 };
 

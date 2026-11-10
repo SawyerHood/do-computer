@@ -42,7 +42,10 @@
     "do-code",
     "do-mermaid",
     "do-dictation",
-    "do-push"
+    "do-push",
+    "do-library-download",
+    "do-library-format",
+    "do-library-frame"
   ],
   "env": [
     "API_BASE_URL",

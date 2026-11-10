@@ -6,9 +6,12 @@ import * as gift from './gift.js';
 import * as wardrobe from './wardrobe.js';
 import * as sky from './sky.js';
 import * as push from './push.js';
+import * as libraryDownload from './library-download.js';
+import * as libraryFormat from './library-format.js';
+import * as libraryFrame from './library-frame.js';
 import { start, ended } from './shared.js';
 import { markdown, code, mermaid } from './content-views.js';
-const views = { 'do-dictation': dictation, 'do-creature': creature, 'do-portrait': portrait, 'do-gift': gift, 'do-wardrobe': wardrobe, 'do-sky': sky, 'do-markdown': markdown, 'do-code': code, 'do-mermaid': mermaid, 'do-push': push };
+const views = { 'do-dictation': dictation, 'do-creature': creature, 'do-portrait': portrait, 'do-gift': gift, 'do-wardrobe': wardrobe, 'do-sky': sky, 'do-markdown': markdown, 'do-code': code, 'do-mermaid': mermaid, 'do-push': push, 'do-library-download': libraryDownload, 'do-library-format': libraryFormat, 'do-library-frame': libraryFrame };
 export const abi = 1;
 export const roster = Object.fromEntries(Object.keys(views).map(tag => [tag, { snapshot: false }]));
 export function create(tag, element, json, event) {

@@ -8,6 +8,9 @@ use SignIn from "./views/sign-in.contract"
 use Sidebar from "./views/shell.contract"
 use ChatScreen from "./views/chat.contract"
 use LibraryScreen from "./views/library.contract"
+use LibraryFileCard, LibraryPictureViewer from "./views/library-card.contract"
+use LibraryDocumentPanel, LibraryPinsDock from "./views/pins.contract"
+use ShareControls, Sites from "./views/sites.contract"
 use AutomationsScreen from "./views/automations.contract"
 use SkillsScreen from "./views/skills.contract"
 use ConnectorsScreen from "./views/connectors.contract"
@@ -86,6 +89,9 @@ component App
   members "./views/settings-passwords.contract"
   members "./views/settings-notifications.contract"
   members "./views/settings-waitlist.contract"
+  members "./views/library.contract"
+  members "./views/pins.contract"
+  members "./views/sites.contract"
   // A new area adds its members line here, in its own place, in the order of the routes.
 
   // What any screen may `inject` instead of taking it as a prop.
@@ -297,6 +303,60 @@ component App
     letInBusy = pending(letInDone)
     letInError
     letInNow
+    // --- library ---
+    libraryContent
+    libraryContentFailed = failed(libraryContent)
+    libraryHistoryFailed = failed(libraryHistory)
+    libraryPageOpen
+    libraryPageColour = openDood.color
+    libraryHistory
+    libraryHistoryOpen
+    libraryReady
+    libraryText
+    libraryMode
+    librarySaveState
+    libraryError
+    libraryRenaming
+    libraryRename
+    libraryBusy = (pending(libraryWritten) or pending(librarySaved))
+    libraryHome
+    libraryEdit
+    librarySave
+    librarySetMode
+    libraryBeginRename
+    libraryEditRename
+    libraryCancelRename
+    libraryMove
+    libraryDelete
+    libraryHistoryToggle
+    libraryRevert
+    libraryKeepMine
+    libraryTakeTheirs
+    libraryRefresh
+    libraryPin
+    libraryTogglePinFile
+    libraryPinned
+    librarySiteList
+    libraryShareOpen
+    libraryShareSite
+    librarySharePath
+    libraryAudience
+    librarySharingBusy
+    librarySharingError
+    libraryShare
+    libraryCloseShare
+    librarySetAudience
+    libraryStopSharing
+    shareLibraryPath
+    libraryPinList
+    libraryUnpin
+    libraryPinError
+    openLibraryPanel
+    closeLibraryPanel
+    libraryPanelId
+    librarySelected
+    libraryFiles
+    libraryOpen
 
   // The Dood whose page is open (the deepest one in the stack), and the chat a `/c/` page names.
   derive openAgentId = match stack(nav).filter(e => e.params.agentId != "").at(-1) { case some(e) => e.params.agentId, case none => "" }
@@ -338,7 +398,7 @@ component App
             ChatScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""), route=e.name, chat=chat, ours=ours, loading=(pending(opened) or pending(chat)), draft=draft, sayError=sayError, sending=pending(said), editDraft=editDraft, say=say, heal=heal)
           // --- library ---
           if e.name == "library"
-            LibraryScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+            LibraryScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""), library=library, files=libraryFiles, selected=librarySelected, sites=Sites(owner=librarySites.owner, agentId=librarySites.agentId, sites=librarySiteList), loading=pending(library), failed=failed(library), missing=(librarySelected.id == "" and (libraryLocation.file != "" or libraryLocation.path != "")), busy=(pending(libraryWritten) or pending(librarySaved) or pending(libraryUploaded)), error=(libraryError + libraryChangeError + libraryUploadError), query=libraryFilter, closed=libraryClosed, deletedOpen=libraryDeletedOpen, onFilter=libraryFilterEdit, folder=libraryFolder, new=libraryNew, upload=libraryUpload, picked=libraryPicked, restore=libraryRestore, toggleDeleted=libraryDeletedToggle, retry=libraryRefresh)
           // --- automations ---
           if e.name == "automations"
             AutomationsScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
@@ -396,3 +456,7 @@ component App
             WorkspaceModelsScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=e.params.workspaceId))
           if e.name == "passwords"
             PasswordsScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=e.params.workspaceId))
+        ShareControls()
+        if onRoute == "dood" or onRoute == "chat"
+          LibraryPinsDock()
+          LibraryDocumentPanel()
