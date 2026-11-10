@@ -18,6 +18,9 @@ Every view emits `load` after its first drawing. These views do not call the ser
   the real wardrobe. Do not JSON-encode each individual slot.
 - `side`: CSS drawing resolution, 16–600, default the smaller measured dimension (160 before
   layout). Give Contract `width` and `height` too. Non-square boxes contain the square picture.
+- `overscan`: `"true"` draws the picture 12% past the box on every side, as React's
+  `AgentAvatar` does, so the creature is as large in its box as there; the box (and so the
+  layout and what checks see) stays the given size. `side` is the box's.
 - `dark`, `reduced`: override the browser's preferences; omitted follows them.
 - `slow`: 15 rather than 30 frames per second, with no pointer attention.
 - `still`: render and hold, redrawing for props/size changes. Default true at side ≤64, false
@@ -33,6 +36,12 @@ Every view emits `load` after its first drawing. These views do not call the ser
   Hearts follow Exact time, with no rising movement when reduced. An egg cannot be petted.
 - `hatching`: a false-to-true change plays the hatch; false or a press while hatching skips
   to the end. `crack`: 0–1, how far the waiting egg is cracked.
+- `feed`, `cheer`, `talk`, `key`: counters for one-off acts. Each change to a non-empty value
+  is one more: `feed` is a treat at its mouth (it opens for it, takes three bites 300 ms apart
+  with crumbs in the colour `crumb` names, then is pleased, with three hearts: care.tsx's
+  `useTreats`); `cheer` a hop; `talk` a word of its answer (`feedMascot("token")`); `key` a key
+  the person pressed. The treat itself is the caller's to draw (care.contract does). Hearts are
+  React's pixel `PetHeart`, stepped like its `pet-heart` keyframes, and rise past the box.
 - `message=` receives `pet`, `out`, `hatched`, `state:idle` (after done), or `fallback` when
   WebGL is unavailable. The fallback is the protocol's plain SVG, not a replacement 3D model.
 
@@ -73,9 +82,25 @@ onboarding, not for each sidebar row.
 - `fall="false"` puts the egg down; default falls. Change `restart` to replay the arrival.
 - `dawn`: 0 night to 3 day, default 0. `clear` keeps the island/egg above this many pixels
   from the top. On shell break, chips/confetti and daybreak play.
-- `message=` receives `land`, `out`, `hatched`, or `fallback` if only the creature can draw.
-  Normally wait for `land` before setting `hatching`. Reduced motion lands immediately and
-  plays the package's short hatch. No auth, cards or flight-to-chat transition lives here.
+- `out`: it is out of its egg (set it once `hatched` arrives); then `state` is the creature's
+  state as on `do-creature` (`speaking` while its words are typed), and it looks about.
+- `crack` rising throws bits of shell in its colour (`sky.chips`). On shell break, the flash,
+  daybreak, bump and confetti in every creature colour play, as welcome/scene.tsx's `hatch`.
+- `glow`, `cheer`, `talk`: counters, as on `do-creature`. `glow` pats it and lights the sky
+  about it (a colour was picked); `talk` is a letter of what it says: out, it talks; in its egg,
+  it rocks every fourteenth letter.
+- `card`: the test id of the card under the egg. While that element is in the page the view keeps
+  the egg and island above its top (`sky.clear`), as welcome's `Stage.card` does.
+- `fly`: the test id of another picture of the creature. Set, the sky fades (700 ms) and the
+  creature goes from the island to that element's picture (its box and the 12% `overscan` past
+  it), scaled to fit, in 950 ms (Stage.fly),
+  once the element has stopped moving (looked for up to 5 s); then `message` receives `flown`.
+  The scene is meant to fill the window: a target outside the view's own box is clipped. Hide the
+  target until `flown`, so the creature is never seen twice.
+- A click on the view while the egg falls lands it; a click on the creature makes it hop.
+- `message=` receives `land`, `out`, `hatched`, `flown`, or `fallback` if only the creature can
+  draw. Normally wait for `land` before setting `hatching`. Reduced motion lands immediately and
+  plays the package's short hatch. The cards and what they ask are welcome.contract's.
 
 ## do-dictation
 

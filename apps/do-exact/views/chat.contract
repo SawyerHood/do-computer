@@ -5,7 +5,8 @@
 use Dood, Page from "./shapes.contract"
 use Screen, UserBubble from "./styles.contract"
 use DoodHeader, doodOf, nameOf, stateOf from "./shell.contract"
-use DoodFace from "./creature.contract"
+use DoodPanel from "./panel.contract"
+use FirstHello from "./welcome.contract"
 use EmptyState from "exact:content"
 use ComposerBox from "./composer.contract"
 
@@ -100,6 +101,7 @@ component ChatScreen
         else
           // Short, the transcript sits on the composer, as the React app's does.
           column flex=1 min-height=0 justify-content="flex-end"
+            FirstHello(dood=dood, empty=(chat.messages.length == 0 and not chat.busy), beside=(wide and panelOpen))
             list id="transcript" appearance="none" virtualized=true scroll-start="end" scrollFollowEnd=true flex="0 1 auto" min-height=0 max-height="100%"
               aria-label="Messages" testId="transcript"
               for m in chat.messages key=m.id
@@ -141,17 +143,3 @@ component MessageRow
                 text b.text font-size="0.8125rem" color="ink.muted"
             if message.error != ""
               text message.error font-size="0.8125rem" color="danger"
-
-// The Dood's panel, beside its chat on a wide window: where it is looked after. The React app
-// draws its creature here, with its things; this is the entry point, with the face a placeholder
-// until the creature lands (creature.contract).
-component DoodPanel
-  props
-    dood: Dood
-    busy: bool
-  view
-    column width="20rem" flex-shrink=0 border-left="1px solid var(--hairline)" align-items="center" padding="40px 24px" gap=10
-      testId="dood-panel"
-      DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=96)
-      text nameOf(dood) font-size="1.0625rem" font-weight=500 margin-top=8 testId="panel-name"
-      text (dood.asking ? "Waiting on you" : (busy or dood.working) ? "Working" : "Ready") font-size="0.875rem" color="ink.muted" testId="panel-status"
