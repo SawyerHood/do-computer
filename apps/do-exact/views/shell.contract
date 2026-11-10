@@ -6,6 +6,8 @@ use Session, Reply, Time, Viewport, Workspace, Workspaces, Dood, Doods, Page fro
 use Frame, Screen, PrimaryButton, ListHeading, SidebarRow, RowName, RowLine, RowTime, IconButton, Pill, PillButton, Menu, MenuItem, PageTitle, PageLead from "./styles.contract"
 use DoodFace from "./creature.contract"
 use EmptyState from "exact:content"
+use TeamInfo, TeamInbox, teamOf, TeamHint from "./teams.contract"
+use SidebarDoodMenu from "./teams-sidebar.contract"
 
 // What a hatch answers: the new Dood, to open it.
 shape Hatched
@@ -113,6 +115,13 @@ component Sidebar
     hatching: bool
     hatch: action
     signOut: action
+    teamInbox: TeamInbox[]
+    teamFolded: string[]
+    teamNew: action
+    teamFold: action
+    teamReorder: action
+    sidebarError: string
+    teamOrderError: string
   derive named = workspaceList.filter(w => w.kind == "team").length > 0
   derive shown = named ? workspaceList : workspaceList.filter(w => w.kind == "personal")
   view
@@ -138,12 +147,29 @@ component Sidebar
               row min-height=36 align-items="center" gap=6 padding="0 0 0 8px"
                 column width="1.125rem" height="1.125rem" border-radius=5 background-color=w.color align-items="center" justify-content="center"
                   text w.name.slice(0, 1).toUpperCase() color="ink.on-color" font-size="0.625rem" font-weight=600
-                text w.name role="heading" aria-level=2 flex=1 min-width=0 class=ListHeading overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+                button press=teamFold(w.id) aria-label=`${teamFolded.includes(w.id) ? "Expand" : "Collapse"} ${w.name}` aria-expanded=(not teamFolded.includes(w.id)) flex=1 min-width=0 class=IconButton justify-content="flex-start" gap=4 testId=`workspace-fold-${w.id}`
+                  text w.name class=ListHeading flex=1 min-width=0 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+                  image "symbol:icon.caret-down" width="0.625rem" height="0.625rem" flex-shrink=0
+                if teamFolded.includes(w.id) and doodList.filter(d => d.workspaceId == w.id and (d.unread or d.asking)).length > 0
+                  text "New" color="notice" font-size="0.75rem"
                 WorkspaceMenuButton(workspace=w)
                 button press=hatch(w.id) disabled=hatching aria-label=`New Dood in ${w.name}` class=IconButton testId=`new-dood-${w.id}`
                   image "symbol:icon.plus" color="ink.muted" font-size="1rem"
-            for d in doodList.filter(x => x.workspaceId == w.id) key=d.id
-              DoodRow(dood=d, current=(d.id == current), now=now, utcOffset=utcOffset)
+            if not named or not teamFolded.includes(w.id)
+              list id=`dood-order-${w.id}` virtualized=true height=`${doodList.filter(x => x.workspaceId == w.id).length * 4}rem` flex-shrink=0 appearance="none" reorderdrop=teamReorder(w.id) aria-label=`${w.name} Doods` testId=`dood-list-${w.id}`
+                for d in doodList.filter(x => x.workspaceId == w.id) key=d.id
+                  DoodRow(dood=d, current=(d.id == current), now=now, utcOffset=utcOffset)
+              if doodList.filter(x => x.workspaceId == w.id).length == 0
+                text (w.kind == "team" ? "This team has no Doods yet." : "You have no Doods yet.") class=TeamHint padding="8px 10px"
+        if sidebarError != "" or teamOrderError != ""
+          text (sidebarError != "" ? sidebarError : teamOrderError) color="danger" role="alert" font-size="0.75rem" padding=8 testId="sidebar-action-error"
+        column margin-top=12 padding-top=8 border-top="1px solid var(--hairline)" gap=4
+          for i in teamInbox key=i.id
+            link href=path("invite", i.id) class=MenuItem testId=`team-inbox-${i.id}`
+              text `${i.name} invited you`
+          button press=teamNew class=MenuItem testId="new-team"
+            image "symbol:icon.plus" width="1rem" height="1rem"
+            text "New team"
       AccountButton(session=session)
       NoDood()
 
@@ -151,6 +177,15 @@ component Sidebar
 component WorkspaceMenuButton
   props
     workspace: Workspace
+  inject
+    teamInvite: action
+    teamSortLatest: action
+  action invite
+    hidePopover(`workspace-menu-${workspace.id}`)
+    teamInvite(workspace.id)
+  action sort
+    hidePopover(`workspace-menu-${workspace.id}`)
+    teamSortLatest(workspace.id)
   // Its test ids: "personal" for the person's own, which has an id of theirs, else the team's id.
   derive tag = workspace.kind == "personal" ? "personal" : workspace.id
   view
@@ -161,6 +196,11 @@ component WorkspaceMenuButton
         link href=path("workspaceSettings", workspace.id) role="menuitem" class=MenuItem testId=`workspace-settings-${tag}`
           image "symbol:icon.gear" aria-hidden=true
           text "Workspace settings"
+        if workspace.kind == "team" and workspace.role != "member"
+          button press=invite role="menuitem" class=MenuItem testId=`workspace-invite-${tag}`
+            text "Invite people"
+        button press=sort role="menuitem" class=MenuItem testId=`workspace-sort-${tag}`
+          text "Sort by latest"
         if workspace.kind == "team"
           link href=path("people", workspace.id) role="menuitem" class=MenuItem testId=`workspace-people-${tag}`
             image "symbol:icon.users" aria-hidden=true
@@ -175,27 +215,30 @@ component DoodRow
     now: number
     utcOffset: number
   view
-    link href=path("dood", dood.id) aria-current=(current ? "page" : "false") aria-selected=current class=SidebarRow testId=`dood-${dood.id}`
-      column position="relative" flex-shrink=0
-        DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=40)
-        if dood.asking
-          column position="absolute" right=-2 bottom=-2 width="0.875rem" height="0.875rem" border-radius=7 background-color="asking"
-            align-items="center" justify-content="center" box-shadow="0 0 0 2px var(--frame)" role="img" aria-label="Waiting on someone"
-            text "?" color="ink.on-asking" font-size="0.625rem" font-weight=700 aria-hidden=true
-      column flex=1 min-width=0 gap=1
-        row align-items="baseline" gap=8
-          text nameOf(dood) flex=1 min-width=0 class=RowName font-weight=(dood.unread ? 600 : 500)
-            overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`dood-name-${dood.id}`
-          if dood.working
-            progress aria-label="Working" width=14 height=14 testId=`dood-working-${dood.id}`
-          else if dood.latestAt > 0
-            text ago(dood.latestAt, now, utcOffset) class=RowTime color=(dood.unread ? "notice" : "ink.muted") font-weight=(dood.unread ? 500 : 400)
-        if dood.latest != "" or dood.unread
-          row align-items="center" gap=6
-            text dood.latest flex=1 min-width=0 class=RowLine color=(dood.unread ? "ink" : "ink.muted")
-              overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`dood-latest-${dood.id}`
-            if dood.unread
-              column width=8 height=8 border-radius=4 background-color="notice" flex-shrink=0 role="img" aria-label="Something new" testId=`dood-unread-${dood.id}`
+    row position="relative" align-items="center"
+      link href=path("dood", dood.id) aria-label=`Talk to ${nameOf(dood)}` aria-current=(current ? "page" : "false") aria-selected=current class=SidebarRow flex=1 min-width=0 testId=`dood-${dood.id}`
+        column position="relative" flex-shrink=0
+          DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=40)
+          if dood.asking
+            column position="absolute" right=-2 bottom=-2 width="0.875rem" height="0.875rem" border-radius=7 background-color="asking"
+              align-items="center" justify-content="center" box-shadow="0 0 0 2px var(--frame)" role="img" aria-label="Waiting on someone"
+              text "?" color="ink.on-asking" font-size="0.625rem" font-weight=700 aria-hidden=true
+        column flex=1 min-width=0 gap=1
+          row align-items="baseline" gap=8
+            text nameOf(dood) flex=1 min-width=0 class=RowName font-weight=(dood.unread ? 600 : 500)
+              overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`dood-name-${dood.id}`
+            if dood.working
+              progress aria-label="Working" width=14 height=14 testId=`dood-working-${dood.id}`
+            else if dood.latestAt > 0
+              text ago(dood.latestAt, now, utcOffset) class=RowTime color=(dood.unread ? "notice" : "ink.muted") font-weight=(dood.unread ? 500 : 400)
+          if dood.latest != "" or dood.unread
+            row align-items="center" gap=6
+              text dood.latest flex=1 min-width=0 class=RowLine color=(dood.unread ? "ink" : "ink.muted")
+                overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`dood-latest-${dood.id}`
+              if dood.unread
+                column width=8 height=8 border-radius=4 background-color="notice" flex-shrink=0 role="img" aria-label="Something new" testId=`dood-unread-${dood.id}`
+
+      SidebarDoodMenu(dood=dood)
 
 // The person's own menu, at the foot of the sidebar: signing out.
 component AccountButton

@@ -28,11 +28,19 @@ what Exact cannot do yet.
   reply arriving as it is written over the chat's event stream. Text is drawn as Markdown;
   thinking, tool calls and notices each have a plain row. Sending a message. Its panel beside
   the chat, from its face in the pill.
+- Teams: create one with a colour, optional personal Doods and invitations; rename it, manage
+  members and their roles, hand ownership on, leave, or delete an empty team. People and
+  workspace settings use the shared settings frame. Pending email/GitHub invitations can be
+  renewed or withdrawn; links can be copied, previewed signed out, accepted or dismissed.
+- The sidebar folds workspaces, opens their people/settings, renames/moves/deletes Doods and
+  saves their order to the deployment. Drag a grip with a mouse in a wide window, use Move
+  up/down on a phone, or give up a custom order with Sort by latest. Deleting a Dood here keeps its computers.
 - A Dood's other pages, from the pill's menu: library, automations, skills, connectors,
-  computers, permissions, profile, settings; and a workspace's page, people and settings. Each
-  is a titled placeholder for now.
-- Tests (`chat.test.contract`, `shell.test.contract`, `sign-in.test.contract`) that drive all
-  of that against Do Computer's own server on the web host, and `./x verify` clean.
+  computers, permissions, profile and settings are titled placeholders for now.
+- Tests (`chat.test.contract`, `shell.test.contract`, `sign-in.test.contract`,
+  `teams.test.contract`) drive these against Do Computer's own server on the web host.
+  `tools/teams-shots.sh` and `tools/teams-react-shots.mjs` capture the team screens for comparison;
+  `tools/teams-sidebar-shots.sh` captures its Dood confirmations.
 
 ## Run it
 
@@ -73,13 +81,12 @@ above pin `EXACT_PORT`.
 
 In the order it would be built:
 
-1. **The pages' bodies.** Every page but the chat is a placeholder (PORTING.md says how to fill
-   one in). The creature is drawn, but not petted, dressed or hatched in the shell yet.
+1. **The Dood pages' bodies.** Its pages beyond chat are placeholders (PORTING.md says how to
+   fill one in). The creature is drawn, but not petted, dressed or hatched in the shell yet.
 2. **The rest of a chat.** Approvals, queued messages and Stop, earlier history, attachments and
    pictures, side chats and sub-agents, code blocks with highlighting, tables.
-3. **The rest of the shell.** Naming and hatching with the egg, starting a team and answering
-   invitations, putting Doods in order by dragging, folding a workspace, calls, and the
-   React app's wide sidebar that folds to a column of faces.
+3. **The rest of the shell.** Naming and hatching with the egg, touch drag ordering, calls,
+   live presence, and the React app's wide sidebar that folds to a column of faces.
 4. **Any deployment.** The address is a constant. A person should type it at sign-in, as on the
    phone, which needs the grant `net.fetch https:` and the address kept in the store.
 5. **Apple hosts.** Nothing here was built for iOS or macOS yet: that needs a Mac with Xcode.

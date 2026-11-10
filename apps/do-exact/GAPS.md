@@ -109,3 +109,53 @@ or after the command. The gallery is checked sequentially with `./x test web --s
 `./x agent web … "check both"` instead; the machine-wide lock and port policy are unchanged.
 The root app's own verify is not affected: it has a server, and runs clean. No Exact patch was
 made.
+
+
+## Teams and sidebar
+
+**Live people are not wired yet.** The people list shows membership and roles, and the sidebar
+keeps its existing unread, working and asking marks. React also draws who is with a Dood and
+who is here (`components/shell/agent-list.tsx`, `components/people.tsx`). This area does
+not open another presence/feed connection or change `data/shell.ts`/`data/api.ts`: the separate
+live-feed port owns that. Initials or account images stand for members; the public invitation
+preview lists their names, not React's row of faces.
+
+**The waiting-list flow is partial.** Deployment admins can read/admit the server's waiting
+list, and a waiting account gets an explanation, Check again and Sign out. React also lets it
+hatch and pet its first Dood (the welcome stage and `components/settings/waitlist.tsx`). That
+first-run experience is not added here. Existing shell sources still request the admitted-user
+workspaces/Doods APIs for a waiting session; those APIs return 403. Their waiting-state gating
+must be integrated with the separately owned shell data work, which this area does not edit. The local test server forces `DC_SIGNUP=open`, so invitation-only
+sign-up, waiting-account admission and admin-only waitlist controls still need deployment-mode
+integration tests. Normal signed-out preview, sign-up, acceptance and Not now are covered
+against the real server. An email inbox invitation belongs only to an email-verified account;
+verified inbox dismissal and GitHub sign-in need accounts the local password-only harness
+does not supply. Not now treats only the server's expected 404 as leaving a public link alone;
+other failures remain visible.
+
+**Moving is a dialog, deleting keeps computers.** Reorder is native within one workspace;
+Move to a workspace confirms the sharing implications separately. The sidebar's typed-name
+Delete removes the Dood but always keeps computers. React's full deletion dialog can also offer
+to remove eligible computers. There is no such destructive option in this sidebar port.
+
+**Shared settings need their other routes at merge.** `views/settings-kit.contract` is an
+unchanged copy from `exact-settings` (484387c). Its Workspaces backlink targets
+`/settings/workspaces`, supplied by that branch, not this area's route table. Teams have their
+own working links from the sidebar and empty workspace. Team settings use route URLs instead
+of React's settings query parameter. Public share links remain the canonical absolute URLs
+returned by the deployment; View invitation uses the relative Exact route.
+
+**The driver can retain duplicate sidebar targets after crossing routes or accounts.** A
+workspace menu or Dood menu can have two nodes with its same label and ID, even after settling.
+The cross-route and multi-user tests reload before acting on the affected sidebar. Shared
+sign-out/navigation is left unchanged as requested; this should be investigated when
+integrating the areas. Dood action menus are explicitly hidden before opening a dialog
+or changing row order, so a virtualized row is not held by an open popover after it moves.
+
+**Phone reorder uses Move up / Move down.** Native mouse drag is tested and persists after
+reload, including clearing the override with Sort by latest. Finger-driven reorder at 390×844
+did not change the stored order, even with a held press and the list scrolled up. Its cause is
+not established. The grip is therefore offered only in the wide layout; phones keep the
+explicit Move up / Move down actions, which use the same persisted order API. The regression
+test covers that phone alternative rather than claiming touch drag works. Wide touch screens
+still need a real-device check.

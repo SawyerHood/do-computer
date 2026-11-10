@@ -1,0 +1,96 @@
+use Dood, Workspace from "./shapes.contract"
+use Menu, MenuItem, IconButton, Field, PrimaryButton from "./styles.contract"
+use TeamHint, TeamDialog from "./teams.contract"
+
+component SidebarDoodMenu
+  props
+    dood: Dood
+  inject
+    workspaceList: Workspace[]
+    sidebarAskRename: action
+    sidebarAskMove: action
+    sidebarAskDelete: action
+    sidebarBusy: bool
+    teamNudge: action
+  derive title = dood.name == "" ? "New Dood" : dood.name
+  derive canManage = match first(workspaceList.filter(w => w.id == dood.workspaceId)) { case some(w) => w.role != "member", case none => false }
+  view
+    row align-items="center"
+      button popovertarget=`dood-menu-${dood.id}` aria-label=`${title}'s pages and actions` class=IconButton testId=`dood-menu-${dood.id}`
+        image "symbol:icon.dots" width=16 height=16
+      column id=`dood-menu-${dood.id}` popover="auto" role="menu" aria-label=`${title} menu` class=Menu
+        link href=path("library", dood.id) role="menuitem" class=MenuItem
+          text "Library"
+        link href=path("automations", dood.id) role="menuitem" class=MenuItem
+          text "Automations"
+        link href=path("settings", dood.id) role="menuitem" class=MenuItem
+          text "Settings"
+        button press=teamNudge(dood.id, -1) aria-label=`Move ${title} up` role="menuitem" class=MenuItem testId=`dood-earlier-${dood.id}`
+          text "Move up"
+        button press=teamNudge(dood.id, 1) aria-label=`Move ${title} down` role="menuitem" class=MenuItem testId=`dood-later-${dood.id}`
+          text "Move down"
+        if canManage
+          button press=sidebarAskRename(dood.id) aria-label=`Rename ${title}` role="menuitem" class=MenuItem testId=`dood-rename-${dood.id}`
+            text "Rename"
+          button press=sidebarAskMove(dood.id) role="menuitem" class=MenuItem testId=`dood-move-${dood.id}`
+            text "Move to a workspace"
+          button press=sidebarAskDelete(dood.id) aria-label=`Delete ${title}` role="menuitem" class=MenuItem color="danger" testId=`dood-delete-${dood.id}`
+            text "Delete"
+      box reorderFor=`dood-order-${dood.workspaceId}` touch-action="none" aria-label=`Drag ${title} to reorder` testId=`dood-grip-${dood.id}` padding=4 color="ink.muted"
+        image "symbol:icon.dots-six-vertical" width=10 height=16
+
+component SidebarDialogs
+  inject
+    workspaceList: Workspace[]
+    sidebarError: string
+    sidebarTarget: Dood
+    sidebarTargetId: string
+    sidebarTitle: string
+    sidebarName: string
+    sidebarDestination: string
+    sidebarTyped: string
+    sidebarBusy: bool
+    sidebarEditName: action
+    sidebarPickDestination: action
+    sidebarConfirmName: action
+    sidebarChange: action
+  view
+    column
+      dialog id="sidebar-rename" aria-label=`Rename ${sidebarTitle}` class=TeamDialog
+        column gap=16
+          text `Rename ${sidebarTitle}` role="heading" font-size="1.125rem" font-weight=600
+          if sidebarError != ""
+            text sidebarError role="alert" color="danger"
+          input value=sidebarName input=sidebarEditName aria-label="Dood name" class=Field testId="sidebar-rename-input"
+          row gap=8 justify-content="flex-end" flex-wrap="wrap"
+            button commandfor="sidebar-rename" command="close"
+              text "Cancel"
+            button press=sidebarChange("rename", sidebarTargetId, sidebarName.trim()) disabled=(sidebarName.trim() == "" or sidebarBusy) class=PrimaryButton testId="sidebar-rename-save"
+              text "Save"
+      dialog id="sidebar-move" aria-label=`Move ${sidebarTitle}` padding=24 border-radius=16 background-color="popover" color="ink" width="calc(100% - 32px)" max-width="28rem" box-sizing="border-box"
+        column gap=16
+          text `Move ${sidebarTitle}` role="heading" font-size="1.125rem" font-weight=600
+          text "Everyone in the destination team can use this Dood, read all its chats and what it remembers, and use its connectors and paired computers. Machines shared with other Doods stay behind. Moving back to your own workspace ends everyone else’s access." class=TeamHint
+          if sidebarError != ""
+            text sidebarError role="alert" color="danger"
+          select value=sidebarDestination change=sidebarPickDestination aria-label="Move to" class=Field testId="sidebar-move-target"
+            option "Move to…" value=""
+            for w in workspaceList.filter(x => x.id != sidebarTarget.workspaceId) key=w.id
+              option w.name value=w.id
+          row gap=8 justify-content="flex-end"
+            button commandfor="sidebar-move" command="close"
+              text "Cancel"
+            button press=sidebarChange("move", sidebarTargetId, sidebarDestination) disabled=(sidebarDestination == "" or sidebarBusy) class=PrimaryButton testId="sidebar-move-confirm"
+              text "Move"
+      dialog id="sidebar-delete" aria-label=`Delete ${sidebarTitle}?` class=TeamDialog
+        column gap=16
+          text `Delete ${sidebarTitle}?` role="heading" font-size="1.125rem" font-weight=600
+          text "Removes its memory, chats, schedules, skills and connectors. Library files stay with the workspace. Computers are kept. This cannot be undone." class=TeamHint
+          if sidebarError != ""
+            text sidebarError role="alert" color="danger"
+          input value=sidebarTyped input=sidebarConfirmName placeholder=`Type ${sidebarTitle} to confirm` aria-label="Confirm Dood name" class=Field testId="sidebar-delete-name"
+          row gap=8 justify-content="flex-end" flex-wrap="wrap"
+            button commandfor="sidebar-delete" command="close"
+              text "Cancel"
+            button press=sidebarChange("delete", sidebarTargetId, "") disabled=(sidebarTyped != sidebarTitle or sidebarBusy) class=PrimaryButton background-color="danger" color="ink.on-color" destructive=true testId="sidebar-delete-confirm"
+              text "Delete"

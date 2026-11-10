@@ -1,14 +1,167 @@
-// A workspace's people page: a PLACEHOLDER until its area is built. It will hold the members and their roles, the invitations, asking someone in.
-// The React app's is apps/web/src/components/settings/team.tsx. To build it: give this file a `members App` block for its
-// resources, mutations and actions (listed in app.contract beside the others), and its data
-// sources in data/people.ts (gathered in app.ts); then pass what the screen reads as props where
-// app.contract draws it. Keep the WorkspaceScreen frame: it is the header, the title and the lead.
-use Page from "./shapes.contract"
-use WorkspaceScreen from "./shell.contract"
+use Page, Session from "./shapes.contract"
+use WorkspaceSettingsFrame from "./settings-kit.contract"
+use PrimaryButton, Field from "./styles.contract"
+use TeamInfo, TeamMember, TeamInvitation, TeamChanged, TeamWaitlist, TeamLinks, TeamTile, TeamHint, TeamSection, TeamDialog, teamOf from "./teams.contract"
 
 component PeopleScreen
   props
     page: Page
   view
-    WorkspaceScreen(page=page, route="people", lead="Who is in this team, and who has been asked to join it.")
-      text "Not in this app yet." font-size="0.875rem" color="ink.muted" testId="placeholder-people"
+    WorkspaceSettingsFrame(page=page, route="people", title="People", lead="Who is in this team, and who has been asked to join it.", listing=false)
+      TeamSettingsContent(workspaceId=page.workspaceId, route="people")
+
+component TeamSettingsContent
+  props
+    workspaceId: string
+    route: string
+  inject
+    session: Session
+    teamList: TeamInfo[]
+    teamInvited: TeamInvitation[]
+    teamBusy: bool
+    teamError: string
+    teamChanged: option<TeamChanged>
+    teamLoading: bool
+    teamFailed: bool
+    teamChange: action
+    teamInvite: action
+    teamRetry: action
+  state editing = false
+  state name = ""
+  derive workspace = teamOf(teamList, workspaceId)
+  derive admin = workspace.role == "owner" or workspace.role == "admin"
+  action edit
+    name = workspace.name
+    editing = true
+  action typeName(v: string)
+    name = v
+  action save
+    teamChange("rename", workspaceId, "", name.trim())
+    editing = false
+  action cancel
+    editing = false
+  view
+    column gap=12 testId=`team-content-${route}`
+      if teamLoading and workspace.id == ""
+        progress aria-label="Loading team" testId=`team-loading-${route}`
+      else if teamFailed or workspace.id == ""
+        text "This workspace could not be read. It may no longer be shared with you." class=TeamHint testId=`team-load-error-${route}`
+        button press=teamRetry testId=`team-retry-${route}`
+          text "Try again"
+      else
+        row gap=12 align-items="center" flex-wrap="wrap"
+          TeamTile(name=workspace.name, color=workspace.color, size=48)
+          if editing
+            column gap=8 flex=1 min-width=0
+              input value=name input=typeName submit=save maxlength=60 aria-label="Team name" class=Field testId=`team-rename-${route}`
+              row gap=8
+                button press=save disabled=(name.trim() == "" or teamBusy) class=PrimaryButton testId=`team-save-${route}`
+                  text "Save"
+                button press=cancel testId=`team-rename-cancel-${route}`
+                  text "Cancel"
+          else
+            text workspace.name role="heading" font-size="1.5rem" font-weight=600 flex=1 min-width=0 overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`team-title-${route}`
+            if admin and workspace.kind == "team"
+              button press=edit disabled=teamBusy testId=`team-rename-open-${route}`
+                text "Rename"
+          if admin and workspace.kind == "team"
+            button press=teamInvite(workspaceId) class=PrimaryButton testId=`team-invite-open-${route}`
+              text "Invite people"
+        if workspace.kind == "personal"
+          text "Your own Doods stay yours unless you move them to a team. Start one with New team at the foot of the sidebar." class=TeamHint
+        else
+          text "Everyone here can use every Dood in this team, read its chats and make new Doods." class=TeamHint
+        if teamError != ""
+          text teamError role="alert" font-size="0.875rem" color="danger" testId=`team-error-${route}`
+        text `Members · ${workspace.members.length}` role="heading" class=TeamSection
+        column border="1px solid var(--hairline)" border-radius=16 overflow="hidden"
+          for m in workspace.members key=m.id
+            TeamMemberRow(workspace=workspace, member=m, meId=session.userId, route=route, busy=teamBusy, change=teamChange)
+        if teamInvited.length > 0
+          text `Invited · ${teamInvited.length}` role="heading" class=TeamSection
+          column border="1px solid var(--hairline)" border-radius=16 overflow="hidden"
+            for i in teamInvited key=i.id
+              column padding="12px 14px" gap=8 border-bottom="1px solid var(--hairline)" testId=`team-invitation-${route}-${i.id}`
+                text i.who font-size="0.875rem" font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+                text `Invited by ${i.inviter} as ${i.role == "admin" ? "an admin" : "a member"} · good until ${i.until}` class=TeamHint
+                if admin
+                  row gap=8 flex-wrap="wrap"
+                    button press=teamChange("renew", workspaceId, i.id, "") disabled=teamBusy testId=`team-renew-${route}-${i.id}`
+                      text (i.github ? "New link" : "Send again")
+                    button press=teamChange("withdraw", workspaceId, i.id, "") disabled=teamBusy color="danger" testId=`team-withdraw-${route}-${i.id}`
+                      text "Withdraw"
+        match teamChanged
+          case some(r)
+            if r.ok and r.owner == session.owner and r.op == "renew"
+              TeamLinks(links=r.links, problems=[])
+          case none
+            text ""
+        if workspace.kind == "team"
+          text "Roles" role="heading" class=TeamSection
+          text "Members use every Dood here, start chats, read each other’s, and make new Doods. Admins also invite and remove people, rename the team, and move or delete its Doods. The owner also decides who is an admin, and can hand the team on or delete it." class=TeamHint
+          if workspace.role == "owner"
+            text "Delete" role="heading" class=TeamSection
+            text "A team can be deleted once it has no Doods: move or delete those first." class=TeamHint
+            button commandfor=`team-delete-${route}` command="show-modal" disabled=teamBusy color="danger" align-self="flex-start" max-width="100%" box-sizing="border-box" testId=`team-delete-${route}`
+              text `Delete ${workspace.name}`
+            dialog id=`team-delete-${route}` role="alertdialog" aria-label=`Delete ${workspace.name} for everyone in it?` class=TeamDialog
+              column gap=16
+                text `Delete ${workspace.name}?` role="heading" font-size="1.125rem" font-weight=600
+                text "This cannot be undone. Move or delete its Doods first."
+                button press=teamChange("delete", workspaceId, "", "") commandfor=`team-delete-${route}` command="close" destructive=true testId=`team-delete-confirm-${route}`
+                  text "Delete"
+                button commandfor=`team-delete-${route}` command="close" testId=`team-delete-cancel-${route}`
+                  text "Cancel"
+
+component TeamMemberRow
+  props
+    workspace: TeamInfo
+    member: TeamMember
+    meId: string
+    route: string
+    busy: bool
+    change: action
+  derive mine = member.id == meId
+  derive canRole = workspace.role == "owner" and not mine
+  derive canRemove = not mine and member.role != "owner" and (workspace.role == "owner" or (workspace.role == "admin" and member.role == "member"))
+  action role(v: string)
+    if v == "owner"
+      showModal(`team-hand-${route}-${member.id}`)
+    else
+      change("role", workspace.id, member.id, v)
+  view
+    row padding="10px 14px" gap=12 align-items="center" flex-wrap="wrap" border-bottom="1px solid var(--hairline)" testId=`member-${route}-${member.id}`
+      column width="2rem" height="2rem" border-radius=16 background-color="primary" align-items="center" justify-content="center" flex-shrink=0
+        if member.image != ""
+          image member.image width=32 height=32 border-radius=16 alt=member.name
+        else
+          text member.initials font-size="0.75rem" font-weight=600 color="primary.ink"
+      column flex=1 min-width=100 gap=2
+        text `${member.name}${mine ? " (you)" : ""}` font-size="0.875rem" font-weight=500
+        text member.email class=TeamHint overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+      if canRole
+        select value=member.role change=role disabled=busy aria-label=`Role of ${member.name}` class=Field testId=`member-role-${route}-${member.id}`
+          option "Member" value="member"
+          option "Admin" value="admin"
+          option "Owner" value="owner"
+      else
+        text (member.role == "owner" ? "Owner" : member.role == "admin" ? "Admin" : "Member") font-size="0.75rem" color="ink.muted" testId=`member-role-label-${route}-${member.id}`
+      if canRemove or (mine and member.role != "owner")
+        button commandfor=`team-remove-${route}-${member.id}` command="show-modal" disabled=busy color="danger" aria-label=(mine ? `Leave ${workspace.name}` : `Remove ${member.name}`) testId=`member-remove-${route}-${member.id}`
+          text (mine ? "Leave" : "Remove")
+      dialog id=`team-hand-${route}-${member.id}` role="alertdialog" aria-label=`Hand ${workspace.name} to ${member.name}?` class=TeamDialog
+        column gap=16
+          text `Hand ${workspace.name} to ${member.name}?` role="heading" font-size="1.125rem" font-weight=600
+          text "You will become an admin."
+          button press=change("role", workspace.id, member.id, "owner") commandfor=`team-hand-${route}-${member.id}` command="close" aria-label=`Confirm handing team to ${member.name}` testId=`member-hand-confirm-${route}-${member.id}`
+            text "Hand it over"
+          button commandfor=`team-hand-${route}-${member.id}` command="close"
+            text "Cancel"
+      dialog id=`team-remove-${route}-${member.id}` role="alertdialog" aria-label=(mine ? `Leave ${workspace.name}?` : `Remove ${member.name} from ${workspace.name}?`) class=TeamDialog
+        column gap=16
+          text (mine ? `Leave ${workspace.name}?` : `Remove ${member.name}?`) role="heading" font-size="1.125rem" font-weight=600
+          text (mine ? "You will lose its Doods and their chats." : "Their access ends at once. Their computers are disconnected from the team’s Doods.")
+          button press=change(mine ? "leave" : "remove", workspace.id, member.id, "") commandfor=`team-remove-${route}-${member.id}` command="close" destructive=true aria-label=(mine ? "Confirm leaving team" : `Confirm removing ${member.name}`) testId=`member-remove-confirm-${route}-${member.id}`
+            text (mine ? "Leave" : "Remove")
+          button commandfor=`team-remove-${route}-${member.id}` command="close"
+            text "Cancel"

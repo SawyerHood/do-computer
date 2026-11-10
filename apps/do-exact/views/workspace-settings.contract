@@ -1,14 +1,47 @@
-// A workspace's settings page: a PLACEHOLDER until its area is built. It will hold its name and colour, its saved logins and cards, its options for every Dood in it.
-// The React app's is apps/web/src/components/settings/team.tsx. To build it: give this file a `members App` block for its
-// resources, mutations and actions (listed in app.contract beside the others), and its data
-// sources in data/workspace-settings.ts (gathered in app.ts); then pass what the screen reads as props where
-// app.contract draws it. Keep the WorkspaceScreen frame: it is the header, the title and the lead.
-use Page from "./shapes.contract"
-use WorkspaceScreen from "./shell.contract"
+use Page, Reply from "./shapes.contract"
+use WorkspaceSettingsFrame from "./settings-kit.contract"
+use TeamSettingsContent from "./people.contract"
+use TeamWaitlist, TeamHint, TeamSection from "./teams.contract"
 
 component WorkspaceSettingsScreen
   props
     page: Page
+  inject
+    teamAdmin: bool
+    teamWaitlist: TeamWaitlist
+    teamWaitlistLoading: bool
+    teamWaitlistFailed: bool
+    teamRetry: action
+    teamAdmitted: option<Reply>
+    teamAdmitting: bool
+    teamAdmit: action
   view
-    WorkspaceScreen(page=page, route="workspaceSettings", lead="What this workspace is called, and what it has chosen for all its Doods.")
-      text "Not in this app yet." font-size="0.875rem" color="ink.muted" testId="placeholder-workspaceSettings"
+    WorkspaceSettingsFrame(page=page, route="workspaceSettings", title="Workspace settings", lead="What this workspace is called, who is in it, and what each may do.", listing=false)
+      TeamSettingsContent(workspaceId=page.workspaceId, route="workspaceSettings")
+      if teamAdmin
+        column gap=12
+          text "Waiting list" role="heading" class=TeamSection
+          text "Anyone can make an account and hatch a Dood. The app itself is for you, the people you invite to a team, and whoever you let in here." class=TeamHint
+          if teamWaitlistLoading
+            progress aria-label="Reading waiting list"
+          else if teamWaitlistFailed
+            text "The waiting list could not be read." role="alert" class=TeamHint
+            button press=teamRetry
+              text "Try again"
+          else
+            text (teamWaitlist.total == 0 ? "Nobody is waiting." : `${teamWaitlist.total} ${teamWaitlist.total == 1 ? "person is" : "people are"} waiting.`) class=TeamHint testId="team-waitlist-count"
+            for p in teamWaitlist.people key=p.id
+              row gap=12 align-items="center" flex-wrap="wrap" padding=12 border="1px solid var(--hairline)" border-radius=12
+                column flex=1 min-width=0
+                  text `${p.name}${p.dood == "" ? "" : ` with ${p.dood}`}` font-size="0.875rem" font-weight=500
+                  text `${p.email} · since ${p.since}` class=TeamHint
+                button press=teamAdmit(p.id) disabled=teamAdmitting testId=`team-admit-${p.id}`
+                  text (teamAdmitting ? "Letting in…" : "Let in")
+            if teamWaitlist.total > teamWaitlist.people.length
+              text `Showing the ${teamWaitlist.people.length} who have waited longest.` class=TeamHint
+          match teamAdmitted
+            case some(r)
+              if r.error != ""
+                text r.error color="danger" role="alert"
+            case none
+              text ""

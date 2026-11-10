@@ -1,0 +1,487 @@
+use Reply, Session, Dood, Workspace from "./shapes.contract"
+use PrimaryButton, Field, FieldLabel, MenuItem, IconButton from "./styles.contract"
+
+shape TeamMember
+  id: string
+  name: string
+  email: string
+  image: string
+  initials: string
+  role: string
+shape TeamInfo
+  id: string
+  name: string
+  color: string
+  kind: string
+  role: string
+  members: TeamMember[]
+shape TeamColor
+  id: string
+  label: string
+  hex: string
+shape TeamDood
+  id: string
+  name: string
+  seed: string
+  color: string
+shape TeamPreview
+  valid: bool
+  id: string
+  workspaceId: string
+  name: string
+  color: string
+  inviter: string
+  note: string
+  role: string
+  people: string
+  doods: TeamDood[]
+shape TeamInbox
+  id: string
+  workspaceId: string
+  name: string
+  color: string
+  inviter: string
+  note: string
+  role: string
+  people: string
+  doods: TeamDood[]
+shape Teams
+  owner: string
+  teams: TeamInfo[]
+  inbox: TeamInbox[]
+  colors: TeamColor[]
+shape TeamInvitation
+  id: string
+  who: string
+  role: string
+  inviter: string
+  until: string
+  github: bool
+shape TeamInvitations
+  owner: string
+  workspaceId: string
+  invitations: TeamInvitation[]
+shape TeamLink
+  id: string
+  who: string
+  link: string
+  share: string
+  emailed: bool
+  github: bool
+shape TeamMade
+  owner: string
+  ok: bool
+  error: string
+  workspaceId: string
+  links: TeamLink[]
+  problems: string[]
+shape TeamSent
+  owner: string
+  ok: bool
+  error: string
+  links: TeamLink[]
+  problems: string[]
+shape TeamChanged
+  owner: string
+  ok: bool
+  error: string
+  op: string
+  links: TeamLink[]
+shape TeamAnswered
+  owner: string
+  ok: bool
+  error: string
+  workspaceId: string
+shape TeamFirst
+  owner: string
+  workspaceId: string
+  agentId: string
+shape TeamAccess
+  owner: string
+  waiting: bool
+  admin: bool
+shape TeamWaitingPerson
+  id: string
+  name: string
+  email: string
+  since: string
+  dood: string
+shape TeamWaitlist
+  owner: string
+  total: number
+  people: TeamWaitingPerson[]
+
+fn teamOf(teams: TeamInfo[], id: string): TeamInfo = match first(teams.filter(w => w.id == id)) { case some(w) => w, case none => TeamInfo(id="", name="", color="", kind="", role="", members=[]) }
+
+members App
+  // --- teams ---
+  derive teamWorkspaceId = match stack(nav).filter(e => e.params.workspaceId != "").at(-1) { case some(e) => e.params.workspaceId, case none => "" }
+  derive teamToken = onRoute == "invite" ? top(nav).params.token : ""
+  resource teamAccess = loadTeamAccess(session.owner) as shape TeamAccess else empty()
+  resource teamFirst = loadTeamFirstDood(session.owner, onRoute == "workspace" ? teamWorkspaceId : "") as shape TeamFirst else empty()
+  task teamLanding key=`${onRoute}:${teamFirst.workspaceId}:${teamFirst.agentId}`
+    after(1, teamGoFirst)
+  resource teams = loadTeams(session.owner) as shape Teams else empty()
+  resource teamInvitations = loadTeamInvitations(session.owner, onRoute == "people" or onRoute == "workspaceSettings" ? teamWorkspaceId : "") as shape TeamInvitations else empty()
+  resource teamPreview = loadTeamPreview(teamToken) with session.owner as shape TeamPreview else empty()
+  derive teamList = teams.owner == session.owner ? teams.teams : []
+  derive teamInbox = teams.owner == session.owner ? teams.inbox : []
+  derive teamColors = teams.owner == session.owner ? teams.colors : []
+  derive teamInvited = teamInvitations.owner == session.owner and teamInvitations.workspaceId == teamWorkspaceId ? teamInvitations.invitations : []
+  derive teamWaiting = teamAccess.owner == session.owner and teamAccess.waiting
+  derive teamAdmin = teamAccess.owner == session.owner and teamAccess.admin
+  resource teamWaitlist = loadTeamWaitlist(session.owner, teamAdmin and onRoute == "workspaceSettings") as shape TeamWaitlist else empty()
+  mutation teamAdmitted as shape Reply refreshes teamWaitlist
+  mutation teamMade as shape TeamMade refreshes workspaces, teams, doods
+  mutation teamChanged as shape TeamChanged refreshes workspaces, teams, doods then teamAfterChange
+  mutation teamSent as shape TeamSent refreshes teamInvitations
+  mutation teamAnswered as shape TeamAnswered refreshes workspaces, teams, doods, teamAccess then teamAfterAnswer
+  mutation sidebarChanged as shape Reply refreshes doods then sidebarAfterChange
+  mutation teamOrdered as shape Reply queue refreshes doods
+  state teamInviteWorkspace = ""
+  state teamCreateName = ""
+  state teamCreateColor = "teal"
+  state teamCreateMoving: string[] = []
+  state teamCreateWho = ""
+  state teamInviteWho = ""
+  state teamInviteRole = "member"
+  state teamInviteNote = ""
+  state teamAuth = false
+  state teamFolded: string[] = [] persist
+  state sidebarOwner = ""
+  state teamOrderOwner = ""
+  state sidebarOperation = ""
+  state sidebarDeleted = ""
+  state sidebarTargetId = ""
+  state sidebarName = ""
+  state sidebarDestination = ""
+  state sidebarTyped = ""
+  derive sidebarTarget = match first(doodList.filter(d => d.id == sidebarTargetId)) { case some(d) => d, case none => Dood(id="", name="", workspaceId="", latest="", latestAt=0, working=false, asking=false, unread=false, seed="", color="", hatched=false) }
+  derive sidebarTitle = sidebarTarget.name == "" ? "New Dood" : sidebarTarget.name
+  derive teamBusy = pending(teamChanged)
+  derive teamError = pending(teamChanged) ? "" : match teamChanged { case some(r) => r.owner == session.owner ? r.error : "", case none => "" }
+  derive sidebarError = pending(sidebarChanged) ? "" : match sidebarChanged { case some(r) => sidebarOwner == session.owner ? r.error : "", case none => "" }
+  derive teamOrderError = pending(teamOrdered) ? "" : match teamOrdered { case some(r) => teamOrderOwner == session.owner ? r.error : "", case none => "" }
+
+  action teamGoFirst
+    if onRoute == "workspace" and teamFirst.owner == session.owner and teamFirst.workspaceId == teamWorkspaceId and teamFirst.agentId != ""
+      follow(path("dood", teamFirst.agentId))
+  action teamNew
+    teamCreateName = ""
+    teamCreateColor = "teal"
+    teamCreateMoving = []
+    teamCreateWho = ""
+    teamMade = none
+    showModal("team-create")
+  action teamEditName(v: string)
+    teamCreateName = v
+  action teamPickColor(v: string)
+    teamCreateColor = v
+  action teamBring(id: string, checked: bool)
+    teamCreateMoving = checked ? teamCreateMoving.concat([id]) : teamCreateMoving.filter(x => x != id)
+  action teamEditWho(v: string)
+    teamCreateWho = v
+  action teamCreate
+    if teamCreateName.trim() != "" and not pending(teamMade)
+      send teamMade = createTeam(session.owner, teamCreateName.trim(), teamCreateColor, teamCreateMoving, teamCreateWho)
+  action teamGoCreated
+    match teamMade
+      case some(r)
+        if r.ok and r.owner == session.owner
+          follow(path("workspace", r.workspaceId))
+      case none
+        teamCreateName = teamCreateName
+  action teamInvite(id: string)
+    teamInviteWorkspace = id
+    teamInviteWho = ""
+    teamInviteRole = "member"
+    teamInviteNote = ""
+    teamSent = none
+    showModal("team-invite")
+  action teamEditInviteWho(v: string)
+    teamInviteWho = v
+  action teamEditInviteRole(v: string)
+    teamInviteRole = v
+  action teamEditInviteNote(v: string)
+    teamInviteNote = v
+  action teamSendInvites
+    if teamInviteWho.trim() != "" and not pending(teamSent)
+      send teamSent = sendTeamInvites(session.owner, teamInviteWorkspace, teamInviteWho, teamInviteRole, teamInviteNote)
+  action teamChange(op: string, workspaceId: string, target: string, value: string)
+    if not pending(teamChanged)
+      send teamChanged = changeTeam(session.owner, op, workspaceId, target, value)
+  action teamAfterChange
+    match teamChanged
+      case some(r)
+        if r.ok and r.owner == session.owner
+          if r.op == "delete" or r.op == "leave"
+            nav = go(nav, "/")
+          else
+            refresh teamInvitations
+      case none
+        teamInviteNote = teamInviteNote
+  action teamAccept
+    if not pending(teamAnswered)
+      send teamAnswered = answerTeamInvite(session.owner, teamToken, true)
+  action teamDecline
+    if not pending(teamAnswered)
+      send teamAnswered = answerTeamInvite(session.owner, teamPreview.id, false)
+  action teamAfterAnswer
+    match teamAnswered
+      case some(r)
+        if r.ok and r.owner == session.owner
+          follow(r.workspaceId == "" ? "/" : path("workspace", r.workspaceId))
+      case none
+        teamInviteNote = teamInviteNote
+  action teamShowAuth
+    teamAuth = true
+    joining = false
+  action teamShowJoinAuth
+    teamAuth = true
+    joining = true
+  action teamSwitchAccount
+    teamInviteWho = ""
+    teamInviteNote = ""
+    teamCreateName = ""
+    teamCreateWho = ""
+    teamSent = none
+    teamMade = none
+    send left = signOut()
+    teamAuth = false
+  action teamFold(id: string)
+    teamFolded = teamFolded.includes(id) ? teamFolded.filter(x => x != id) : teamFolded.concat([id])
+  action sidebarAskRename(id: string)
+    hidePopover(`dood-menu-${id}`)
+    sidebarChanged = none
+    sidebarTargetId = id
+    sidebarName = match first(doodList.filter(d => d.id == id)) { case some(d) => d.name == "" ? "New Dood" : d.name, case none => "" }
+    showModal("sidebar-rename")
+  action sidebarAskMove(id: string)
+    hidePopover(`dood-menu-${id}`)
+    sidebarChanged = none
+    sidebarTargetId = id
+    sidebarDestination = ""
+    showModal("sidebar-move")
+  action sidebarAskDelete(id: string)
+    hidePopover(`dood-menu-${id}`)
+    sidebarChanged = none
+    sidebarTargetId = id
+    sidebarTyped = ""
+    showModal("sidebar-delete")
+  action sidebarEditName(v: string)
+    sidebarName = v
+  action sidebarPickDestination(v: string)
+    sidebarDestination = v
+  action sidebarConfirmName(v: string)
+    sidebarTyped = v
+  action sidebarChange(op: string, id: string, value: string)
+    if not pending(sidebarChanged)
+      sidebarOwner = session.owner
+      sidebarOperation = op
+      sidebarDeleted = op == "delete" ? id : ""
+      send sidebarChanged = changeSidebarDood(session.owner, op, id, value)
+  action sidebarAfterChange
+    match sidebarChanged
+      case some(r)
+        if r.ok and sidebarOwner == session.owner
+          close(`sidebar-${sidebarOperation}`)
+          if sidebarDeleted == openAgentId
+            nav = go(nav, "/")
+      case none
+        sidebarDeleted = sidebarDeleted
+  action teamNudge(item: string, direction: number)
+    hidePopover(`dood-menu-${item}`)
+    let workspaceId = match first(doodList.filter(d => d.id == item)) { case some(d) => d.workspaceId, case none => "" }
+    let ids = doodList.filter(d => d.workspaceId == workspaceId).map(d => d.id)
+    let at = ids.indexOf(item)
+    if at + direction >= 0 and at + direction < ids.length
+      let before = ids.at(at + direction + (direction > 0 ? 1 : 0))
+      teamReorder(workspaceId, item, before)
+  action teamSortLatest(id: string)
+    teamOrderOwner = session.owner
+    send teamOrdered = orderTeamDoods(session.owner, id, doodList.filter(d => d.workspaceId == id).map(d => d.id), true)
+  action teamReorder(workspaceId: string, item: string, before: option<string>)
+    let ids = doodList.filter(d => d.workspaceId == workspaceId and d.id != item).map(d => d.id)
+    let at = match before { case some(id) => ids.indexOf(id), case none => ids.length }
+    let placed = ids.slice(0, at).concat([item]).concat(ids.slice(at))
+    teamOrderOwner = session.owner
+    send teamOrdered = orderTeamDoods(session.owner, workspaceId, placed, false)
+  action teamAdmit(id: string)
+    send teamAdmitted = admitTeamPerson(id)
+  action teamCheckAdmission
+    refresh teamAccess
+    refresh teams
+    refresh workspaces
+    refresh doods
+  action teamRetry
+    refresh teams
+    refresh workspaces
+    refresh teamInvitations
+    refresh teamWaitlist
+  action teamRetryPreview
+    refresh teamPreview
+
+component TeamTile
+  props
+    name: string
+    color: string
+    size: number
+  view
+    column width=size height=size border-radius=(size * 0.3) background-color=color align-items="center" justify-content="center" flex-shrink=0
+      text name.slice(0, 1).toUpperCase() color="ink.on-color" font-size=(size * 0.46) font-weight=700
+
+component TeamLinks
+  props
+    links: TeamLink[]
+    problems: string[]
+  state copied = ""
+  action copy(id: string, url: string)
+    copyText(url)
+    copied = id
+  view
+    column gap=10
+      for l in links key=l.id
+        column padding=12 border="1px solid var(--hairline)" border-radius=12 gap=6
+          row gap=8 align-items="center" flex-wrap="wrap"
+            text l.who font-size="0.875rem" font-weight=500 flex=1 min-width=0 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+            button press=copy(l.id, l.share) testId=`copy-invite-${l.id}`
+              text (copied == l.id ? "Copied" : "Copy link") testId=(copied == l.id ? "team-link-copied" : "")
+          text (l.emailed ? "An email is on its way. The link also works." : l.github ? "It will be waiting when they sign in with GitHub. Or send them the link." : "No email was sent from here. Send them the link.") font-size="0.75rem" color="ink.muted"
+          link href=l.link aria-label="View invitation" color="ink.muted" font-size="0.75rem" testId=`invite-link-${l.id}`
+            text "View invitation"
+      for p in problems key=p
+        text p role="alert" font-size="0.875rem" color="danger"
+
+component TeamDialogs
+  inject
+    wide: bool
+    session: Session
+    doodList: Dood[]
+    teamList: TeamInfo[]
+    teamColors: TeamColor[]
+    teamCreateName: string
+    teamCreateColor: string
+    teamCreateMoving: string[]
+    teamCreateWho: string
+    teamCreating: bool
+    teamMade: option<TeamMade>
+    teamEditName: action
+    teamPickColor: action
+    teamBring: action
+    teamEditWho: action
+    teamCreate: action
+    teamGoCreated: action
+    teamInviteWorkspace: string
+    teamInviteWho: string
+    teamInviteRole: string
+    teamInviteNote: string
+    teamSending: bool
+    teamSent: option<TeamSent>
+    teamEditInviteWho: action
+    teamEditInviteRole: action
+    teamEditInviteNote: action
+    teamSendInvites: action
+  derive made = match teamMade { case some(r) => r.ok and r.owner == session.owner, case none => false }
+  derive sent = match teamSent { case some(r) => r.ok and r.owner == session.owner, case none => false }
+  view
+    dialog id="team-create" aria-label="New team" class=TeamDialog
+      column gap=20
+        column gap=6
+          row gap=8 align-items="center"
+            text "New team" role="heading" font-size="1.125rem" font-weight=600 flex=1
+            button commandfor="team-create" command="close" aria-label="Close new team" class=IconButton disabled=teamCreating
+              image "symbol:icon.x" width=16 height=16
+          text (made ? "Each link works once, for seven days. Copy any you need before going on." : "A place for Doods you share. Your own Doods stay yours unless you move them.") class=TeamHint
+        if made
+          match teamMade
+            case some(r)
+              TeamLinks(links=r.links, problems=r.problems)
+            case none
+              text ""
+          button press=teamGoCreated commandfor="team-create" command="close" class=PrimaryButton testId="team-created-go"
+            text `Go to ${teamCreateName}`
+        else
+          row gap=12 align-items="center"
+            TeamTile(name=(teamCreateName == "" ? "T" : teamCreateName), color=(match first(teamColors.filter(c => c.id == teamCreateColor)) { case some(c) => c.hex, case none => "primary" }), size=48)
+            input value=teamCreateName input=teamEditName maxlength=60 placeholder="Team name" aria-label="Team name" flex=1 min-width=0 class=Field testId="team-name"
+          column gap=8
+            text "Color" class=FieldLabel
+            row gap=8 flex-wrap="wrap"
+              for c in teamColors key=c.id
+                button press=teamPickColor(c.id) aria-label=c.label aria-pressed=(teamCreateColor == c.id) width=28 height=28 padding=0 border-radius=8 border=(teamCreateColor == c.id ? "2px solid var(--ink)" : "none") background-color=c.hex testId=`team-color-${c.id}`
+                  if teamCreateColor == c.id
+                    image "symbol:icon.check" color="ink.on-color" width=14 height=14
+          if doodList.filter(d => d.workspaceId.startsWith("personal:")).length > 0
+            column gap=8
+              text "Bring a Dood along" class=FieldLabel
+              for d in doodList.filter(x => x.workspaceId.startsWith("personal:")) key=d.id
+                row gap=10 padding=10 border="1px solid var(--hairline)" border-radius=12 align-items="center"
+                  input type="checkbox" checked=teamCreateMoving.includes(d.id) change=teamBring(d.id) aria-label=`Bring ${d.name == "" ? "New Dood" : d.name}` testId=`team-bring-${d.id}`
+                  column gap=4 min-width=0
+                    text (d.name == "" ? "New Dood" : d.name) font-size="0.875rem" font-weight=500
+                    text "Moves with its chats, library and memory. The team will be able to read them." class=TeamHint
+          column gap=6
+            text "Invite people" class=FieldLabel
+            input value=teamCreateWho input=teamEditWho placeholder="Email or @github-username" aria-label="Who to invite" class=Field testId="team-create-who"
+            text "Separate people with a comma, semicolon or space. You can also do this later." class=TeamHint
+          match teamMade
+            case some(r)
+              if r.error != "" and not teamCreating
+                text r.error role="alert" color="danger" testId="team-create-error"
+            case none
+              text ""
+          row gap=8 justify-content="flex-end" flex-direction=(wide ? "row" : "column-reverse")
+            button commandfor="team-create" command="close" disabled=teamCreating testId="team-create-cancel"
+              text "Cancel"
+            button press=teamCreate disabled=(teamCreateName.trim() == "" or teamCreating) class=PrimaryButton testId="team-create-submit"
+              text (teamCreating ? "Creating…" : "Create team")
+    dialog id="team-invite" aria-label="Invite people" class=TeamDialog
+      column gap=20
+        column gap=6
+          row gap=8 align-items="center"
+            text `Invite people to ${teamOf(teamList, teamInviteWorkspace).name}` role="heading" font-size="1.125rem" font-weight=600 flex=1
+            button commandfor="team-invite" command="close" aria-label="Close invite people" class=IconButton disabled=teamSending
+              image "symbol:icon.x" width=16 height=16
+          text (sent ? "Each link works once, for seven days. It is only shown here, so copy any you need before closing." : "They will be able to use every Dood here and read its chats.") class=TeamHint
+        if sent
+          match teamSent
+            case some(r)
+              TeamLinks(links=r.links, problems=r.problems)
+            case none
+              text ""
+          button commandfor="team-invite" command="close" class=PrimaryButton testId="team-invite-done"
+            text "Done"
+        else
+          column gap=6
+            text "Who to invite" class=FieldLabel
+            input value=teamInviteWho input=teamEditInviteWho aria-label="Who to invite" placeholder="Email or @github-username" class=Field testId="team-invite-who"
+            text "Anything without an @ in the middle is taken as a GitHub username. Separate people with a comma, semicolon or space." class=TeamHint
+          row gap=12 align-items="flex-start"
+            column gap=6 flex=1 min-width=0
+              text "Add a note" class=FieldLabel
+              input value=teamInviteNote input=teamEditInviteNote maxlength=500 aria-label="Add a note" placeholder="Optional. Goes with the invitation." class=Field min-width=0 testId="team-invite-note"
+            column gap=6 width="7rem" flex-shrink=0
+              text "Role" class=FieldLabel
+              select value=teamInviteRole change=teamEditInviteRole aria-label="Role" testId="team-invite-role" class=Field width="100%"
+                option "Member" value="member"
+                option "Admin" value="admin"
+          match teamSent
+            case some(r)
+              if r.error != "" and not teamSending
+                text r.error role="alert" color="danger" testId="team-invite-error"
+            case none
+              text ""
+          row gap=8 justify-content="flex-end" flex-direction=(wide ? "row" : "column-reverse")
+            button commandfor="team-invite" command="close" disabled=teamSending testId="team-invite-cancel"
+              text "Cancel"
+            button press=teamSendInvites disabled=(teamInviteWho.trim() == "" or teamSending) class=PrimaryButton testId="team-invite-submit"
+              text (teamSending ? "Sending…" : "Send invitations")
+
+style TeamDialog
+  width="calc(100% - 32px)" max-width="32rem" max-height="calc(100% - 32px)" overflow="auto" box-sizing="border-box"
+  padding=24 border="1px solid var(--hairline)" border-radius=16 background-color="popover" color="ink" font-family="Geist"
+  box-shadow="0 20px 60px rgb(0 0 0 / 0.2)"
+style TeamHint
+  font-size="0.8125rem" line-height=1.5 color="ink.muted"
+style TeamSection
+  font-size="0.8125rem" font-weight=500 color="ink.muted" margin-top=16
