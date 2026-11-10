@@ -201,6 +201,87 @@ parallel merges.
 5. `library.test.contract`: the sign-up preamble from `chat.test.contract` with an address of
    its own, then `tap "pages-dood"`, `tap "go-library-dood"`, and what the page should show.
 
+## Native views
+
+These work on Exact's public main on the web. `modules/web/index.js` is the page module. It
+exports ABI 1, a `roster` and `create`, `setProps`, `destroy`, and dispatches each tag to its own
+file. The module is loaded after first paint. Do not put DOM work at import time.
+
+To add another (Shiki and Mermaid follow this recipe):
+
+1. Add a hyphenated tag to `app.json` `modules`, and its file to the `views` table in
+   `modules/web/index.js`. Give it `{ snapshot: false }` in the roster (the table does this).
+2. Export `create(element, props, event)` from that file. Return a handle with
+   `setProps(props)` and `destroy()`. Use the element's shadow root, so library styles cannot
+   repaint the app. Keep the element's size, attributes and accessibility under Contract.
+3. Props are a whole replacement object of **strings**, parsed once by the dispatcher.
+   Unknown attribute names reach the module. Known ones belong to the box: `color` never
+   reaches it, `size` is refused with `lower-unknown-attr`. Use distinct names (`colour`,
+   `side`, `code`, `language`, `diagram`), not `value`, `src`, or event names. Parse and validate
+   before changing a view. A thrown refusal keeps the last accepted aggregate.
+4. Events use `event(kind, payload)`: press 0, change 1 (string), hover 2 (bool), focus 3,
+   blur 4, key 5 (string), submit 6, load 7, message 8 (string). Contract binds the usual names:
+
+   ```contract
+   action creatureSaid(word: string)
+     lastCreatureWord = word
+   // In the view:
+   do-creature seed=dood.seed colour=dood.colour state=dood.state side="48" width=48 height=48 message=creatureSaid aria-label="Dood" testId="avatar"
+   ```
+
+   A DOM click already runs the authored `press=`. Do not also emit 0 for the same click.
+   Use `message=` for domain events (`"pet"`, `"hatched"`), not new event attributes. The host
+   queues callbacks after the current commit and drops callbacks after destruction.
+5. Give it an explicit `width` and `height`, or an otherwise sized box. `side` controls mascot
+   drawing resolution, not layout. The web observes the element's size, but has no JS
+   `intrinsicSize` callback. A `ResizeObserver` handles the view's own canvas. Its shadow DOM
+   is opaque to the agent's tree: the tag, props, label and testId are visible, not its meshes
+   or text. Put a readable fallback or status in Contract when people need one.
+6. Exact **does not bundle the page module**. It copies `modules/web/` to `/modules/`
+   (`host/web-js/build.mjs`; the WASM build does the same). Relative imports inside that tree
+   work; a bare npm import and an import walking outside it are not served. For a foreign
+   dependency, use `Bun.build` with `target: 'browser'` and `format: 'esm'`, output inside that
+   tree, and import the output. `modules/web/build.mjs` is the worked example: it reads the
+   real three.js 0.128 installed for `apps/web`, `packages/mascot/src` and the pure protocol
+   helpers, and generates `engine.js`. Nothing in those packages is copied by hand or changed.
+   The generated bundle is committed so a fresh checkout works; after changing its inputs,
+   run `bun modules/web/build.mjs` from this app. No CDN or network fetch is needed at runtime.
+7. Use Exact's clock for animation. The page module exports `app()` so Exact loads its
+   hatch clock even without any element hatches. `exact.hatches.frames(frame => …)` gives
+   milliseconds in `frame.now`, and returns a stop function; `exact.hatches.after(ms, fn)`
+   does the same for a wait. Stop tickets and observers in `destroy`. The mascot uses
+   `new core.Orb`, `Runner.add`, and one shared `Runner.tick(frame.now)`, never `createOrb`
+   (which starts its own browser loop). Its GPU-resource retirement and WebGL retry bookkeeping still use the package's
+   wall clock; movement, hearts, gift opening and sky/hatching use the test clock.
+8. Test it outside the app. `tests/creature-gallery` is a second small app with its own `./x`
+   taking the same machine lock and ports. Its prepare script mirrors the production page
+   module, not a second implementation. From that folder:
+
+   ```sh
+   ./x test web creature.test.contract
+   ./x agent web --size 1280x1300 "clock data" "clock +1200" "screenshot .exact/creatures.png" check
+   ./x verify
+   ```
+
+   `clock data` first waits for the page module to attach. `clock +N` alone need not wait for
+   it. Screenshots include WebGL (the shared stage copies it to 2D canvases); look at them,
+   since tree assertions alone cannot tell whether the canvas is blank. Native tags are
+   web-only here; do not try to fix that by changing the Exact checkout.
+
+The mascot tags and their full prop/event list are in `modules/web/README.md`. Leave
+`app.contract`, `app.ts` and screen components alone when adding another native tag.
+
+The data-free gallery exposes one limitation of this Exact checkout: `verify.mjs:1371` starts
+its tests, large-text tour and first-screen drives in parallel when an app has no server.
+With `./x` pinning port 8766, they race and report `port 8766 (--port or EXACT_PORT) is in use`.
+Do not change Exact, remove the machine lock or start extra servers. Run the gallery's tests
+at `--size 390x844` and `--size 1280x1300`, and its `agent … "check both"` sequentially. The
+large-text part of verify still runs; its last run found nothing spilling in this gallery.
+Native animation is culled offscreen by the mascot Runner, as in React: the gallery's Hatch
+and Open actions scroll their view into sight before starting it. `state` includes the last
+frame's mascot counts under `hatches.scopes.module.published.mascot` (64 orbs, 46 held in the
+full gallery); `at` is Exact time. These diagnostics do nothing in production.
+
 ## Known problems in Exact, and what this app does about them
 
 - **`exactTime()` and Markdown.** An app that draws `markup="markdown"` is run once at build, in
