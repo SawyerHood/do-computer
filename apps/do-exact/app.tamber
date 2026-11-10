@@ -77,3 +77,5 @@ icons
   icon.lock = icon(sf "lock", svg "icons/lock.svg")
   icon.credit-card = icon(sf "creditcard", svg "icons/credit-card.svg")
   icon.sliders = icon(sf "slider.horizontal.3", svg "icons/sliders-horizontal.svg")
+  icon.eye = icon(sf "eye", svg "icons/eye.svg")
+  icon.eye-slash = icon(sf "eye.slash", svg "icons/eye-slash.svg")

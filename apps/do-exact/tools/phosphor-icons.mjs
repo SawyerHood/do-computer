@@ -37,6 +37,8 @@ const ICONS = {
   lock: "Lock",
   "credit-card": "CreditCard",
   "sliders-horizontal": "SlidersHorizontal",
+  eye: "Eye",
+  "eye-slash": "EyeSlash",
 }
 const pnpm = resolve(here, "../../../node_modules/.pnpm")
 const dir = readdirSync(pnpm).find((name) => name.startsWith("@phosphor-icons+react@"))

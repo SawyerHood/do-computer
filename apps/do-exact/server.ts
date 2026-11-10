@@ -26,6 +26,9 @@ const child = spawn(process.env.NODE ?? 'node', ['server.node.mjs'], {
     DC_SIGNUP: 'open',
     DC_CLIENT_ORIGINS: process.env.DC_CLIENT_ORIGINS ?? client,
     OPENROUTER_API_KEY: process.env.DO_EXACT_MODEL_KEY ?? '',
+    // Saved logins and cards for everyone, so that the settings' Passwords can be tested.
+    DC_SECRETS: process.env.DC_SECRETS ?? 'on',
+    DC_SECRET_KINDS: process.env.DC_SECRET_KINDS ?? 'passwords,cards',
   },
 });
 const stop = () => {
