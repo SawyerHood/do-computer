@@ -1,0 +1,11 @@
+// A Dood's settings, as a list of their sections (`/a/:agentId/settings`): the React app's
+// settings window opened on an agent with no section named. A phone shows the list; a wide
+// window the list beside the first section, its profile.
+use Page from "./shapes.contract"
+use ProfileScreen from "./profile.contract"
+
+component DoodSettingsScreen
+  props
+    page: Page
+  view
+    ProfileScreen(page=page, route="settings")

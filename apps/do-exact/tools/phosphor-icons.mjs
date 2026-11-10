@@ -1,0 +1,109 @@
+// Writes the React app's Phosphor icons (its "regular" weight) as one-colour SVGs under
+// assets/icons/, for app.tamber's `icons` block. Run again after adding a name to ICONS:
+//   node tools/phosphor-icons.mjs
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
+import { join, resolve } from "node:path"
+
+const here = new URL(".", import.meta.url).pathname
+const ICONS = {
+  "arrow-up": "ArrowUp",
+  "caret-down": "CaretDown",
+  "caret-up-down": "CaretUpDown",
+  plus: "Plus",
+  "dots-three": "DotsThree",
+  sidebar: "SidebarSimple",
+  "sign-out": "SignOut",
+  gear: "Gear",
+  users: "Users",
+  check: "Check",
+  "dots-six-vertical": "DotsSixVertical",
+  brain: "Brain",
+  stop: "Stop",
+  x: "X",
+  // The settings' sections and pieces (views/settings-kit.contract).
+  bell: "Bell",
+  smiley: "Smiley",
+  "squares-four": "SquaresFour",
+  "user-circle": "UserCircle",
+  "book-open": "BookOpen",
+  cpu: "Cpu",
+  lightning: "Lightning",
+  plugs: "Plugs",
+  "shield-check": "ShieldCheck",
+  "chart-bar": "ChartBar",
+  desktop: "Desktop",
+  key: "Key",
+  "hard-drives": "HardDrives",
+  hourglass: "Hourglass",
+  "caret-left": "CaretLeft",
+  "caret-right": "CaretRight",
+  lock: "Lock",
+  "credit-card": "CreditCard",
+  "sliders-horizontal": "SlidersHorizontal",
+  eye: "Eye",
+  "eye-slash": "EyeSlash",
+  copy: "Copy",
+  "t-shirt": "TShirt",
+  "dice-five": "DiceFive",
+  "question-mark": "QuestionMark",
+  // --- chat transcript ---
+  "warning-circle": "WarningCircle",
+  "arrow-clockwise": "ArrowClockwise",
+  "arrows-clockwise": "ArrowsClockwise",
+  "clock": "Clock",
+  "microphone": "Microphone",
+  "paperclip": "Paperclip",
+  "plugs-connected": "PlugsConnected",
+  "slack-logo": "SlackLogo",
+  "check-circle": "CheckCircle",
+  "stop-circle": "StopCircle",
+  "arrow-left": "ArrowLeft",
+  "arrow-down": "ArrowDown",
+  "file": "File",
+  "download": "DownloadSimple",
+  "globe": "Globe",
+  "push-pin": "PushPin",
+  "arrows-out": "ArrowsOutSimple",
+  "phone": "Phone",
+  "terminal": "TerminalWindow",
+  "archive": "Archive",
+  "arrow-square-out": "ArrowSquareOut",
+  "monitor": "Monitor",
+  // --- library, pins and sharing ---
+  "folder": "Folder",
+  "folder-open": "FolderOpen",
+  "file-text": "FileText",
+  "file-image": "FileImage",
+  "file-code": "FileCode",
+  "table": "Table",
+  "note-pencil": "NotePencil",
+  "upload": "UploadSimple",
+  "share-network": "ShareNetwork",
+  "cloud-check": "CloudCheck",
+  "link": "LinkSimple",
+  "push-pin-slash": "PushPinSlash",
+  "trash": "Trash",
+  "clock-counter-clockwise": "ClockCounterClockwise",
+  "pencil": "PencilSimple",
+  "columns": "Columns",
+  // --- teams ---
+  "envelope": "EnvelopeSimple",
+  "github-logo": "GithubLogo",
+  "user-plus": "UserPlus",
+  "sort-ascending": "SortAscending",
+}
+const pnpm = resolve(here, "../../../node_modules/.pnpm")
+const dir = readdirSync(pnpm).find((name) => name.startsWith("@phosphor-icons+react@"))
+if (dir === undefined) throw new Error("@phosphor-icons/react is not installed: pnpm install first")
+const defs = join(pnpm, dir, "node_modules/@phosphor-icons/react/dist/defs")
+const out = resolve(here, "../assets/icons")
+mkdirSync(out, { recursive: true })
+for (const [file, name] of Object.entries(ICONS)) {
+  const source = readFileSync(join(defs, `${name}.es.js`), "utf8")
+  const regular = source.split('"regular"')[1]?.split("]")[0] ?? ""
+  const paths = [...regular.matchAll(/d: "([^"]+)"/g)].map((m) => m[1])
+  if (paths.length === 0) throw new Error(`${name}: no regular path`)
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor">${paths.map((d) => `<path d="${d}"/>`).join("")}</svg>\n`
+  writeFileSync(join(out, `${file}.svg`), svg)
+}
+console.log(`phosphor-icons: ${Object.keys(ICONS).length} icons in ${out}`)

@@ -1,0 +1,307 @@
+// One call belongs to the window. The shared caller runs in do-call; data/call.ts holds auth.
+use Dood, Reply, Session from "./shapes.contract"
+use Block from "./chat-shapes.contract"
+use Face from "./creature.contract"
+use IconButton, SendButton, OutlineButton, QuietButton, Card, MenuItem from "./styles.contract"
+
+shape CallOffer
+  owner: string
+  agentId: string
+  available: bool
+  address: string
+shape CallLine
+  id: string
+  who: string
+  text: string
+shape CallWork
+  id: string
+  ask: string
+  done: bool
+  step: string
+shape CallView
+  owner: string
+  active: bool
+  agentId: string
+  chatId: string
+  name: string
+  phase: string
+  status: string
+  clock: string
+  muted: bool
+  lines: CallLine[]
+  you: string
+  dood: string
+  works: CallWork[]
+  problem: string
+  wrapAgentId: string
+  wrapChatId: string
+  wrapCallId: string
+shape CallResponse
+  json: string
+
+fn callNameOf(d: Dood): string = d.name == "" ? "Your Dood" : d.name
+fn noCall(): CallView = CallView(owner="", active=false, agentId="", chatId="", name="", phase="", status="", clock="", muted=false, lines=[], you="", dood="", works=[], problem="", wrapAgentId="", wrapChatId="", wrapCallId="")
+
+fn callMood(f: Face, c: CallView): Face = Face(id=f.id, seed=f.seed, state=(c.active and c.agentId == f.id ? c.phase == "speaking" ? "speaking" : c.phase == "working" ? "working" : c.phase == "starting" or c.phase == "connecting" ? "thinking" : "listening" : f.state), variant=f.variant, outfit=f.outfit, hatched=f.hatched, hatching=f.hatching)
+
+members App
+  // --- call ---
+  resource callOffer = loadCallOffer(session.owner, openAgentId) with pulse.changes as shape CallOffer else empty()
+  mutation callResponse as shape CallResponse queue
+  mutation callDecoded as shape CallView queue
+  derive callView = match callDecoded { case some(c) => c.owner == session.owner ? c : noCall(), case none => noCall() }
+  derive callAvailable = callOffer.owner == session.owner and callOffer.agentId == openAgentId and callOffer.available and openDood.hatched
+  derive callAnswer = match callResponse { case some(r) => r.json, case none => "" }
+  state callDirective = ""
+  state callSerial = 0
+  state callAgent = ""
+  state callName = ""
+  state callChat = ""
+  state callWords = true persist
+  derive callInPanel = wide and panelOpen and (onRoute == "dood" or onRoute == "chat") and callView.agentId == openAgentId
+  derive callRecordWritten = chat.messages.map(m => m.blocks.map(b => b.status == "call" and b.detail == callView.wrapCallId).includes(true)).includes(true)
+  task callRecorded key=`${callView.wrapCallId}:${callRecordWritten}`
+    after(1, callFinishRecord)
+  action callFinishRecord
+    if callRecordWritten and callView.wrapCallId != ""
+      callControl("recorded")
+  action callStart
+    if callAvailable and not callView.active and opened.chatId != ""
+      callAgent = openDood.id
+      callName = callNameOf(openDood)
+      callChat = opened.chatId
+      callDirective = "start"
+      callSerial = callSerial + 1
+  action callControl(word: string)
+    callDirective = word
+    callSerial = callSerial + 1
+  action callToggleWords
+    callWords = not callWords
+  action callMessage(word: string)
+    if word.startsWith("rpc:")
+      send callResponse = callRequest(session.owner, word.slice(4))
+    else if word.startsWith("view:")
+      send callDecoded = readCallView(session.owner, word.slice(5))
+
+component CallSend
+  props
+    ready: bool
+    idle: bool
+    name: string
+    say: action
+    expanded: bool
+  inject
+    callAvailable: bool
+    callView: CallView
+    callStart: action
+  view
+    if idle and callAvailable
+      button press=callStart disabled=callView.active class=SendButton grid-column="4" grid-row=(expanded ? "2" : "1") aria-label=`Call ${name}` testId="call-composer"
+        image "symbol:icon.phone" font-size="1.125rem" aria-hidden=true
+    else
+      button press=say disabled=(not ready) retainFocus=true aria-label="Send" class=SendButton grid-column="4" grid-row=(expanded ? "2" : "1") testId="send"
+        image "symbol:icon.arrow-up"
+
+component CallMenu
+  props
+    route: string
+  inject
+    callAvailable: bool
+    callView: CallView
+    callStart: action
+  view
+    if callAvailable
+      button press=callStart disabled=callView.active role="menuitem" class=MenuItem testId=`call-menu-${route}`
+        text (callView.active ? "On a call" : "Call")
+
+component CallPanel
+  props
+    dood: Dood
+  inject
+    callAvailable: bool
+    callView: CallView
+    callStart: action
+  view
+    if callView.active and callView.agentId == dood.id
+      CallStatus(panel=true)
+    else if callAvailable
+      button press=callStart disabled=callView.active class=OutlineButton border-radius=999 margin-top=10 testId="call-panel"
+        text "Call"
+
+component CallFace
+  props
+    dood: Dood
+  inject
+    callView: CallView
+  slot
+  view
+    if callView.active and callView.agentId == dood.id
+      column align-items="center" gap=12
+        text `On a call · ${callView.clock}` font-size="0.8125rem" color="ink"
+        do-creature seed=dood.seed colour=dood.color outfit=dood.outfit state=(callView.phase == "speaking" ? "speaking" : callView.phase == "working" ? "working" : callView.phase == "starting" or callView.phase == "connecting" ? "thinking" : "listening") side="112" width=112 height=112 aria-label=`${callNameOf(dood)} on a call` testId="call-face"
+    else
+      children
+
+component CallPanelMood
+  props
+    agentId: string
+    doing: string
+  inject
+    callView: CallView
+  view
+    if not callView.active or callView.agentId != agentId
+      text doing font-size="0.875rem" color="ink.muted" testId="panel-status"
+
+component CallStatus
+  props
+    panel: bool
+  inject
+    callView: CallView
+    callWords: bool
+    callControl: action
+    callToggleWords: action
+  derive lastYou = callView.you != "" ? callView.you : match callView.lines.filter(l => l.who == "you").at(-1) { case some(l) => l.text, case none => "" }
+  derive lastDood = callView.dood != "" ? callView.dood : match callView.lines.filter(l => l.who == "dood").at(-1) { case some(l) => l.text, case none => "" }
+  view
+    column gap=10 align-items="stretch" width="100%" testId=(panel ? "call-panel-status" : "call-card-status")
+      if not panel
+        text `On a call · ${callView.clock}` font-size="0.8125rem" color="ink.on-color"
+      text callView.status role="status" aria-live="polite" color=(panel ? "ink" : "ink.on-color") font-size="0.875rem" testId=(panel ? "call-phase-panel" : "call-phase-card")
+      if callWords
+        column gap=4 background-color=(panel ? "wash" : "transparent") border-radius=12 padding=(panel ? "12px" : "0") text-align="start"
+          if lastYou != ""
+            text `You: ${lastYou}` font-size="0.8125rem" color=(panel ? "ink.muted" : "ink.on-color") overflow-wrap="break-word"
+          text (lastDood != "" ? lastDood : callView.phase == "starting" or callView.phase == "connecting" ? `Calling ${callView.name}…` : `Go ahead. ${callView.name} is listening.`) font-size="0.875rem" overflow-wrap="break-word"
+      row justify-content="center" gap=8
+        CallControl(label=(callView.muted ? "Unmute" : "Mute"), pressed=callView.muted, ending=false, caption=false, panel=panel, act=callControl("mute"), testId=(panel ? "call-mute-panel" : "call-mute-card"))
+        CallControl(label="End", pressed=false, ending=true, caption=false, panel=panel, act=callControl("end"), testId=(panel ? "call-end-panel" : "call-end-card"))
+        if panel
+          CallControl(label=(callWords ? "Hide words" : "Show words"), pressed=callWords, ending=false, caption=true, panel=true, act=callToggleWords, testId="call-words")
+
+component CallControl
+  props
+    label: string
+    pressed: bool
+    ending: bool
+    caption: bool
+    panel: bool
+    act: action
+    testId: string
+  view
+    button press=act aria-label=label aria-pressed=pressed display="flex" flex-direction="column" align-items="center" gap=6 min-width=64 flex=(panel ? "0 0 auto" : "1") padding=0 border="none" background-color="transparent" color="ink" testId=testId
+      column align-items="center" justify-content="center" width=(ending ? 60 : 44) height=44 border-radius=999 background-color=(ending ? "danger" : pressed and not caption ? "ink" : "wash") color=(ending or pressed and not caption ? "canvas" : "ink")
+        if caption
+          text "CC" aria-hidden=true font-size="0.8125rem" font-weight=600
+        else
+          image (ending ? "symbol:icon.phone" : "symbol:icon.microphone") font-size="1.25rem" aria-hidden=true
+      if panel
+        text label font-size="0.6875rem" color="ink.muted"
+
+component CallWindow
+  inject
+    session: Session
+    doodList: Dood[]
+    callView: CallView
+    callInPanel: bool
+    callOffer: CallOffer
+    callAnswer: string
+    callDirective: string
+    callSerial: number
+    callAgent: string
+    callName: string
+    callChat: string
+    callControl: action
+    callMessage: action
+  derive callDood = first(doodList.filter(d => d.id == callView.agentId))
+  view
+    column position="absolute" top=68 right=16 z-index=40 width="18rem" max-width="calc(100vw - 32px)" box-sizing="border-box" gap=8 padding=(callView.active and not callInPanel or callView.problem != "" ? "12px" : "0") border-radius=16 background-color=(callView.active ? "color-mix(in oklch, var(--primary) 20%, var(--shade))" : "popover") color=(callView.active ? "ink.on-color" : "ink") box-shadow=(callView.active and not callInPanel or callView.problem != "" ? "0 0 0 1px var(--hairline), 0 2px 6px rgb(0 0 0 / 0.12)" : "none")
+      if callView.active and not callInPanel
+        link href=`/a/${callView.agentId}/c/${callView.chatId}` display="flex" align-items="center" gap=10 font-weight=500 color="ink.on-color" text-decoration="none" testId="call-back"
+          match callDood
+            case some(d)
+              do-creature seed=d.seed colour=d.color outfit=d.outfit state=(callView.phase == "speaking" ? "speaking" : "listening") side="48" width=48 height=48 aria-label=d.name
+            case none
+              column width=48 height=48
+          text callView.name flex=1 min-width=0 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+        CallStatus(panel=false)
+      do-call address=callOffer.address owner=session.owner response=callAnswer directive=callDirective serial=`${callSerial}` agent=callAgent dood-name=callName chat=callChat message=callMessage width="100%" height=(callView.active and not callInPanel ? 24 : 0) aria-label="Call audio levels" testId="call-media"
+      if callView.problem != ""
+        row gap=8 align-items="start" role="alert" testId="call-problem"
+          text callView.problem flex=1 min-width=0 font-size="0.875rem" overflow-wrap="break-word" testId="call-problem-words"
+          button press=callControl("clear") class=OutlineButton testId="call-problem-ok"
+            text "OK"
+
+component CallInChat
+  props
+    agentId: string
+    chatId: string
+  inject
+    callView: CallView
+  view
+    if callView.active and callView.agentId == agentId and callView.chatId == chatId
+      column class=Card border-radius=16 padding=16 margin="12px 16px" border="1px solid var(--primary)" box-shadow="0 0 0 4px color-mix(in srgb, var(--primary) 14%, transparent)" gap=8 role="region" aria-label="The call" testId="call-live"
+        text `On a call with ${callView.name} · ${callView.clock}` font-size="0.875rem" font-weight=500 overflow-wrap="break-word"
+        for l in callView.lines.slice(-8) key=l.id
+          row gap=8 font-size="0.875rem"
+            text (l.who == "you" ? "You" : callView.name) color="ink.muted" width="4rem" flex-shrink=0 min-width=0 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+            text l.text flex=1 min-width=0 overflow-wrap="break-word"
+        // What is being said now, set as the lines above it are.
+        if callView.you != ""
+          row gap=8 font-size="0.875rem"
+            text "You" color="ink.muted" width="4rem" flex-shrink=0
+            text callView.you flex=1 min-width=0 overflow-wrap="break-word"
+        if callView.dood != ""
+          row gap=8 font-size="0.875rem"
+            text callView.name color="ink.muted" width="4rem" flex-shrink=0 min-width=0 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+            text callView.dood flex=1 min-width=0 overflow-wrap="break-word"
+        for w in callView.works.slice(-5) key=w.id
+          if not w.done
+            text (w.step != "" ? w.step : `Handed to ${callView.name}`) role="status" font-size="0.8125rem" color="ink.muted" overflow-wrap="break-word"
+    else if callView.wrapAgentId == agentId and callView.wrapChatId == chatId and callView.wrapCallId != ""
+      text "The call is over. Writing it up…" role="status" font-size="0.875rem" color="ink.muted" padding="12px 16px" testId="call-writing"
+
+component CallHistory
+  props
+    block: Block
+    time: string
+    name: string
+    agentId: string
+  state open = false
+  action toggle
+    open = not open
+  view
+    column border-radius=16 overflow="hidden" class=Card role="region" aria-label="A call" testId="call-record"
+      row gap=10 align-items="center" padding="10px 16px" font-size="0.875rem"
+        image "symbol:icon.phone" color="ink.muted" aria-hidden=true
+        text `Call with ${name}` font-weight=500 flex=1 min-width=0 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+        text (time == "" ? block.text : `${block.text} · ${time}`) margin-left="auto" font-size="0.8125rem" color="ink.muted" white-space="nowrap" flex-shrink=0
+      if block.lines.length > 0
+        column gap=4 padding="10px 16px 4px" border-top="1px solid var(--border)" font-size="0.875rem"
+          for l in block.lines key=l
+            row gap=10
+              image "symbol:icon.check" color="ink.muted" aria-hidden=true margin-top=3 font-size="0.875rem"
+              text l min-width=0 overflow-wrap="break-word"
+      if open
+        // The server writes the Dood's lines as "Dood:"; the record names it, as the live card does.
+        text (block.more.startsWith("Dood: ") ? `${name}: ${block.more.slice(6)}` : block.more).replaceAll("\nDood: ", `\n${name}: `) padding="10px 16px 4px" border-top="1px solid var(--border)" font-size="0.875rem" white-space="pre-wrap" overflow-wrap="break-word" testId="call-record-words"
+      row padding="8px 12px 12px" gap=8 flex-wrap="wrap"
+        if block.more == ""
+          text "Nothing was said." font-size="0.8125rem" color="ink.muted" padding="0 4px"
+        else
+          button press=toggle aria-expanded=open class=OutlineButton testId="call-record-toggle"
+            text (open ? "Hide what was said" : "Show what was said")
+        if block.chatId != ""
+          link href=`/a/${agentId}/c/${block.chatId}` class=OutlineButton testId="call-record-chat"
+            text "Open its side chat"
+
+component CallRow
+  props
+    agentId: string
+  inject
+    callView: CallView
+  slot
+  view
+    if callView.active and callView.agentId == agentId
+      text "On a call" font-size="0.75rem" color="ink" testId=`call-row-${agentId}`
+    else
+      children

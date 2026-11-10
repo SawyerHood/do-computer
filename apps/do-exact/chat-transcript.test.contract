@@ -1,0 +1,431 @@
+// A Dood's transcript against Do Computer's own server, with the echo model: a message of the
+// form `/tool <name> <json>` makes it call that tool, and `/fail <error>` makes its reply fail
+// as a provider's would (packages/agent/src/models.ts `echoAnswer`). Each test signs up with an
+// address of its own first, as in chat.test.contract.
+
+test "what the Dood does on its own is one line while it does it, and its answer is what it said"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "transcript-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  expect text "hello-title" == "Say hello"
+  type "composer" "/tool bash {\"command\":\"sleep 3; echo rested\"}"
+  tap "send"
+  clock data
+  clock +1500 real
+  expect text "activity" == "Running: sleep 3; echo rested…"
+  clock +4000 real
+  expect tree missing "activity"
+  expect state chat.busy == false
+  // The command is not in the transcript: the user's message, and what the Dood said of it.
+  expect state chat.messages.length == 2
+  expect state chat.messages.1 .role == "assistant"
+  expect state chat.messages.1 .blocks.0 .kind == "text"
+  expect state chat.messages.1 .blocks.0 .text == "The tool returned:\n\nrested\n"
+
+test "a file the Dood sends is the library's card, which opens it beside the chat"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "transcript-2@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "/tool bash {\"command\":\"printf hello > notes.md\"}"
+  tap "send"
+  clock data
+  clock +3000 real
+  type "composer" "/tool send {\"text\":\"Here are the notes.\",\"files\":[\"notes.md\"]}"
+  tap "send"
+  clock data
+  clock +3000 real
+  expect tree has "file-notes.md"
+  tap "Open notes.md"
+  clock data
+  clock settle
+  clock data
+  expect tree has "library-document-panel"
+  tap "library-panel-close"
+  clock settle
+  expect tree missing "library-document-panel"
+
+test "a visual the Dood draws is the page itself, in a frame of its own"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "transcript-3@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "/tool visual {\"title\":\"Budget\",\"html\":\"<!doctype html><html><head><title>Budget</title></head><body><h2>Budget for two</h2></body></html>\"}"
+  tap "send"
+  clock data
+  clock +4000 real
+  expect tree has "visual-budget.html"
+  expect tree has "visual-frame-budget.html"
+  expect tree has "visual-open-budget.html"
+
+test "a reply that fails is said plainly, with the provider's words behind Details, and Try again asks again"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "transcript-4@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "/fail something odd happened"
+  tap "send"
+  clock data
+  clock +3000 real
+  expect state chat.messages.1 .status == "error"
+  expect state chat.messages.1 .errorTitle == "Something went wrong generating this reply."
+  expect state chat.messages.1 .errorHint == "Something odd happened."
+  expect tree has "try-again"
+  tap "try-again"
+  clock data
+  clock +3000 real
+  expect state chat.messages.2 .blocks.0 .text == "Try again"
+  expect tree missing "try-again"
+
+test "a failure that trying again would not mend offers no Try again"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "transcript-5@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "/fail 401 invalid api key"
+  tap "send"
+  clock data
+  clock +3000 real
+  expect state chat.messages.1 .errorTitle == "The model key was refused."
+  expect tree missing "try-again"
+
+test "the Dood asks leave before it changes its settings, and is told the answer"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "transcript-6@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "/tool settings {\"action\":\"set\",\"timezone\":\"Europe/Lisbon\"}"
+  tap "send"
+  clock data
+  clock +3000 real
+  clock data
+  expect text "approval-title-0" == "Your Dood wants to: Change its settings"
+  expect text "approval-detail-0" == "timezone: Europe/Lisbon"
+  expect tree has "allow-always-0"
+  tap "allow-once-0"
+  clock data
+  clock +2000 real
+  clock data
+  expect tree missing "approvals"
+  expect tree has "notice-approval"
+
+test "a secret the Dood asks for is typed in a form, checked, and never shown in the chat"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "transcript-7@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "/tool request_secret {\"secrets\":[{\"name\":\"WEATHER_KEY\",\"description\":\"From the weather service\"}],\"purpose\":\"To check the forecast\"}"
+  tap "send"
+  clock data
+  clock +4000 real
+  clock data
+  expect text "secret-title-0" == "Your Dood asks for a secret"
+  expect text "secret-purpose-0" == "“To check the forecast”"
+  expect text "secret-field-note-WEATHER_KEY" == "From the weather service"
+  tap "secret-save-0"
+  expect text "secret-error-0" == "Type a value for WEATHER_KEY."
+  type "secret-field-WEATHER_KEY" "sunny-123"
+  tap "secret-show-WEATHER_KEY"
+  tap "secret-save-0"
+  clock data
+  clock +2000 real
+  clock data
+  expect tree missing "secret-asks"
+  expect tree has "notice-secret"
+
+test "a secret can be declined, and the Dood is told"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "transcript-8@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "/tool request_secret {\"secrets\":[{\"name\":\"BANK_PIN\"},{\"name\":\"BANK_USER\"}]}"
+  tap "send"
+  clock data
+  clock +4000 real
+  clock data
+  expect text "secret-title-0" == "Your Dood asks for 2 secrets"
+  tap "secret-decline-0"
+  clock data
+  clock +2000 real
+  clock data
+  expect tree missing "secret-asks"
+  expect text "notice-text-secret" == "Ada chose not to give BANK_PIN, BANK_USER for /workspace/.env"
+
+test "a sub-agent is a way into its chat, which says whose it is, can be stopped, and leads back"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "transcript-9@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "/tool subagent {\"action\":\"start\",\"title\":\"Slow job\",\"task\":\"/tool bash {\\\"command\\\":\\\"sleep 30\\\"}\"}"
+  tap "send"
+  clock data
+  clock +4000 real
+  clock data
+  expect tree has "subagent-Slow job"
+  tap "subagent-Slow job"
+  clock data
+  clock settle
+  clock data
+  expect state onRoute == "chat"
+  expect text "subagent-bar-chat-title" == "Slow job"
+  expect text "subagent-bar-chat-status" == "Working"
+  expect tree has "chat-foot-chat"
+  expect tree missing "composer"
+  tap "subagent-bar-chat-stop"
+  clock data
+  clock +3000 real
+  clock data
+  expect text "subagent-bar-chat-status" == "Stopped"
+  tap "subagent-bar-chat-back"
+  clock data
+  clock settle
+  clock data
+  expect tree has "composer"
+  expect tree has "notice-subagent"
+
+test "a message to another Dood leads to their conversation, which the two of them write in"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "transcript-10@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "/tool set_identity {\"name\":\"Bramble\"}"
+  tap "send"
+  clock data
+  clock +3000 real
+  back
+  clock settle
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "/tool agents {\"action\":\"message\",\"to\":\"bramble\",\"message\":\"When is the launch?\"}"
+  tap "send"
+  clock data
+  clock +8000 real
+  clock data
+  expect tree has "agent-chip-Bramble"
+  expect tree has "notice-agent"
+  tap "agent-chip-Bramble"
+  clock data
+  clock settle
+  clock data
+  expect state onRoute == "chat"
+  expect tree has "thread-bar-chat"
+  expect tree has "chat-foot-chat"
+  expect tree missing "composer"
+  tap "thread-bar-chat-back"
+  clock data
+  clock settle
+  clock data
+  expect tree has "composer"
+
+test "a message sent while the Dood works waits as Sending, then says it was delivered"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "transcript-11@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "/tool bash {\"command\":\"sleep 4\"}"
+  tap "send"
+  clock data
+  clock +1500 real
+  type "composer" "And one more thing"
+  tap "send"
+  clock data
+  clock +500 real
+  expect tree has "sending"
+  clock +5000 real
+  clock data
+  expect tree missing "sending"
+
+test "away from the newest message, a button brings the reader back to it"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "transcript-12@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "One"
+  tap "send"
+  clock data
+  clock +2500 real
+  type "composer" "Two"
+  tap "send"
+  clock data
+  clock +2500 real
+  type "composer" "Three"
+  tap "send"
+  clock data
+  clock +2500 real
+  type "composer" "Four"
+  tap "send"
+  clock data
+  clock +2500 real
+  type "composer" "Five"
+  tap "send"
+  clock data
+  clock +2500 real
+  type "composer" "Six"
+  tap "send"
+  clock data
+  clock +2500 real
+  expect tree missing "to-latest"
+  tap "transcript" wheel 0 -3000
+  clock +500 real
+  expect state following == false
+  expect tree has "to-latest"
+  tap "to-latest"
+  clock +1500 real
+  expect state following == true
+  expect tree missing "to-latest"
+
+test "something the Dood pins is a card that can take the pin off, and put it back as it was"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "transcript-14@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "/tool bash {\"command\":\"printf hello > board.md\"}"
+  tap "send"
+  clock data
+  clock +3000 real
+  type "composer" "/tool send {\"text\":\"The board.\",\"files\":[\"board.md\"]}"
+  tap "send"
+  clock data
+  clock +3000 real
+  type "composer" "/tool pin {\"action\":\"pin\",\"path\":\"board.md\",\"title\":\"Launch board\"}"
+  tap "send"
+  clock data
+  clock +3000 real
+  clock data
+  expect text "pin-words-Launch board" == "Your Dood pinned Launch board"
+  tap "unpin-Launch board"
+  clock data
+  clock +1000 real
+  clock data
+  expect text "pin-words-Launch board" == "Launch board is no longer pinned"
+  tap "pin-again-Launch board"
+  clock data
+  clock +1000 real
+  clock data
+  expect tree has "unpin-Launch board"
+
+test "a chat started fresh keeps what came before within reach"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "transcript-15@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "The first thing I said"
+  tap "send"
+  clock data
+  clock +3000 real
+  tap "pages-dood"
+  tap "go-profile-dood"
+  clock data
+  clock settle
+  tap "settings-go-memory-profile"
+  clock data
+  clock settle
+  clock data
+  tap "memory-fresh-start"
+  clock settle
+  tap "memory-fresh-confirm-yes"
+  clock data
+  clock settle
+  expect text "memory-fresh-done" == "Started fresh"
+  tap "pages-memory"
+  tap "go-chat-memory"
+  clock data
+  clock settle
+  clock data
+  clock +1500 real
+  expect tree has "notice-reset"
+  expect tree has "show-earlier"
+  tap "show-earlier"
+  clock data
+  clock +1000 real
+  clock data
+  expect tree missing "show-earlier"
+  expect state transcriptRows.0 .blocks.0 .text == "The first thing I said"

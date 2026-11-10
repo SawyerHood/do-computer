@@ -1,0 +1,37 @@
+// A Dood's chat against Do Computer's own server (server.ts), empty for each run, with no model
+// key, so the Dood answers with the built-in echo model ("You said: …").
+// Every test starts signed out, with empty storage, on a server the whole run shares: it makes
+// an account of its own first, with the same six lines and an address no other test uses
+// (sign-in.test.contract tests the sign-in itself).
+
+test "a Dood is hatched, answers what is said to it, and its chat is there after a reload"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "chat-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  expect state session.signedIn == true
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  expect state doods.doods.length == 1
+  expect tree has "composer"
+  expect disabled "send"
+  type "composer" "hello there"
+  tap "send"
+  clock data
+  expect text "composer" == ""
+  clock +3000 real
+  expect state chat.messages.0 .role == "user"
+  expect state chat.messages.0 .blocks.0 .text == "hello there"
+  expect state chat.messages.1 .role == "assistant"
+  expect state chat.busy == false
+  reload
+  clock data
+  clock settle
+  clock data
+  expect state session.signedIn == true
+  expect state chat.messages.length == 2
+  expect state chat.messages.0 .blocks.0 .text == "hello there"

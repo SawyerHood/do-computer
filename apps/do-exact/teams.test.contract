@@ -1,0 +1,584 @@
+// Each account belongs to this test only. Invitations use two accounts in one real server.
+test "a team is created, renamed, folded, and deleted with confirmations"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Team Owner"
+  type "sign-email" "teams-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-team"
+  clock settle
+  expect disabled "team-create-submit"
+  type "team-name" "Studio"
+  tap "team-color-plum"
+  tap "team-create-submit"
+  clock data
+  tap "team-created-go"
+  clock settle
+  clock data
+  expect state onRoute == "workspace"
+  expect text "workspace-home-name" == "Studio"
+  expect tree has "workspace-empty"
+  tap "workspace-home-settings"
+  clock settle
+  clock data
+  tap "team-rename-open-people"
+  type "team-rename-people" "Studio North"
+  tap "team-save-people"
+  clock data
+  expect text "team-title-people" == "Studio North"
+  tap "Collapse Studio North"
+  reload
+  clock data
+  expect state teamFolded.length == 1
+  tap "Expand Studio North"
+  tap "team-delete-people"
+  clock settle
+  tap "team-delete-cancel-people"
+  expect text "team-title-people" == "Studio North"
+  tap "team-delete-people"
+  clock settle
+  tap "team-delete-confirm-people"
+  clock data
+  clock settle
+  expect state onRoute == "doods"
+  expect state teamList.0.kind == "personal"
+
+test "a Dood is brought into a team, renamed, moved back, and deleted from its profile"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Dood Owner"
+  type "sign-email" "teams-2@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  tap "new-team"
+  clock settle
+  type "team-name" "Garden"
+  type "Bring New Dood" "true"
+  tap "team-create-submit"
+  clock data
+  tap "team-created-go"
+  clock settle
+  clock data
+  expect state doodList.0.name == ""
+  tap "Garden: workspace menu"
+  tap "People"
+  clock data
+  clock settle
+  tap "team-delete-people"
+  clock settle
+  tap "team-delete-confirm-people"
+  clock data
+  expect text "team-error-people" == "Move or delete the team's Doods first."
+  reload
+  clock data
+  tap "New Dood's pages and actions"
+  tap "New Dood: Settings"
+  clock data
+  clock settle
+  tap "settings-go-profile-settings"
+  clock data
+  clock settle
+  clock data
+  type "profile-name" "Pico"
+  tap "dood-save"
+  clock data
+  clock settle
+  expect state doodList.0.name == "Pico"
+  tap "profile-move-to"
+  tap "Move to Personal"
+  tap "profile-move"
+  clock data
+  clock settle
+  clock data
+  expect tree has "profile-move-to"
+  tap "profile-delete-open"
+  expect disabled "profile-delete-confirm"
+  type "profile-delete-typed" "Pico"
+  tap "profile-delete-confirm"
+  clock data
+  clock settle
+  expect state doodList == []
+
+test "an invitation can be previewed signed out, accepted by a new account, and left"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "teams-3-owner@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-team"
+  clock settle
+  type "team-name" "Workshop"
+  tap "team-create-submit"
+  clock data
+  tap "team-created-go"
+  clock settle
+  clock data
+  tap "workspace-invite"
+  clock settle
+  type "team-invite-who" "teams-3-member@example.com"
+  type "team-invite-note" "Come make things"
+  tap "team-invite-submit"
+  clock data
+  tap "View invitation"
+  clock settle
+  clock data
+  expect text "team-preview-title" == "Ada invited you to Workshop"
+  tap "team-invite-switch-account"
+  clock data
+  expect tree has "team-invite-sign-up"
+  tap "team-invite-sign-up"
+  type "sign-name" "Grace"
+  type "sign-email" "teams-3-member@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  expect tree has "team-accept"
+  tap "team-accept"
+  clock data
+  clock settle
+  expect state onRoute == "workspace"
+  tap "workspace-home-people"
+  clock data
+  clock settle
+  expect tree missing "team-invite-open-people"
+  expect tree missing "team-rename-open-people"
+  expect tree missing "team-delete-people"
+  tap "Leave Workshop"
+  clock settle
+  tap "Confirm leaving team"
+  clock data
+  clock settle
+  expect state onRoute == "doods"
+
+test "an invalid invitation explains why it cannot be used"
+  at "/invite/no-such-invitation"
+  expect tree has "team-preview-invalid"
+
+test "email and GitHub invitations can be renewed and withdrawn"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Inviter"
+  type "sign-email" "teams-4@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-team"
+  clock settle
+  type "team-name" "Invitations"
+  type "team-create-who" "pending@example.com bad@@name"
+  tap "team-create-submit"
+  clock data
+  expect state teamMade.problems.length == 1
+  tap "Copy link"
+  clock settle
+  expect tree has "team-link-copied"
+  tap "team-created-go"
+  clock settle
+  clock data
+  tap "workspace-home-people"
+  clock settle
+  clock data
+  tap "Send again"
+  clock data
+  expect state teamChanged.op == "renew"
+  tap "Withdraw"
+  clock data
+  expect state teamInvited == []
+  tap "team-invite-open-people"
+  clock settle
+  type "team-invite-who" "@octocat"
+  tap "team-invite-role"
+  tap "team-invite-role-admin"
+  tap "team-invite-submit"
+  clock data
+  tap "team-invite-done"
+  clock data
+  expect state teamInvited.0.role == "admin"
+  tap "New link"
+  clock data
+  tap "Withdraw"
+  clock data
+  expect state teamInvited == []
+
+test "dragging a Dood persists its order and Sort by latest gives that up"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Arranger"
+  type "sign-email" "teams-order@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  tap "pages-dood"
+  tap "go-profile-dood"
+  clock data
+  clock settle
+  clock data
+  type "profile-name" "Pico"
+  tap "dood-save"
+  clock data
+  clock settle
+  tap "new-dood"
+  clock data
+  clock settle
+  tap "pages-dood"
+  tap "go-profile-dood"
+  clock data
+  clock settle
+  clock data
+  type "profile-name" "Maple"
+  tap "dood-save"
+  clock data
+  clock settle
+  expect state doodList.0.name == "Maple"
+  tap "Drag Pico to reorder" drag 0 -80 mouse
+  clock data
+  clock settle
+  expect state doodList.0.name == "Pico"
+  reload
+  clock data
+  expect state doodList.0.name == "Pico"
+  tap "workspace-menu-personal"
+  tap "workspace-sort-personal"
+  clock data
+  expect state doodList.0.name == "Maple"
+  tap "Pico's pages and actions"
+  tap "Move Pico up"
+  clock data
+  expect state doodList.0.name == "Pico"
+  tap "Pico's pages and actions"
+  tap "Move Pico down"
+  clock data
+  expect state doodList.0.name == "Maple"
+  resize 390x844
+  back
+  clock settle
+  back
+  clock settle
+  tap "Pico's pages and actions"
+  tap "Move Pico up"
+  clock data
+  expect state doodList.0.name == "Pico"
+  reload
+  clock data
+  expect state doodList.0.name == "Pico"
+
+test "the owner can promote, demote, and hand the team to another member"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "teams-roles-owner@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-team"
+  clock settle
+  type "team-name" "Roles"
+  tap "team-create-submit"
+  clock data
+  tap "team-created-go"
+  clock settle
+  clock data
+  tap "workspace-invite"
+  clock settle
+  type "team-invite-who" "teams-roles-member@example.com"
+  type "team-invite-note" "Come make things"
+  tap "team-invite-submit"
+  clock data
+  tap "View invitation"
+  clock settle
+  clock data
+  expect text "team-preview-title" == "Ada invited you to Roles"
+  tap "team-invite-switch-account"
+  clock data
+  expect tree has "team-invite-sign-up"
+  tap "team-invite-sign-up"
+  type "sign-name" "Grace"
+  type "sign-email" "teams-roles-member@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  expect tree has "team-accept"
+  tap "team-accept"
+  clock data
+  clock settle
+  expect state onRoute == "workspace"
+  tap "account"
+  tap "sign-out"
+  clock data
+  type "sign-email" "teams-roles-owner@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  clock settle
+  reload
+  clock data
+  tap "Roles: workspace menu"
+  tap "People"
+  clock settle
+  clock data
+  tap "Role of Grace"
+  tap "Role of Grace: Admin"
+  clock data
+  expect state teamList.1.members.1.role == "admin"
+  tap "Role of Grace"
+  tap "Role of Grace: Member"
+  clock data
+  expect state teamList.1.members.1.role == "member"
+  tap "Role of Grace"
+  tap "Role of Grace: Owner"
+  clock settle
+  tap "Confirm handing team to Grace"
+  clock data
+  expect state teamList.1.role == "admin"
+  expect tree missing "team-delete-people"
+
+test "an owner can remove a member after they join"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "teams-remove-owner@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-team"
+  clock settle
+  type "team-name" "Workshop"
+  tap "team-create-submit"
+  clock data
+  tap "team-created-go"
+  clock settle
+  clock data
+  tap "workspace-invite"
+  clock settle
+  type "team-invite-who" "teams-remove-member@example.com"
+  type "team-invite-note" "Come make things"
+  tap "team-invite-submit"
+  clock data
+  tap "View invitation"
+  clock settle
+  clock data
+  expect text "team-preview-title" == "Ada invited you to Workshop"
+  tap "team-invite-switch-account"
+  clock data
+  expect tree has "team-invite-sign-up"
+  tap "team-invite-sign-up"
+  type "sign-name" "Grace"
+  type "sign-email" "teams-remove-member@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  expect tree has "team-accept"
+  tap "team-accept"
+  clock data
+  clock settle
+  expect state onRoute == "workspace"
+  tap "workspace-home-people"
+  clock data
+  clock settle
+  expect tree missing "team-invite-open-people"
+  expect tree missing "team-rename-open-people"
+  expect tree missing "team-delete-people"
+
+  tap "account"
+  tap "sign-out"
+  clock data
+  type "sign-email" "teams-remove-owner@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  clock settle
+  reload
+  clock data
+  tap "Workshop: workspace menu"
+  tap "People"
+  clock data
+  clock settle
+  tap "Remove Grace"
+  clock settle
+  tap "Confirm removing Grace"
+  clock data
+  expect state teamList.1.members.length == 1
+
+test "Not now leaves a public invitation without spending its link"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "teams-dismiss-owner@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-team"
+  clock settle
+  type "team-name" "Workshop"
+  tap "team-create-submit"
+  clock data
+  tap "team-created-go"
+  clock settle
+  clock data
+  tap "workspace-invite"
+  clock settle
+  type "team-invite-who" "teams-dismiss-member@example.com"
+  type "team-invite-note" "Come make things"
+  tap "team-invite-submit"
+  clock data
+  tap "View invitation"
+  clock settle
+  clock data
+  expect text "team-preview-title" == "Ada invited you to Workshop"
+  tap "team-invite-switch-account"
+  clock data
+  expect tree has "team-invite-sign-up"
+  tap "team-invite-sign-up"
+  type "sign-name" "Grace"
+  type "sign-email" "teams-dismiss-member@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  expect tree has "team-accept"
+
+  expect state teamInbox == []
+  tap "team-decline"
+  clock data
+  clock settle
+  expect state onRoute == "doods"
+  expect state teamInbox == []
+
+
+test "New team in account settings joins the workspace section list"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Settings Owner"
+  type "sign-email" "teams-settings@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "account"
+  tap "account-settings"
+  clock data
+  clock settle
+  tap "settings-go-workspacesList-account"
+  clock data
+  clock settle
+  tap "workspaces-new-team"
+  clock settle
+  type "team-name" "Settings Studio"
+  tap "team-create-submit"
+  clock data
+  tap "team-created-go"
+  clock data
+  clock settle
+  tap "workspace-home-people"
+  clock data
+  clock settle
+  expect tree has "settings-go-workspaceModels-people"
+  expect tree has "settings-go-workspaceComputers-people"
+  tap "settings-up-people"
+  clock data
+  clock settle
+  expect state onRoute == "workspacesList"
+  expect state workspaceList.length == 2
+  resize 390x844
+  tap "Settings Studio: workspace settings"
+  clock data
+  clock settle
+  expect state onRoute == "workspaceSettings"
+  expect tree has "settings-nav-people"
+  tap "settings-go-people-people"
+  clock data
+  clock settle
+  expect tree has "team-title-people"
+
+test "a team Dood hatches from its workspace plus, and a quick New team keeps the first run out of its dialog"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Hatch Owner"
+  type "sign-email" "teams-hatch@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-team"
+  clock +1000
+  expect state welcomeOn == false
+  type "team-name" "Hatch Studio"
+  tap "team-create-submit"
+  clock data
+  tap "team-created-go"
+  clock data
+  clock settle
+  tap "New Dood in Hatch Studio"
+  clock data
+  clock settle
+  clock data
+  expect state onRoute == "dood"
+  expect state welcomeOn == false
+  expect state openDood.hatched == false
+  clock +1700
+  expect state liveFaces.0 .hatching == true
+  // Start another while this one's animation is still playing. The new one must hatch too.
+  tap "New Dood in Hatch Studio"
+  clock data
+  clock settle
+  clock +1700
+  clock data
+  expect state liveFaces.0 .hatching == true
+  expect state liveFaces.1 .hatched == true
+  tap "panel-toggle-dood"
+  expect text "panel-status" == "About to hatch"
+  tap "panel-face"
+  clock data
+  expect state openDood.hatched == true
+  expect text "panel-status" == "Ready"
+  reload
+  clock data
+  clock settle
+  clock data
+  expect state openDood.hatched == true
+  expect state workspaceList.length == 2
+
+test "in a team, its presence socket says who is here and where, and the panel says who has the chat open"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Here Owner"
+  type "sign-email" "teams-here@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-team"
+  clock +1000
+  type "team-name" "Here Studio"
+  tap "team-create-submit"
+  clock data
+  tap "team-created-go"
+  clock data
+  clock settle
+  tap "New Dood in Here Studio"
+  clock data
+  clock settle
+  clock data
+  clock +500 real
+  clock data
+  expect state herePlaces.length == 1
+  expect state herePlaces.0 .typing == false
+  // Only someone else is shown with a Dood; the person themselves is in the panel's Here now.
+  expect state hereOthers.length == 0
+  tap "panel-toggle-dood"
+  expect tree has "panel-here"
+  expect state hereInChat.length == 1
+  type "composer" "Hello th"
+  clock +500 real
+  clock data
+  expect state herePlaces.0 .typing == true
+  clock +4500 real
+  clock data
+  expect state herePlaces.0 .typing == false

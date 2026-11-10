@@ -21,6 +21,9 @@ export function limitedAs(request: Request): string | undefined {
   if (address === null || address === "") return undefined
   const { pathname } = new URL(request.url)
   if (pathname === "/api/computers/pair/start") return `pair:${address}`
+  // Asked by someone signed in, as a client app opens its sockets (socket-tickets.ts): counted
+  // with signing in, it would use up the tries of a person who opens Doods quickly.
+  if (pathname === "/api/auth/socket/tickets") return undefined
   if (pathname.startsWith("/api/auth/")) return `auth:${address}`
   // A Dood is made, stroked and fed by people with no account. Strokes are told every few
   // seconds for as long as someone is stroking, so they are counted apart from the rest.

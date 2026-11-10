@@ -1,0 +1,11 @@
+// A document's Markdown, drawn as a chat's rich messages are (`do-markdown`, views/markdown.contract):
+// its links to the library's files and its pictures are resolved against the listing, and pressing
+// one opens that file, on the library's page or beside the chat.
+component LibraryMarkdown
+  props
+    text: string
+  inject
+    libraryLinks: string
+    libraryMarkdownSaid: action
+  view
+    do-markdown text=text variant="doc" streaming="false" files=libraryLinks message=libraryMarkdownSaid min-width=0 max-width="100%" align-self="stretch" aria-label="Document" testId="library-markdown"

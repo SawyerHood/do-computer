@@ -1,6 +1,8 @@
 packages:
   - "apps/*"
   - "packages/*"
+  # An Exact app, built with Bun and Cargo (apps/do-exact/README.md): no part of this workspace.
+  - "!apps/do-exact"
 
 # pi 1.4.0 was published on 2026-10-21; let it through the release-age gate.
 minimumReleaseAgeExclude:

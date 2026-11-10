@@ -1,0 +1,52 @@
+use Page, Dood from "./shapes.contract"
+use TeamInfo, TeamTile, TeamHint, teamOf from "./teams.contract"
+use PrimaryButton, IconButton, Screen from "./styles.contract"
+
+component WorkspaceHomeScreen
+  props
+    page: Page
+  inject
+    teamList: TeamInfo[]
+    doodList: Dood[]
+    wide: bool
+    back: action
+    hatch: action
+    hatching: bool
+    hatchError: string
+    teamInvite: action
+  derive workspace = teamOf(teamList, page.workspaceId)
+  derive doods = doodList.filter(d => d.workspaceId == page.workspaceId)
+  view
+    column navigationKey=page.key navigationScroll=`scroll-${page.key}` position="absolute" inset=0 class=Screen testId="screen-workspace"
+      header appearance="none" display="flex" align-items="center" gap=6 padding="6px 10px" min-height=52 flex-shrink=0
+        if not wide
+          button press=back aria-label="Your Doods" class=IconButton min-width="2.25rem" min-height="2.25rem" border-radius=999 box-shadow="0 0 0 1px var(--hairline)" testId="back-workspace"
+            image "symbol:icon.sidebar"
+        text workspace.name role="heading" font-size="0.9375rem" font-weight=600 padding="0 4px" testId="title-workspace"
+      scroll id=`scroll-${page.key}` flex=1 min-height=0
+        column min-height="100%" padding=32 box-sizing="border-box" align-items="center" justify-content="center"
+          column gap=16 align-items="center" text-align="center" max-width="26rem" width="100%"
+            TeamTile(name=workspace.name, color=workspace.color, size=56)
+            text workspace.name role="heading" font-size="1.25rem" font-weight=600 testId="workspace-home-name"
+            text `${workspace.members.length} ${workspace.members.length == 1 ? "person" : "people"} · ${doods.length} ${doods.length == 1 ? "Dood" : "Doods"}` class=TeamHint
+            if doods.length == 0
+              text "This team has no Doods yet. Everyone in it can use the ones made here, and read their chats." class=TeamHint testId="workspace-empty"
+            else
+              for d in doods key=d.id
+                link href=path("dood", d.id) testId=`workspace-dood-${d.id}` color="ink"
+                  text (d.name == "" ? "New Dood" : d.name)
+            row gap=8 flex-direction=(wide ? "row" : "column") align-items="center" justify-content="center"
+              button press=hatch(page.workspaceId) disabled=hatching class=PrimaryButton testId="workspace-new-dood"
+                row gap=6 align-items="center" justify-content="center"
+                  image "symbol:icon.plus" width="1rem" height="1rem"
+                  text (hatching ? "Making a Dood…" : "New Dood for the team")
+              if workspace.role == "owner" or workspace.role == "admin"
+                button press=teamInvite(page.workspaceId) testId="workspace-invite"
+                  text "Invite people"
+            if hatchError != ""
+              text hatchError color="danger" role="alert"
+            row gap=12 flex-wrap="wrap" justify-content="center"
+              link href=path("people", page.workspaceId) color="ink.muted" font-size="0.8125rem" testId="workspace-home-people"
+                text "People"
+              link href=path("workspaceSettings", page.workspaceId) color="ink.muted" font-size="0.8125rem" testId="workspace-home-settings"
+                text "Workspace settings"

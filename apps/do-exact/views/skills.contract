@@ -1,0 +1,133 @@
+use Page from "./shapes.contract"
+use DoodSettings, SettingsCard, OutlineButton, GhostButton from "./settings-kit.contract"
+use Field, PrimaryButton, PageLead from "./styles.contract"
+shape SkillReply
+  owner: string
+  agentId: string
+  ok: bool
+  error: string
+shape Skill
+  name: string
+  description: string
+  source: string
+  enabled: bool
+  files: SkillFile[]
+shape Skills
+  owner: string
+  agentId: string
+  items: Skill[]
+shape SkillFile
+  path: string
+  content: string
+shape SkillRead
+  owner: string
+  agentId: string
+  name: string
+  files: SkillFile[]
+members App
+  state skillUrl = ""
+  state skillOpen = ""
+  resource skills = loadSkills(session.owner, onRoute == "skills" ? openAgentId : "") with pulse.asks.tools as shape Skills else empty()
+  resource skillRead = readSkill(session.owner, onRoute == "skills" ? openAgentId : "", skillOpen) as shape SkillRead else empty()
+  mutation skillChanged as shape SkillReply refreshes skills, skillRead
+  mutation skillInstalled as shape SkillReply refreshes skills then afterSkillInstall
+  derive skillItems = skills.owner == session.owner and skills.agentId == openAgentId ? skills.items.map(s => Skill(s, files=(skillRead.owner == session.owner and skillRead.agentId == openAgentId and skillRead.name == s.name and s.name == skillOpen ? skillRead.files : []))) : []
+  derive skillFiles = skillRead.owner == session.owner and skillRead.agentId == openAgentId and skillRead.name == skillOpen ? skillRead.files : []
+  derive skillsLoading = pending(skills)
+  derive skillsFailed = failed(skills)
+  derive skillReading = pending(skillRead)
+  derive skillReadFailed = failed(skillRead)
+  derive skillsBusy = pending(skillChanged) or pending(skillInstalled)
+  derive skillsError = pending(skillChanged) ? "" : match skillChanged { case some(r) => (r.owner == session.owner and r.agentId == openAgentId ? r.error : ""), case none => "" }
+  derive skillInstallError = pending(skillInstalled) ? "" : match skillInstalled { case some(r) => (r.owner == session.owner and r.agentId == openAgentId ? r.error : ""), case none => "" }
+  action editSkillUrl(v: string)
+    skillUrl = v
+  action openSkill(name: string)
+    skillOpen = skillOpen == name ? "" : name
+  action retrySkills
+    refresh skills
+    refresh skillRead
+  action changeSkill(name: string, remove: bool, enabled: bool)
+    if not skillsBusy
+      if remove and skillOpen == name
+        skillOpen = ""
+      send skillChanged = changeSkill(session.owner, openAgentId, name, remove, enabled)
+  action installSkill
+    if not skillsBusy and skillUrl.trim() != ""
+      send skillInstalled = installSkill(session.owner, openAgentId, skillUrl.trim())
+  action afterSkillInstall
+    if skillInstallError == ""
+      skillUrl = ""
+component SkillsScreen
+  props
+    page: Page
+  inject
+    skillItems: Skill[]
+    skillFiles: SkillFile[]
+    skillOpen: string
+    skillUrl: string
+    skillsLoading: bool
+    skillsFailed: bool
+    skillReading: bool
+    skillReadFailed: bool
+    skillsBusy: bool
+    skillsError: string
+    skillInstallError: string
+    editSkillUrl: action
+    openSkill: action
+    retrySkills: action
+    changeSkill: action
+    installSkill: action
+  view
+    DoodSettings(page=page, route="skills", title="Skills", listing=false, lead="Saved instructions your Dood loads when a task calls for them. It writes new ones as it learns; you can also ask it to “save that as a skill”.")
+      column gap=8
+        row gap=8 align-items="start"
+          input value=skillUrl input=editSkillUrl submit=installSkill type="url" aria-label="Skill URL" placeholder="https://github.com/owner/repo/tree/main/skills/name" class=Field flex=1 min-width=0 testId="skill-url"
+          button press=installSkill disabled=(skillsBusy or skillUrl.trim() == "") class=PrimaryButton testId="skill-install"
+            text (skillsBusy ? "Installing…" : "Install")
+        text "A GitHub folder containing a SKILL.md, or a direct link to one. A skill is instructions your Dood will follow, so install only from sources you trust." font-size="0.75rem" color="ink.muted"
+        if skillInstallError != ""
+          text skillInstallError color="danger" role="alert" testId="skill-install-error"
+      if skillsLoading
+        progress aria-label="Loading skills" testId="skills-loading"
+      if skillsFailed
+        text "Could not load skills." color="danger" role="alert" testId="skills-failed"
+        button press=retrySkills testId="skills-retry"
+          text "Try again"
+      for s in skillItems key=s.name
+        column gap=12 padding=20 border-radius=16 background-color="popover" border="1px solid var(--border)" opacity=(s.enabled ? 1 : 0.7) testId=`skill-${s.name}`
+          row gap=12 align-items="start" flex-wrap="wrap"
+            column flex="1 1 12rem" min-width=0 gap=4
+              text s.name role="heading" aria-level=2 font-family="Geist Mono" font-size="0.9375rem" font-weight=600 hyphens="auto"
+              text s.source font-size="0.75rem" color="ink.muted" hyphens="auto"
+            row gap=6 align-items="center"
+              input type="checkbox" role="switch" checked=s.enabled change=changeSkill(s.name, false) disabled=skillsBusy aria-label=`Use ${s.name}` testId=`skill-toggle-${s.name}`
+              text "In use" class=PageLead
+          text s.description font-size="0.875rem"
+          row gap=8 flex-wrap="wrap"
+            button press=openSkill(s.name) class=OutlineButton testId=`skill-read-${s.name}`
+              image (skillOpen == s.name ? "symbol:icon.caret-down" : "symbol:icon.caret-right") aria-hidden=true font-size="0.875rem"
+              text (skillOpen == s.name ? "Hide" : "Read")
+            button press=changeSkill(s.name, true, false) disabled=skillsBusy class=GhostButton margin-left="auto" testId=`skill-delete-${s.name}`
+              image "symbol:icon.trash" aria-hidden=true font-size="0.875rem"
+              text "Delete"
+          if skillOpen == s.name
+            if skillReading
+              progress aria-label="Reading skill"
+            if skillReadFailed
+              text "Could not read this skill." color="danger" role="alert"
+              button press=retrySkills
+                text "Try again"
+            SkillContents(files=s.files)
+      if skillsError != ""
+        text skillsError color="danger" role="alert" testId="skills-error"
+
+component SkillContents
+  props
+    files: SkillFile[]
+  view
+    column gap=12
+      for f in files key=f.path
+        column gap=4
+          text f.path font-family="Geist Mono" font-size="0.75rem" color="ink.muted"
+          text f.content white-space="pre-wrap" hyphens="auto" font-family="Geist Mono" font-size="0.8125rem" testId=`skill-content-${f.path}`

@@ -1,0 +1,55 @@
+test "Back before the debounce still saves the document that was edited"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "library-navigation-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-library-dood"
+  clock data
+  tap "library-new"
+  clock data
+  clock settle
+  clock data
+  tap "library-mode-edit"
+  clock data
+  clock settle
+  clock data
+  type "library-editor" "# Saved across Back"
+  back
+  clock data
+  clock +1000
+  clock data
+  reload
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-library-dood"
+  clock data
+  tap "Open Untitled.md"
+  clock data
+  clock settle
+  clock data
+  expect state libraryContent.text == "# Saved across Back"
+  tap "library-mode-edit"
+  clock data
+  type "library-editor" "# Saved before New"
+  tap "library-new"
+  clock data
+  clock settle
+  clock data
+  expect state libraryFiles.length == 2
+  tap "library-home"
+  clock data
+  tap "Open Untitled.md"
+  clock data
+  clock settle
+  clock data
+  expect state libraryContent.text == "# Saved before New"

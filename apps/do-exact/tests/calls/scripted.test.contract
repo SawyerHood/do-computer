@@ -1,0 +1,52 @@
+// DC_CALLS=on DC_CALLS_SCRIPT=1 ./x test web tests/calls/scripted.test.contract
+test "a scripted voice hands on work, stays across navigation, mutes and leaves a folded record"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "call-scripted@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  type "composer" "The launch is on Friday."
+  tap "send"
+  clock data
+  clock +2500 real
+  clock data
+  expect state callAvailable == true
+  expect tree has "call-composer"
+  tap "call-composer"
+  clock data
+  clock +1500 real
+  clock data
+  expect state callView.active == true
+  expect tree has "call-live"
+  clock +8000 real
+  clock data
+  expect state callView.lines.length == 4
+  expect state callView.lines.0 .text == "What did I say before the call?"
+  expect state callView.lines.1 .text == "You said: What did I say before the call? (No OPENROUTER_API_KEY is configured, so this is the built-in echo model.)"
+  expect state callView.lines.3 .text == "Any time."
+  tap "call-mute-card"
+  clock data
+  expect state callView.muted == true
+  tap "call-mute-card"
+  clock data
+  expect state callView.muted == false
+  tap "pages-dood"
+  tap "go-library-dood"
+  clock data
+  expect state callView.active == true
+  expect tree has "call-card-status"
+  tap "call-end-card"
+  clock data
+  expect state callView.active == false
+  tap "pages-library"
+  tap "go-chat-library"
+  clock data
+  clock +1500 real
+  clock data
+  expect tree has "call-record"
+  expect tree missing "call-live"
+  tap "Show what was said"
+  expect tree has "call-record"

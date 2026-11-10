@@ -1,0 +1,75 @@
+// The shapes more than one area reads. An area's own shapes go in its own file.
+
+// Who is signed in. `owner` is the sign-in's tag (data/api.ts `ownerOf`): every answer that is
+// someone's carries the owner it was asked for, and is shown only while it is this one's.
+shape Session
+  signedIn: bool
+  owner: string
+  userId: string
+  name: string
+  email: string
+  // One or two letters for the face of someone with no picture.
+  initials: string
+
+// What every write answers: whether it went through, and if not, why, in words to show.
+shape Reply
+  ok: bool
+  error: string
+
+// The clock and zone (`exactTime()`), for saying how long ago something was.
+shape Time
+  epochAtZero: number
+  utcOffset: number
+
+// The window, to tell a wide one (the sidebar beside the page) from a phone's.
+shape Viewport
+  width: number
+  height: number
+  prefersReducedMotion: bool
+
+shape Workspace
+  // This person may use saved logins or cards here.
+  secrets: bool
+  id: string
+  name: string
+  // "personal" or "team".
+  kind: string
+  // The workspace's colour, a hex, for its tile.
+  color: string
+  // "owner", "admin" or "member".
+  role: string
+
+shape Workspaces
+  owner: string
+  workspaces: Workspace[]
+
+shape Dood
+  id: string
+  name: string
+  workspaceId: string
+  // The latest thing said to it or by it, one line, with who said it in front where that helps.
+  latest: string
+  // When that was, in ms since the epoch; 0 for nothing yet.
+  latestAt: number
+  working: bool
+  asking: bool
+  // Something came from it that the person has not looked at.
+  unread: bool
+  // Its creature: the seed its features grow from and its colour (a hex).
+  seed: string
+  color: string
+  hatched: bool
+  // What it has on, as the protocol's Outfit in JSON ("{}" for nothing): the creature wears it.
+  outfit: string
+
+// The Doods, in each workspace's order: the one put first by hand, else the latest first.
+shape Doods
+  owner: string
+  doods: Dood[]
+
+// A route's place in the stack and what it is about: what a screen takes to draw itself.
+shape Page
+  // The route entry's id, which its screen's `navigationKey` is.
+  key: string
+  agentId: string
+  workspaceId: string

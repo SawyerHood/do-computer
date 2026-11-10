@@ -1,0 +1,441 @@
+use CallInChat from "./call.contract"
+// A Dood's chat, as the React app's ChatView (apps/web/src/components/chat/chat-view.tsx): the
+// transcript, opened at its newest message and following it, the reply arriving as it is
+// written over the Dood's socket; what came before it; what the Dood waits on someone for;
+// the bar and foot of a chat that is read here and written in elsewhere (a sub-agent's, a
+// conversation with another Dood, a thread in Slack, an old side chat); and the composer. Beside
+// it on a wide window, the Dood's panel. data/chat.ts answers it, data/chat-rows.ts makes its rows.
+use Reply, Dood, Page, Workspace from "./shapes.contract"
+use Screen, Card, OutlineButton, QuietButton, FloatPill, JumpButton from "./styles.contract"
+use DoodHeader, doodOf, nameOf, stateOf from "./shell.contract"
+use DoodFace from "./creature.contract"
+use MessageRow, Working, TranscriptPlaceholder from "./chat-rows.contract"
+use DoodPanel from "./panel.contract"
+use FirstHello from "./welcome.contract"
+use Asks from "./chat-asks.contract"
+use ComposerBox from "./composer.contract"
+use ComposerJob from "./composer-jobs.contract"
+use ThreadRow, ThreadListing from "./threads.contract"
+use LibraryPicture, LibraryPictureViewer from "./library-card.contract"
+use LibraryFile, Library from "./library-shapes.contract"
+use chatHref, Block, Message, Chat, Opened, Earlier, ApprovalAsk, SecretField, SecretAsk, SecretAsks, SignInAsk, SignIns, SignInReply, ComputerAsk, ComputerAsks from "./chat-shapes.contract"
+use EmptyState from "exact:content"
+use HereTyping from "./teams-here.contract"
+
+members App
+  // --- chat ---
+  resource opened = openChat(session.owner, openAgentId) as shape Opened else empty()
+  // The chat on screen: the one a `/c/:chatId` page names, else the open Dood's main chat.
+  derive openChatId = chatEntryId != "" ? chatEntryId : (opened.agentId == openAgentId and opened.owner == session.owner ? opened.chatId : "")
+  resource chat = followChat(session.owner, openAgentId, openChatId) as shape Chat else empty()
+  derive ours = chat.owner == session.owner and chat.agentId == openAgentId and chat.chatId == openChatId and openChatId != ""
+  derive lastId = match chat.messages.at(-1) { case some(m) => m.id, case none => "" }
+
+  // --- chat transcript ---
+  // What changed on the open Dood, counted on the shell's socket of it, asks each of these again.
+  derive asks = pulse.asks
+  // Pages of what came before, asked for by "Show earlier messages", for the chat they were asked in.
+  state earlierPages = 0
+  state earlierOf = ""
+  resource earlier = loadEarlier(session.owner, openAgentId, openChatId, (ours ? chat.firstId : ""), (earlierOf == `${openChatId}:${chat.firstId}` ? earlierPages : 0)) as shape Earlier else empty()
+  resource secretAsks = loadSecretAsks(session.owner, openAgentId) with asks.secrets as shape SecretAsks else empty()
+  resource signIns = loadSignIns(session.owner, openAgentId) with asks.connectors as shape SignIns else empty()
+  resource computerAsks = loadComputerAsks(session.owner, onRoute == "dood" or onRoute == "chat" ? openAgentId : "") with asks.approvals as shape ComputerAsks else empty()
+  mutation computerAnswered as shape Reply refreshes computerAsks
+  mutation retried as shape Reply then toEnd
+  mutation allowed as shape Reply refreshes approvals
+  mutation secretGiven as shape Reply refreshes secretAsks
+  mutation signInAsked as shape SignInReply then goSignIn
+  mutation signInDismissed as shape Reply refreshes signIns
+  // A message that was just delivered says so for a few seconds, then the word goes.
+  state deliveredGone = ""
+  // Whether the reader is at the newest message; away from it, a button brings them back.
+  state atEnd = true
+  // Whether the transcript keeps to its end as it grows: until the reader scrolls up from it.
+  // Rich text (markdown.contract) takes its height a moment after its row is laid out, which the
+  // list's own following does not see, so the chat keeps to the end itself as well.
+  state following = true
+  // The reader has a finger or the pointer on the transcript: what moves it now is them.
+  state readerHolds = false
+  state latestAsked = 0
+  // The chat on screen among the Dood's chats (views/threads.contract): its kind, how it is getting on.
+  derive chatThread = threadOf(threadsListing.chats, openChatId)
+  derive mainChatId = match first(threadsListing.chats.filter(c => c.main)) { case some(c) => c.id, case none => "" }
+  derive earlierRows = earlier.owner == session.owner and earlier.chatId == openChatId and earlier.anchor == chat.firstId ? earlier.messages : []
+  derive hasEarlier = ours and (earlierRows.length > 0 ? earlier.more : chat.midway)
+  derive pendingApprovals = approvals.owner == session.owner and approvals.agentId == openAgentId ? approvals.pending : []
+  derive pendingSecrets = secretAsks.owner == session.owner and secretAsks.agentId == openAgentId ? secretAsks.asks : []
+  derive pendingSignIns = signIns.owner == session.owner and signIns.agentId == openAgentId ? signIns.connectors : []
+  // The library's listing as the chat's pages read it (library.contract's loader): a file card's
+  // view address, a link in a message, whether a visual's file is still there.
+  // Asked again as each message comes: a file the Dood sends or draws is in the library by then,
+  // and the Dood's socket says nothing of the library (its workspace's library socket does).
+  resource chatLibrary = loadLibrary(session.owner, onRoute == "dood" or onRoute == "chat" ? openAgentId : "") with asks.library * 1000 + chat.messages.length as shape Library else empty()
+  derive chatLibraryHere = chatLibrary.owner == session.owner and chatLibrary.agentId == openAgentId
+  derive chatLibraryFiles = chatLibraryHere ? chatLibrary.files : []
+  derive filesBase = chatLibraryHere ? chatLibrary.base : ""
+  derive answerError = pending(allowed) ? "" : match allowed { case some(r) => r.error, case none => "" }
+  derive secretError = pending(secretGiven) ? "" : match secretGiven { case some(r) => r.error, case none => "" }
+  derive signInError = pending(signInAsked) ? "" : match signInAsked { case some(r) => r.error, case none => "" }
+  // The transcript's rows, in one list as a virtualized list takes them: the way to what came
+  // before, what came before, the chat, and the line that says what the Dood is doing.
+  // A command's chip says how its job is getting on (composer-jobs.contract has every job of the
+  // Dood), joined here once rather than in each row.
+  derive liveRows = composerJobList.length == 0 ? chat.messages : chat.messages.map(m => m.blocks.filter(b => b.kind == "command").length == 0 ? m : Message(m, blocks=m.blocks.map(b => b.kind == "command" ? withJob(b, composerJobList) : b)))
+  derive transcriptRows = (hasEarlier ? [markerRow("earlier")] : []).concat(earlierRows).concat(ours ? liveRows : []).concat(ours and chat.activity != "" ? [markerRow("working")] : []).concat((callView.active and callView.agentId == openAgentId and callView.chatId == openChatId or callView.wrapAgentId == openAgentId and callView.wrapChatId == openChatId and callView.wrapCallId != "" and not callRecordWritten) ? [markerRow("call")] : [])
+  derive lastRowId = match transcriptRows.at(-1) { case some(m) => m.id, case none => "" }
+  // What makes the transcript taller: a row more, or the newest one written further.
+  derive chatGrowth = `${transcriptRows.length}:${lastRowId}:${match chat.messages.at(-1) { case some(m) => sum(m.blocks.map(b => b.text.length)), case none => 0 }}:${callView.lines.length}:${callView.you.length}:${callView.dood.length}`
+  derive subagentStatuses = threadsListing.chats.filter(c => c.kind == "subagent").map(c => `${c.id}=${c.status}`)
+  derive chatTeam = match first(workspaceList.filter(w => w.id == openDood.workspaceId and w.kind == "team")) { case some(w) => w.name, case none => "" }
+  derive pendingComputers = computerAsks.owner == session.owner and computerAsks.agentId == openAgentId ? computerAsks.asks : []
+  derive computerError = pending(computerAnswered) ? "" : match computerAnswered { case some(r) => r.error, case none => "" }
+  derive deliveredNow = chat.justDelivered != deliveredGone ? chat.justDelivered : ""
+  // The library's files by id, for a visual whose file is gone, and as Markdown's link targets.
+  derive chatLibraryIds = chatLibraryFiles.map(f => f.id)
+  derive chatLibraryLinks = libraryLinksOf(chatLibraryFiles)
+  // A picture opened from the chat, large (library-card.contract's viewer).
+  state chatPicture = LibraryPicture(id="", name="", url="")
+
+  // A chat whose stream was lost is followed again. When it starts or stops working, the
+  // sidebar's line for it is asked for again.
+  task mend mount
+    every(1000, heal)
+  task turn key=`${chat.agentId}:${chat.busy}`
+    after(300, pull)
+  // Someone else's Dood may ask for a computer of the person's, and nothing tells this page.
+  task computerPoll mount
+    every(15000, pullComputerAsks)
+  task latest key=latestAsked
+    after(600, stickToEnd)
+  task stick key=chatGrowth
+    after(250, stickToEnd)
+  task stickLater key=chatGrowth
+    after(900, stickToEnd)
+  task delivered key=chat.justDelivered
+    after(3000, deliveredLeaves)
+
+  action heal
+    if ours and chat.lost
+      refresh chat
+  action toEnd
+    if lastId != ""
+      scrollIntoView("transcript", lastId, block="end")
+  // Smoothly, and once more when that is done: rich text below may have grown meanwhile.
+  action toLatest
+    if lastRowId != ""
+      following = true
+      scrollIntoView("transcript", lastRowId, block="end", behavior="smooth")
+      latestAsked = latestAsked + 1
+  // There is no running a reply again as such: asking again is what works, so the button asks.
+  action retry
+    if ours and not pending(retried)
+      send retried = sendComposer(chat.agentId, chat.chatId, "Try again", composerAttachments.filter(f => false), false, `x-${lastId}-retry-${time.epochAtZero + performanceNow()}`)
+  action showEarlier
+    let key = `${openChatId}:${chat.firstId}`
+    earlierPages = earlierOf == key ? earlierPages + 1 : 1
+    earlierOf = key
+  action pullComputerAsks
+    if (onRoute == "dood" or onRoute == "chat") and openAgentId != "" and session.signedIn
+      refresh computerAsks
+  action answerComputer(requestId: string, approve: bool)
+    if not pending(computerAnswered)
+      send computerAnswered = answerComputerAsk(requestId, approve)
+  action deliveredLeaves
+    deliveredGone = chat.justDelivered
+  action scrolled(x: number, y: number, e: ScrollEvent)
+    let end = e.scrollHeight - y - e.clientHeight < 48
+    atEnd = end
+    // Only the reader takes it away from the end (a wheel, a drag, a key); a list that moves by
+    // itself as rows are measured and the composer opens keeps following.
+    following = end or (following and not readerHolds)
+  action readerWheel(e: WheelEvent)
+    if e.deltaY < 0
+      following = false
+  action readerDown
+    readerHolds = true
+  action readerUp
+    readerHolds = false
+  action readerKey(k: string)
+    if k == "PageUp" or k == "ArrowUp" or k == "Home"
+      following = false
+  action stickToEnd
+    if following and lastRowId != ""
+      scrollIntoView("transcript", lastRowId, block="end")
+  // Words for the composer from something in the chat (a visual's "Tell …"), with the caret in it.
+  action putInComposer(text: string)
+    editDraft(text)
+    focus("composer")
+  // What a message's Markdown says (views/markdown.contract): a library link opens its file
+  // beside the chat, a picture opens large.
+  action markdownSaid(said: string)
+    if said.startsWith("file:")
+      openChatFile(said.slice(5))
+    else if said.startsWith("image:")
+      showPicture(said.slice(6), "Picture")
+  action openChatFile(idOrPath: string)
+    openLibraryPanel(match first(chatLibraryFiles.filter(f => f.id == idOrPath or f.path == idOrPath)) { case some(f) => f.id, case none => idOrPath })
+  action showPicture(url: string, name: string)
+    chatPicture = LibraryPicture(id=url, name=name, url=url)
+    showModal("library-pictures")
+  action answerApproval(requestId: string, decision: string, typed: string)
+    if not pending(allowed)
+      send allowed = answerApproval(openAgentId, requestId, decision, typed)
+  action giveSecrets(requestId: string, names: string[], values: string[])
+    if not pending(secretGiven)
+      send secretGiven = answerSecret(openAgentId, requestId, names, values)
+  action giveLogin(requestId: string, site: string, username: string, password: string)
+    if not pending(secretGiven)
+      send secretGiven = answerLogin(openAgentId, requestId, site, username, password)
+  action declineSecrets(requestId: string)
+    if not pending(secretGiven)
+      send secretGiven = declineSecret(openAgentId, requestId)
+  action signInTo(connectorId: string)
+    if not pending(signInAsked)
+      send signInAsked = signInConnector(openAgentId, connectorId)
+  // The service is reached by leaving for it; it sends the person back.
+  action goSignIn
+    match signInAsked
+      case some(r)
+        if r.ok and r.url != ""
+          openURL(r.url)
+      case none
+        atEnd = atEnd
+  action notNowSignIn(connectorId: string)
+    if not pending(signInDismissed)
+      send signInDismissed = dismissConnector(openAgentId, connectorId)
+
+fn threadOf(chats: ThreadRow[], id: string): ThreadRow = match first(chats.filter(c => c.id == id)) {
+  case some(c) => c,
+  case none => ThreadRow(id=id, title="", kind="chat", main=true, status="", detail="", url="", parentId="", peerId="", updated=0, peerName="", peerChatId="", slackWhere="", createdAt=0)
+}
+// The library as Markdown takes it for links and pictures: `[{path, id, href}]`, the view address
+// a picture is had from (modules/web/README.md, do-markdown `files`).
+fn libraryLinksOf(files: LibraryFile[]): string = `[${files.map(f => `{"path":${jsonString(f.path)},"id":${jsonString(f.id)},"href":${jsonString(f.url)}}`).join(",")}]`
+fn jsonString(s: string): string = `"${s.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")}"`
+// A row of the transcript that is not a message: "earlier" (the way to what came before) or
+// "working" (what the Dood is doing).
+fn markerRow(role: string): Message = Message(id=`marker-${role}`, role=role, status="", error="", blocks=[], from="", author="", authorId="", time="", spoken=false, answered=false, delivery="", files=[], notSent="", failures=0, errorTitle="", errorHint="", errorDetail="", errorFacts=[], errorKind="", retryable=false, stopped=false)
+// A command's block, with how its job stands: `status`, the computer as `name`, how it ended as `after`.
+fn withJob(b: Block, jobs: ComposerJob[]): Block = match first(jobs.filter(j => j.id == b.detail and j.command.split("\n").at(0) == some(b.text))) {
+  case some(j) => Block(b, status=j.status, name=j.computer, after=j.ended, going=(j.status == "running")),
+  case none => b
+}
+// A sub-agent or a conversation at work: working, or waiting for someone's OK.
+fn atWork(status: string): bool = status == "working" or status == "waiting"
+fn subagentWords(status: string): string = status == "working" ? "Working" : status == "waiting" ? "Waiting for your OK" : status == "stopped" ? "Stopped" : status == "failed" ? "Did not finish" : "Reported back"
+fn threadWords(status: string): string = status == "working" ? "Answering" : status == "waiting" ? "Waiting for your OK" : status == "stopped" ? "Stopped" : status == "failed" ? "Did not answer" : "Answered"
+
+// A Dood's chat page: `/a/:agentId` (its main chat) and `/a/:agentId/c/:chatId`.
+component ChatScreen
+  props
+    page: Page
+    route: string
+    chat: Chat
+    // Whether `chat` is this page's chat, and not one kept from another.
+    ours: bool
+    loading: bool
+    draft: string
+    sayError: string
+    sending: bool
+    editDraft: action
+    say: action
+    heal: action
+  inject
+    doodList: Dood[]
+    wide: bool
+    panelOpen: bool
+    threadsListing: ThreadListing
+    threadsReadOnly: bool
+    chatThread: ThreadRow
+    mainChatId: string
+    transcriptRows: Message[]
+    hasEarlier: bool
+    earlierLoading: bool
+    showEarlier: action
+    following: bool
+    scrolled: action
+    readerWheel: action
+    readerDown: action
+    readerUp: action
+    readerKey: action
+    toLatest: action
+    composerStop: action
+    chatPicture: LibraryPicture
+  derive dood = doodOf(doodList, page.agentId)
+  derive name = threadsListing.name != "" ? threadsListing.name : nameOf(dood)
+  // Whether this chat is the person's to write in: the main chat, and nothing else.
+  // Whether this chat is the person's to write in: the main chat, and nothing else
+  // (threads.contract `threadsReadOnly`, which the composer goes by too).
+  derive own = not threadsReadOnly
+  derive sub = threadsReadOnly and chatThread.kind == "subagent"
+  derive thread = threadsReadOnly and chatThread.kind == "agent"
+  derive slack = threadsReadOnly and chatThread.kind == "slack"
+  derive aside = threadsReadOnly and not sub and not thread and not slack
+  derive parentTitle = match first(threadsListing.chats.filter(c => c.id == chatThread.parentId)) { case some(c) => c.title, case none => name }
+  derive peer = doodOf(doodList, chatThread.peerId)
+  derive peerName = peer.name != "" ? peer.name : (chatThread.peerName != "" ? chatThread.peerName : "the other Dood")
+  // A chat that was never opened: the stream gave up before saying anything.
+  derive refused = ours and chat.lost and not chat.loaded
+  derive lastKey = match chat.messages.at(-1) { case some(m) => m.id, case none => "" }
+  view
+    row navigationKey=page.key navigationScroll="transcript" navigationBar="none" position="absolute" inset=0
+      class=Screen testId=`screen-${route}`
+      column flex=1 min-width=0 display="flex" flex-direction="column"
+        DoodHeader(page=page, route=route)
+        if sub
+          ChatBar(back=chatHref(page.agentId, chatThread.parentId), backLabel=parentTitle, title=chatThread.title, words=subagentWords(chatThread.status), working=atWork(chatThread.status), stop=composerStop, testId=`subagent-bar-${route}`)
+            DoodFace(seed=`${page.agentId}/sub/${chatThread.id}`, color=dood.color, state=(chatThread.status == "working" ? "working" : chatThread.status == "waiting" ? "asking" : "idle"), name=chatThread.title, size=28)
+        else if thread
+          ChatBar(back=chatHref(chatThread.peerId, chatThread.peerChatId), backLabel=peerName, title=chatThread.title, words=threadWords(chatThread.status), working=atWork(chatThread.status), stop=composerStop, testId=`thread-bar-${route}`)
+            DoodFace(seed=peer.seed, color=peer.color, state="idle", name=peerName, size=28)
+        else if slack
+          SlackBar(info=chatThread, mainHref=(mainChatId == "" ? "" : chatHref(page.agentId, mainChatId)), stop=composerStop, route=route)
+        else if aside
+          row justify-content="flex-start" padding="0 12px 4px" flex-shrink=0
+            link href=chatHref(page.agentId, mainChatId) class=FloatPill testId=`main-chat-link-${route}`
+              image "symbol:icon.caret-left" font-size="0.875rem" aria-hidden=true
+              text "Main chat"
+        if not ours
+          if loading
+            column flex=1 justify-content="flex-end" overflow="hidden"
+              TranscriptPlaceholder()
+          else
+            EmptyState(symbol="symbol:alert", title="Can’t Open This Chat", message="The server didn’t answer. Check your connection and try again.")
+              button press=heal testId="chat-retry"
+                text "Try Again"
+        else if refused
+          column flex=1 justify-content="center" align-items="center" padding=24
+            text "This chat could not be opened. It may have been deleted." role="alert" font-size="0.875rem" color="ink.muted" text-align="center" testId="chat-refused"
+        else if transcriptRows.length == 0
+          if not chat.loaded
+            column flex=1 justify-content="flex-end" overflow="hidden"
+              TranscriptPlaceholder()
+          else if own
+            // The greeting of an empty chat, the first run's hello among them (welcome.contract).
+            FirstHello(dood=dood, empty=true, beside=(wide and panelOpen))
+          else
+            column flex=1
+        else
+          // Short, the transcript sits on the composer, as the React app's does.
+          column flex=1 min-height=0 justify-content="flex-end" position="relative"
+            list id="transcript" appearance="none" virtualized=true scroll-start="end" scrollFollowEnd=true flex="0 1 auto" min-height=0 max-height="100%"
+              scroll=scrolled wheel=readerWheel pointerdown=readerDown pointerup=readerUp key=readerKey aria-label="Messages" role="log" testId="transcript"
+              for m in transcriptRows key=m.id
+                column width="100%"
+                  if m.role == "earlier"
+                    row justify-content="center" padding="16px 16px 0"
+                      button press=showEarlier disabled=earlierLoading class=QuietButton color="ink.muted" testId="show-earlier"
+                        text (earlierLoading ? "Loading…" : "Show earlier messages")
+                  else if m.role == "call"
+                    CallInChat(agentId=page.agentId, chatId=chat.chatId)
+                  else if m.role == "working"
+                    Working(dood=dood, activity=chat.activity)
+                  else
+                    MessageRow(message=m, agentId=page.agentId, doodName=threadsListing.name, asker=(sub ? name : ""), canRetry=(own and m.id == lastKey and not chat.busy))
+            if not following
+              row position="absolute" bottom=12 left=0 right=0 justify-content="center" pointer-events="none"
+                button press=toLatest aria-label="Scroll to end" class=JumpButton pointer-events="auto" testId="to-latest"
+                  image "symbol:icon.arrow-down" font-size="1rem"
+        if sayError != ""
+          text sayError font-size="0.8125rem" color="danger" padding="0 16px" max-width="45rem" margin="0 auto" testId="say-error"
+        Asks(agentId=page.agentId, name=(threadsListing.name != "" ? threadsListing.name : "Your Dood"), chatId=chat.chatId)
+        if sub
+          ChatFoot(face=true, words=`Only ${name} talks to its sub-agents. To change what this one is doing, tell ${name}.`, href=chatHref(page.agentId, chatThread.parentId), label=`Back to ${name}`, dood=dood, route=route)
+        else if thread
+          ChatFoot(face=true, words=`Only ${name} and ${peerName} write here. To change what ${name} is doing in it, tell ${peerName}.`, href=chatHref(chatThread.peerId, chatThread.peerChatId), label=`Back to ${peerName}`, dood=dood, route=route)
+        else if slack
+          SlackFoot(info=chatThread, route=route)
+        else if aside
+          ChatFoot(face=true, words=`An old side chat, kept to read. Everything with ${name} now happens in its main chat.`, href=chatHref(page.agentId, mainChatId), label="Back to the main chat", dood=dood, route=route)
+        // In a chat read here, the composer's place keeps only its way to the Dood's other chats.
+        HereTyping()
+        ComposerBox(agentId=page.agentId, chatId=chat.chatId, name=nameOf(dood), draft=draft, ours=ours, sending=sending, busy=chat.busy, editDraft=editDraft, say=say)
+      if wide and panelOpen
+        DoodPanel(dood=dood, busy=(ours and chat.busy))
+
+// What a sub-agent's chat, or a conversation with another Dood, floats over its transcript: the
+// way back to where it was started, whose it is (the use's children: its face), its title, how
+// it is getting on, and Stop while it is at work.
+component ChatBar
+  props
+    back: string
+    backLabel: string
+    title: string
+    words: string
+    working: bool
+    stop: action
+    testId: string
+  slot
+  view
+    row justify-content="center" padding="0 12px 6px" flex-shrink=0
+      row align-items="center" gap=8 max-width="100%" min-width=0 padding="4px 8px 4px 6px" border-radius=12 class=Card testId=testId
+        link href=back aria-label=`Back to ${backLabel}` display="flex" align-items="center" gap=4 padding="4px 6px" border-radius=8
+          color="ink.muted" text-decoration="none" font-size="0.875rem" min-width=0 testId=`${testId}-back`
+          image "symbol:icon.arrow-left" aria-hidden=true flex-shrink=0
+          text backLabel max-width="10rem" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+        column width=1 height=20 background-color="hairline" flex-shrink=0
+        children
+        text title font-size="0.875rem" font-weight=500 min-width=0 overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`${testId}-title`
+        text words font-size="0.75rem" color="ink.muted" flex-shrink=0 white-space="nowrap" testId=`${testId}-status`
+        if working
+          button press=stop class=OutlineButton testId=`${testId}-stop`
+            image "symbol:icon.stop" aria-hidden=true font-size="0.75rem"
+            text "Stop"
+
+// A thread in Slack, read here: where it is, how it is getting on, and the way to it.
+component SlackBar
+  props
+    info: ThreadRow
+    mainHref: string
+    stop: action
+    route: string
+  view
+    row justify-content="space-between" align-items="center" gap=8 padding="0 12px 6px" flex-shrink=0
+      if mainHref != ""
+        link href=mainHref class=FloatPill testId=`main-chat-link-${route}`
+          image "symbol:icon.caret-left" font-size="0.875rem" aria-hidden=true
+          text "Main chat"
+      else
+        column
+      row align-items="center" gap=8 class=FloatPill testId=`slack-bar-${route}`
+        image "symbol:icon.slack-logo" font-size="0.875rem" color="ink.muted" aria-hidden=true
+        text info.slackWhere color="ink.muted" font-size="0.875rem"
+        text threadWords(info.status) font-size="0.75rem" color=(info.status == "waiting" ? "ink" : "ink.muted")
+        if atWork(info.status)
+          button press=stop class=OutlineButton testId=`slack-stop-${route}`
+            image "symbol:icon.stop" aria-hidden=true font-size="0.75rem"
+            text "Stop"
+        if info.url != ""
+          link href=info.url target="_blank" aria-label="Open in Slack" color="primary" font-size="0.8125rem" font-weight=500 text-decoration="none"
+            text "Open in Slack"
+
+// Where the message box would be, in a chat that is not the person's to write in.
+component ChatFoot
+  props
+    face: bool
+    words: string
+    href: string
+    label: string
+    dood: Dood
+    route: string
+  view
+    row width="100%" max-width="45rem" margin="0 auto" padding="4px 16px 20px" gap=12 align-items="center" box-sizing="border-box" flex-shrink=0 testId=`chat-foot-${route}`
+      if face
+        DoodFace(seed=dood.seed, color=dood.color, state="idle", name=nameOf(dood), size=32)
+      text words flex=1 min-width=0 font-size="0.875rem" color="ink.muted"
+      link href=href class=OutlineButton testId=`chat-foot-link-${route}`
+        text label
+
+component SlackFoot
+  props
+    info: ThreadRow
+    route: string
+  view
+    column width="100%" max-width="48rem" margin="0 auto" padding="4px 16px 20px" box-sizing="border-box" flex-shrink=0
+      row align-items="center" gap=10 padding="12px 16px" border-radius=16 border="1px dashed var(--input)" color="ink.muted" font-size="0.875rem" testId=`chat-foot-${route}`
+        image "symbol:icon.slack-logo" aria-hidden=true
+        text "This conversation is in Slack. Reply there to carry it on." flex=1 min-width=0
+        if info.url != ""
+          link href=info.url target="_blank" color="primary" font-weight=500 text-decoration="none"
+            text "Open in Slack"

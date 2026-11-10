@@ -1,0 +1,796 @@
+// Do Computer, as an Exact app. This file is the root: the routes, which file holds each area's
+// members (its resources, mutations, state and actions), what every screen can inject, the
+// navigation, and which screen draws each route. Everything else is in views/<area>.contract,
+// and the data the areas ask for in data/<area>.ts, which app.ts gathers. PORTING.md says how
+// to add an area.
+use Page from "./views/shapes.contract"
+use SignIn from "./views/sign-in.contract"
+use Sidebar from "./views/shell.contract"
+use ChatScreen from "./views/chat.contract"
+use LibraryScreen from "./views/library.contract"
+use LibraryFileCard, LibraryPictureViewer from "./views/library-card.contract"
+use LibraryDocumentPanel from "./views/pins.contract"
+use ShareControls, Sites from "./views/sites.contract"
+use AutomationsScreen from "./views/automations.contract"
+use SkillsScreen from "./views/skills.contract"
+use ConnectorsScreen from "./views/connectors.contract"
+use ComputersScreen, PairComputerScreen from "./views/computers.contract"
+use PermissionsScreen from "./views/permissions.contract"
+use ProfileScreen, MemoryScreen, ModelScreen, UsageScreen from "./views/profile.contract"
+use DoodSettingsScreen from "./views/dood-settings.contract"
+use AccountScreen, GeneralScreen, DoodsListScreen, WorkspacesListScreen from "./views/settings-account.contract"
+use WorkspaceModelsScreen, ServerModelsScreen from "./views/settings-models.contract"
+use PasswordsScreen from "./views/settings-passwords.contract"
+use WaitlistScreen from "./views/settings-waitlist.contract"
+use NotificationsScreen from "./views/settings-notifications.contract"
+use WorkspaceHomeScreen from "./views/workspace.contract"
+use PeopleScreen from "./views/people.contract"
+use WorkspaceSettingsScreen from "./views/workspace-settings.contract"
+use TeamDialogs from "./views/teams.contract"
+use TeamInviteScreen, TeamWaitingScreen from "./views/teams-invite.contract"
+use WelcomeScene from "./views/welcome.contract"
+use CallWindow from "./views/call.contract"
+use CreatureWindows from "./views/wardrobe.contract"
+
+// The React app's type: Geist (assets/fonts, from vercel/geist-font, OFL).
+font "Geist" = "assets/fonts/Geist-Variable.ttf"
+font "Geist Mono" = "assets/fonts/GeistMono-Variable.ttf"
+
+// The React app's addresses (apps/web/src/routes/_app.*). A Dood's pages are under it, so a
+// phone's Back from one goes to its chat, and from the chat to the list.
+routes nav
+  doods "/"
+    dood "/a/:agentId"
+      chat "/a/:agentId/c/:chatId"
+      library "/a/:agentId/library"
+      automations "/a/:agentId/automations"
+      skills "/a/:agentId/skills"
+      connectors "/a/:agentId/connectors"
+      computers "/a/:agentId/computers"
+      permissions "/a/:agentId/permissions"
+      profile "/a/:agentId/profile"
+      settings "/a/:agentId/settings"
+      // --- settings: a Dood's other sections ---
+      memory "/a/:agentId/memory"
+      model "/a/:agentId/model"
+      usage "/a/:agentId/usage"
+    pair "/pair"
+    // --- settings: the person's own ---
+    account "/settings"
+    general "/settings/general"
+    notifications "/settings/notifications"
+    doodsList "/settings/doods"
+    workspacesList "/settings/workspaces"
+    serverModels "/settings/server"
+    waitlist "/settings/waitlist"
+    invite "/invite/:token"
+    workspace "/w/:workspaceId"
+      people "/w/:workspaceId/people"
+      workspaceSettings "/w/:workspaceId/settings"
+      // --- settings: a workspace's sections ---
+      workspaceComputers "/w/:workspaceId/computers"
+      workspaceModels "/w/:workspaceId/models"
+      passwords "/w/:workspaceId/passwords"
+
+// A segment of a path, "" past its end.
+fn segment(url: string, at: number): string = match url.split("?").at(0) {
+  case some(p) => match p.split("/").at(at) { case some(s) => s, case none => "" },
+  case none => ""
+}
+// The page a location's other pages hang from: a Dood's chat or a workspace's page, else the list.
+// Account settings and invitations are their own locations above the list.
+fn baseOf(url: string): string = url.startsWith("/a/") ? `/a/${segment(url, 2)}` : url.startsWith("/w/") ? `/w/${segment(url, 2)}` : url.startsWith("/settings") or url.startsWith("/invite/") ? url : "/"
+
+component App
+  members "./views/sign-in.contract"
+  members "./views/shell.contract"
+  members "./views/chat.contract"
+  members "./views/teams.contract"
+  members "./views/teams-here.contract"
+  members "./views/automations.contract"
+  members "./views/skills.contract"
+  members "./views/connectors.contract"
+  members "./views/computers.contract"
+  members "./views/transport.contract"
+  members "./views/composer.contract"
+  members "./views/composer-jobs.contract"
+  members "./views/threads.contract"
+  // --- settings ---
+  members "./views/profile.contract"
+  members "./views/permissions.contract"
+  members "./views/settings-account.contract"
+  members "./views/settings-models.contract"
+  members "./views/settings-passwords.contract"
+  members "./views/settings-notifications.contract"
+  members "./views/settings-waitlist.contract"
+  members "./views/library.contract"
+  members "./views/pins.contract"
+  members "./views/sites.contract"
+  members "./views/panel.contract"
+  members "./views/panel-mood.contract"
+  members "./views/care.contract"
+  members "./views/wardrobe.contract"
+  members "./views/welcome.contract"
+  members "./views/call.contract"
+  // A new area adds its members line here, in its own place, in the order of the routes.
+
+  // What any screen may `inject` instead of taking it as a prop.
+  provide
+    callView
+    callAvailable
+    callStart
+    callControl
+    callToggleWords
+    callWords
+    callInPanel
+    callOffer
+    callAnswer
+    callDirective
+    callSerial
+    callAgent
+    callName
+    callChat
+    callMessage
+    session
+    computerWorkspaceId
+    computerItems
+    computerRequests
+    computerKinds
+    computerInstall
+    computerShowBrowser
+    computerCanChange
+    computerChosenKind
+    computerAddOpen
+    computerName
+    computersLoading
+    computersFailed
+    computersBusy
+    computersError
+    computerAddError
+    computerBrowserError
+    retryComputers
+    changeComputer
+    showComputerAdd
+    editComputerKind
+    editComputerName
+    addComputer
+    setComputerBrowser
+    pairing
+    pairingCode
+    pairingLoading
+    pairingFailed
+    pairingBusy
+    pairingError
+    pairingOurs
+    pairingDone
+    pairingWorkspace
+    pairingOffered
+    pairingSelected
+    editPairingCode
+    choosePairingWorkspace
+    choosePairingDood
+    pairComputer
+    retryPairing
+    connectorItems
+    connectorNotice
+    connectorsLoading
+    connectorsFailed
+    connectorsBusy
+    connectorError
+    connectorAddError
+    connectorForm
+    connectorAdvanced
+    connectorName
+    connectorUrl
+    connectorToken
+    connectorClientId
+    connectorClientSecret
+    connectorAuth
+    slackOpen
+    slack
+    slackOurs
+    slackLoading
+    slackFailed
+    slackBusy
+    slackError
+    slackBotToken
+    slackSigningSecret
+    showSlack
+    retryConnectors
+    showConnectorForm
+    showConnectorAdvanced
+    editConnectorName
+    editConnectorUrl
+    editConnectorToken
+    editConnectorClientId
+    editConnectorSecret
+    addConnector
+    changeConnector
+    editSlackBot
+    editSlackSecret
+    saveSlack
+    skillItems
+    skillFiles
+    skillOpen
+    skillUrl
+    skillsLoading
+    skillsFailed
+    skillReading
+    skillReadFailed
+    skillsBusy
+    skillsError
+    skillInstallError
+    editSkillUrl
+    openSkill
+    retrySkills
+    changeSkill
+    installSkill
+    automationItems
+    automationsLoading
+    automationsFailed
+    automationsBusy
+    automationsError
+    changeAutomation
+    retryAutomations
+    doodList
+    workspaceList
+    now
+    utcOffset = time.utcOffset
+    wide
+    stillMotion = viewport.prefersReducedMotion
+    hatchError
+    hatching = pending(hatched)
+    panelOpen
+    hatch
+    signOut
+    togglePanel
+    back
+    follow
+    teamList
+    hereTeam
+    herePlaces
+    hereOthers
+    hereMembers
+    hereInChat
+    hereWriting
+    teamInbox
+    teamColors
+    teamFolded
+    teamBusy
+    teamError
+    teamChanged
+    teamInvited
+    teamLoading = pending(teams)
+    teamFailed = failed(teams) or failed(teamInvitations)
+    teamRetry
+    teamNew
+    teamInvite
+    teamChange
+    teamSortLatest
+    teamReorder
+    teamNudge
+    teamFold
+    teamOrderError
+    teamCreateName
+    teamCreateColor
+    teamCreateMoving
+    teamCreateWho
+    teamCreating = pending(teamMade)
+    teamMade
+    teamEditName
+    teamPickColor
+    teamBring
+    teamEditWho
+    teamCreate
+    teamGoCreated
+    teamCreateClosed
+    teamInviteWorkspace
+    teamInviteWho
+    teamInviteRole
+    teamInviteNote
+    teamSending = pending(teamSent)
+    teamSent
+    teamEditInviteWho
+    teamEditInviteRole
+    teamEditInviteNote
+    teamSendInvites
+    // --- chat transcript ---
+    chatThread
+    mainChatId
+    transcriptRows
+    hasEarlier
+    earlierLoading = pending(earlier)
+    showEarlier
+    following
+    scrolled
+    readerWheel
+    readerDown
+    readerUp
+    readerKey
+    toLatest
+    deliveredNow
+    filesBase
+    chatLibraryIds
+    chatLibraryLinks
+    chatPicture
+    showPicture
+    openChatFile
+    markdownSaid
+    retry
+    putInComposer
+    pendingApprovals
+    pendingSecrets
+    pendingSignIns
+    answerApproval
+    answering = pending(allowed)
+    answerError
+    giveSecrets
+    giveLogin
+    declineSecrets
+    secretBusy = pending(secretGiven)
+    secretError
+    signInTo
+    notNowSignIn
+    signInBusy = (pending(signInAsked) or pending(signInDismissed))
+    signInError
+    subagentStatuses
+    chatTeam
+    pendingComputers
+    answerComputer
+    computerBusy = pending(computerAnswered)
+    computerError
+    chatWorkspaceId = openDood.workspaceId
+    libraryPinnedIds
+    librarySiteWords
+    composerSettings
+    composerModelsLoading = pending(composerConfig)
+    composerModelsFailed = failed(composerConfig)
+    composerRetryModels
+    composerSaving = pending(composerSaved)
+    composerRunning
+    composerStopJob
+    composerJobError
+    composerAttachments
+    composerUploading = pending(composerUploaded)
+    composerUploadError
+    composerError
+    composerStopError
+    composerVoiceError = match composerTranscribed { case some(r) => r.key == composerKey and r.ticket == composerVoiceTicket ? r.error : "", case none => "" }
+    composerSearch
+    composerRestAt
+    composerPick
+    composerDrop
+    composerPaste
+    composerKeys
+    composerRemove
+    composerFind
+    composerChoose
+    composerThink
+    composerStop
+    composerVoiceEvent
+    composerVoiceDone
+    composerVoiceBusy = pending(composerTranscribed)
+    threadsListing
+    threadsReadOnly
+    threadsLoading = pending(threads)
+    threadsFailed = failed(threads)
+    threadsRefresh
+    // --- settings: a Dood's ---
+    doodSetup
+    setupOurs
+    shownForm
+    doodFormDirty
+    formOver
+    doodSaving = pending(doodSaved)
+    doodSaveError
+    doodSavedOk
+    doodModelList
+    doodComputers
+    doodComputersOurs
+    doodVoice
+    voicePicked
+    voiceError
+    voiceBusy = pending(voiceSet)
+    moveTarget
+    moveError
+    moving = pending(doodMoved)
+    deleteOpen
+    deleteTyped
+    deleteComputers
+    deleteError
+    deleting = pending(doodDeleted)
+    freshError
+    freshOk
+    freshBusy = pending(freshStarted)
+    doodUsage
+    usageLoading = pending(doodUsage)
+    editDood
+    rollLook
+    saveDoodForm
+    pickVoice
+    chooseMove
+    move
+    openDelete
+    cancelDelete
+    typeDelete
+    toggleDeleteComputers
+    deleteDoodNow
+    askFresh
+    startFreshNow
+    approvals
+    ruling = pending(ruled)
+    ruleFor
+    ruleTo
+    ruleError
+    setRule
+    // --- settings: the person's own ---
+    theme
+    chooseTheme
+    openAccountSettings
+    settingsReturn
+    admin
+    hasWaitlist
+    accountSetup
+    accountOurs
+    allModelList
+    defaultModelPicked
+    defaultModelSaving = pending(defaultModelSaved)
+    defaultModelError
+    defaultModelOk
+    pickDefaultModel
+    defaultComputerPicked
+    defaultComputerSaving = pending(defaultComputerSaved)
+    defaultComputerError
+    defaultComputerOk
+    pickDefaultComputer
+    doodsAbout
+    workspacesAbout
+    // --- settings: models ---
+    modelProviders
+    providersOurs
+    moreProviders
+    providerAim
+    providerSignOutError
+    providerSigningOut = pending(providerSignedOut)
+    toggleMoreProviders
+    askSignOutProvider
+    signOutProviderNow
+    startSignIn
+    signingProviderName
+    signingProvider
+    signingType
+    signingShort
+    signingSubscription
+    signingChose
+    signingTitle
+    loginStarting = pending(loginStarted)
+    loginStartError
+    modelLogin
+    loginOurs
+    loginTyped
+    loginAnswering = pending(loginAnswered)
+    loginAnswerError
+    typeLogin
+    answerLogin
+    chooseLogin
+    retryLogin
+    cancelLogin
+    loginCodeCopied
+    copyLoginCode
+    // --- settings: passwords ---
+    savedLogins
+    savedCards
+    loginRemoving = pending(loginRemoved)
+    loginRemoveError
+    loginAimName
+    openLogin
+    askRemoveLogin
+    removeLoginNow
+    loginEditing
+    loginEditName
+    lName
+    lUsername
+    lPassword
+    lShowPassword
+    lSites
+    lSite
+    loginError
+    loginSaving = pending(loginSaved)
+    editLoginField
+    toggleShowPassword
+    addSiteNow
+    removeSite
+    saveLoginNow
+    closeLogin
+    cardRemoving = pending(cardRemoved)
+    cardRemoveError
+    cardAimName
+    openCard
+    askRemoveCard
+    removeCardNow
+    cNumber
+    cExpires
+    cHolder
+    cPostal
+    cName
+    cardError
+    cardSaving = pending(cardSaved)
+    editCardField
+    saveCardNow
+    closeCard
+    // --- settings: notifications ---
+    pushKey
+    pushState
+    pushCommand
+    pushError
+    pushTested
+    pushBusy
+    pushSaid
+    enablePush
+    disablePush
+    testPushNow
+    // --- settings: waiting list ---
+    waitlist
+    waitlistFailed = failed(waitlist)
+    lettingIn
+    letInBusy = pending(letInDone)
+    letInError
+    letInNow
+    // --- library ---
+    libraryContent
+    libraryContentFailed = failed(libraryContent)
+    libraryHistoryFailed = failed(libraryHistory)
+    libraryPageOpen
+    libraryPageColour = openDood.color
+    libraryHistory
+    libraryHistoryOpen
+    libraryReady
+    libraryText
+    libraryMode
+    librarySaveState
+    libraryError
+    libraryRenaming
+    libraryRename
+    libraryBusy = (pending(libraryWritten) or pending(librarySaved))
+    libraryHome
+    libraryEdit
+    librarySave
+    librarySetMode
+    libraryBeginRename
+    libraryEditRename
+    libraryCancelRename
+    libraryMove
+    libraryDelete
+    libraryHistoryToggle
+    libraryRevert
+    libraryKeepMine
+    libraryTakeTheirs
+    libraryRefresh
+    libraryPin
+    libraryTogglePinFile
+    libraryPinned
+    librarySiteList
+    libraryShareOpen
+    libraryShareSite
+    librarySharePath
+    libraryAudience
+    librarySharingBusy
+    librarySharingError
+    libraryShare
+    libraryCloseShare
+    librarySetAudience
+    libraryStopSharing
+    shareLibraryPath
+    libraryPinList
+    libraryUnpin
+    libraryPinError
+    openLibraryPanel
+    libraryPinsFresh
+    libraryLinks
+    libraryMarkdownSaid
+    closeLibraryPanel
+    libraryPanelId
+    librarySelected
+    libraryFiles
+    libraryOpen
+    // --- dood --- (the creature, its panel, care, wardrobe and first run: views/panel, care, wardrobe, welcome)
+    viewport
+    openDood
+    liveFaces
+    liveSeeds
+    skipHatch
+    hatchDone
+    panelTop
+    panelScrolled
+    panelToTop
+    panelFolds
+    foldPanelSection
+    care = careOf
+    careFeed
+    eating
+    treatMoved
+    treatBites
+    treatCount
+    treatHeld
+    treatX
+    treatY
+    treatNear
+    holdTreat
+    carryTreat
+    dropTreat
+    giveTreat
+    openBoxWindow
+    boxStage
+    boxRound
+    boxFound
+    boxProblem
+    pressBox
+    boxHeard
+    wearFound
+    anotherBox
+    openWardrobe
+    wardrobeSlot
+    wardrobeDoods
+    dressedDood
+    dressedOutfit
+    pickWardrobeSlot
+    dressDood
+    putOn
+    doodColors
+    welcomeOn
+    welcomeMet
+    welcomeStep
+    welcomeCard
+    welcomeLine
+    welcomeTyped
+    welcomeSaid
+    welcomeTitled
+    welcomeLanded
+    welcomeSkipped
+    welcomeName
+    welcomeColor
+    welcomeSeed
+    welcomeCrack
+    welcomeDawn
+    welcomeGlow
+    welcomeCheer
+    welcomeHatching
+    welcomeOut
+    welcomeLeaving
+    welcomeFly
+    welcomeError
+    welcomeBusy
+    welcomeSources
+    welcomeChosen
+    welcomePicked
+    welcomeModelsLoading
+    welcomeHeard
+    welcomeSkipFall
+    welcomeHurry
+    welcomeHello
+    editWelcomeName
+    suggestWelcomeName
+    pickWelcomeColor
+    nameWelcome
+    pickWelcomeSource
+    pickWelcomeModel
+    thinkWelcome
+    welcomeFinish
+    welcomeStart
+
+  // The Dood whose page is open (the deepest one in the stack), and the chat a `/c/` page names.
+  derive openAgentId = match stack(nav).filter(e => e.params.agentId != "").at(-1) { case some(e) => e.params.agentId, case none => "" }
+  derive chatEntryId = match stack(nav).filter(e => e.name == "chat").at(-1) { case some(e) => e.params.chatId, case none => "" }
+  // The route on top, for tests and for what reads which page is showing.
+  derive onRoute = top(nav).name
+
+  // Every link, and the browser's Forward and a typed address, come here. The stack is always
+  // the list, then the page a location hangs from (a Dood's chat, a workspace's page), then the
+  // location: so a phone's Back goes up one, a wide window shows the location beside the list,
+  // and a Dood's chat that is already open is kept, with its scroll, under its other pages. One
+  // of a Dood's pages in place of another replaces it, so the browser's Forward finds it again.
+  action follow(url: string)
+    let base = baseOf(url)
+    let home = go(nav, "/")
+    let held = stack(nav).filter(e => e.url == base).length > 0
+    let under = base == "/" ? home : (held ? go(nav, base) : push(home, base))
+    let sibling = base != "/" and url != base and top(nav).url != base and baseOf(top(nav).url) == base
+    nav = url.startsWith("/pair") ? push(home, url) : sibling ? replace(nav, url) : (base == "/" or url == base or top(under).url == url ? under : push(under, url))
+  action back
+    nav = back(nav)
+
+  view
+    main navigationKey=`${top(nav).id}` navigationBack="back" navigate=follow interactive-widget="resizes-content"
+      width="100%" height="100%" font-family="Geist" color="ink" testId="app"
+      if onRoute == "invite" and (session.signedIn or not teamAuth)
+        TeamInviteScreen(key=`${top(nav).id}`, preview=teamPreview, loading=pending(teamPreview), failed=failed(teamPreview), answer=teamAnswered, busy=pending(teamAnswered), accept=teamAccept, decline=teamDecline, authenticate=teamShowAuth, authenticateNew=teamShowJoinAuth, switchAccount=teamSwitchAccount, retry=teamRetryPreview)
+      else if not session.signedIn
+        if pending(session)
+          column position="absolute" inset=0 justify-content="center" align-items="center" background-color="frame"
+            progress aria-label="Loading" testId="session-loading"
+        else
+          SignIn(email=email, password=password, name=name, joining=joining, error=signError, busy=pending(signed), canSign=canSign, editEmail=editEmail, editPassword=editPassword, editName=editName, toggleJoining=toggleJoining, sign=sign)
+      else if teamWaiting
+        TeamWaitingScreen(retry=teamCheckAdmission)
+      else
+        for e in stack(nav) key=e.id
+          // --- shell ---
+          if e.name == "doods"
+            Sidebar(key=`${e.id}`, current=openAgentId)
+          // --- chat ---
+          if e.name == "dood" or e.name == "chat"
+            ChatScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""), route=e.name, chat=chat, ours=ours, loading=(pending(opened) or pending(chat)), draft=draft, sayError=sayError, sending=pending(said), editDraft=editDraft, say=say, heal=heal)
+          // --- library ---
+          if e.name == "library"
+            LibraryScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""), library=library, files=libraryFiles, selected=librarySelected, sites=Sites(owner=librarySites.owner, agentId=librarySites.agentId, sites=librarySiteList), loading=pending(library), failed=failed(library), missing=(librarySelected.id == "" and (libraryLocation.file != "" or libraryLocation.path != "")), busy=(pending(libraryWritten) or pending(librarySaved) or pending(libraryUploaded)), error=(libraryError + libraryChangeError + libraryUploadError), query=libraryFilter, closed=libraryClosed, deletedOpen=libraryDeletedOpen, onFilter=libraryFilterEdit, folder=libraryFolder, new=libraryNew, upload=libraryUpload, picked=libraryPicked, restore=libraryRestore, toggleDeleted=libraryDeletedToggle, retry=libraryRefresh)
+          // --- automations ---
+          if e.name == "automations"
+            AutomationsScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          // --- skills ---
+          if e.name == "skills"
+            SkillsScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          // --- connectors ---
+          if e.name == "connectors"
+            ConnectorsScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          // --- computers ---
+          if e.name == "computers" or e.name == "workspaceComputers"
+            ComputersScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=e.params.workspaceId))
+          // --- pairing ---
+          if e.name == "pair"
+            PairComputerScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
+          // --- permissions ---
+          if e.name == "permissions"
+            PermissionsScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          // --- profile ---
+          if e.name == "profile"
+            ProfileScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""), route="profile")
+          // --- dood settings ---
+          if e.name == "settings"
+            DoodSettingsScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          // --- settings: a Dood's other sections ---
+          if e.name == "memory"
+            MemoryScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          if e.name == "model"
+            ModelScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          if e.name == "usage"
+            UsageScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          // --- settings: the person's own ---
+          if e.name == "account"
+            AccountScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
+          if e.name == "general"
+            GeneralScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
+          if e.name == "notifications"
+            NotificationsScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
+          if e.name == "doodsList"
+            DoodsListScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
+          if e.name == "workspacesList"
+            WorkspacesListScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
+          if e.name == "waitlist"
+            WaitlistScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
+          if e.name == "serverModels"
+            ServerModelsScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
+          // --- workspace ---
+          if e.name == "workspace"
+            WorkspaceHomeScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=e.params.workspaceId))
+          // --- people ---
+          if e.name == "people"
+            PeopleScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=e.params.workspaceId))
+          // --- workspace settings ---
+          if e.name == "workspaceSettings"
+            WorkspaceSettingsScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=e.params.workspaceId))
+          // --- settings: a workspace's sections ---
+          if e.name == "workspaceModels"
+            WorkspaceModelsScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=e.params.workspaceId))
+          if e.name == "passwords"
+            PasswordsScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=e.params.workspaceId))
+        ShareControls()
+        if onRoute == "dood" or onRoute == "chat"
+          LibraryDocumentPanel()
+          // --- chat transcript --- a picture opened from the chat, large; the chat opens it.
+          LibraryPictureViewer(pictures=[chatPicture], tag="chat", trigger=false)
+        TeamDialogs()
+        // --- dood --- the creature's windows, and the first run's scene over everything
+        CreatureWindows()
+        CallWindow()
+        if welcomeOn
+          WelcomeScene()

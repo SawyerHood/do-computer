@@ -1,0 +1,145 @@
+component App
+  state presses = 0
+  state last = ""
+  state eggLast = ""
+  state sceneLast = ""
+  state giftLast = ""
+  state skyHatch = false
+  state seed = "pip0"
+  state color = "moss"
+  state mood = "idle"
+  state hat = "sprout"
+  state small = true
+  state reduced = false
+  state dark = false
+  state hatch = false
+  state show = true
+  state opened = false
+  state shake = false
+  state fed = 0
+  state talked = 0
+  state glowed = 0
+  state skyOut = false
+  state fly = ""
+  action pressed
+    presses = presses + 1
+  action heard(value: string)
+    last = value
+  action eggHeard(value: string)
+    eggLast = value
+  action sceneHeard(value: string)
+    sceneLast = value
+  action giftHeard(value: string)
+    giftLast = value
+  action skyHatchIt
+    scrollIntoView("sky")
+    skyHatch = true
+  action change
+    seed = "juniper"
+    color = "rose"
+    mood = "asking"
+    hat = "party"
+  action calm
+    reduced = not reduced
+  action theme
+    dark = not dark
+  action animate
+    small = not small
+  action hatchIt
+    scrollIntoView("egg")
+    hatch = true
+  action shakeGift
+    shake = not shake
+  action openGift
+    scrollIntoView("gift")
+    opened = true
+  action remove
+    show = not show
+  action feed
+    fed = fed + 1
+  action talk
+    talked = talked + 1
+    glowed = glowed + 1
+  action skyHeard(value: string)
+    sceneLast = value
+    if value == "hatched"
+      skyOut = true
+  action flyAway
+    scrollIntoView("sky")
+    fly = "landing"
+  view
+    column padding=16 gap=12
+      h1 "Doods"
+      row gap=12 flex-wrap="wrap"
+        button press=change testId="change"
+          text "Change look"
+        button press=calm testId="reduce"
+          text "Reduced motion"
+        button press=theme testId="theme"
+          text "Theme"
+        button press=animate testId="animate"
+          text "Animate small"
+        button press=hatchIt testId="hatch"
+          text "Hatch"
+        button press=remove testId="remove"
+          text "Mount / remove"
+        button press=feed testId="feed"
+          text "Feed"
+      row gap=12
+        text presses.toString() testId="presses"
+        text last testId="last"
+      if show
+        row gap=12 flex-wrap="wrap" align-items="center"
+          column
+            do-creature seed=seed colour=color state=mood hat=hat side="240" dark=dark.toString() reduced=reduced.toString() pettable="true" feed=`${fed}` crumb="#dba968" press=pressed message=heard width=240 height=240 aria-label="Pet Pip" role="button" testId="hero"
+            text "Live, dressed, pettable"
+          for state in ["idle", "listening", "thinking", "working", "speaking", "waiting", "asking", "done", "error", "asleep", "egg"] key=state
+            column align-items="center"
+              do-creature seed="pip0" colour="moss" state=state variant="command" slow="true" side="100" dark=dark.toString() reduced=reduced.toString() width=100 height=100 aria-label=state testId=`state-${state}`
+              text state
+        row gap=12 flex-wrap="wrap"
+          for variant in ["file", "search", "memory"] key=variant
+            column align-items="center"
+              do-creature seed="pip0" colour="moss" state="working" variant=variant slow="true" side="100" width=100 height=100 aria-label=variant testId=`work-${variant}`
+              text variant
+        row gap=12 flex-wrap="wrap"
+          do-creature seed="pip0" colour="moss" state="egg" hatching=hatch.toString() reduced=reduced.toString() side="160" message=eggHeard width=160 height=160 aria-label="Hatching egg" id="egg" testId="egg"
+          column gap=8
+            text "Sidebar stills (32, 48, 64px)"
+            row gap=12
+              for size in [32, 48, 64] key=size
+                do-creature seed="pip0" colour="moss" state="idle" side=size.toString() still=small.toString() width=size height=size aria-label="Small Pip" testId=`small-${size}`
+            text "Shared stage stress: forty sidebar avatars"
+            row gap=2 flex-wrap="wrap" max-width=500
+              for n in [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40] key=n
+                do-creature seed=n.toString() colour="tide" side="24" width=24 height=24 aria-label="Sidebar Dood" testId=`many-${n}`
+
+        row gap=16 flex-wrap="wrap"
+          column
+            do-portrait seed="pip0" colour="moss" hat="sprout" grid="120" width=160 height=160 aria-label="Pip on the island" testId="portrait"
+            text "Island portrait"
+          column
+            do-gift seed="pip0" colour="moss" side="160" item="wizard" shake=shake.toString() open=opened.toString() reduced=reduced.toString() message=giftHeard width=160 height=160 aria-label="Gift box" id="gift" testId="gift"
+            row gap=8
+              button press=shakeGift testId="shake"
+                text "Shake"
+              button press=openGift testId="open"
+                text "Open"
+          for item in ["party", "wizard", "sprout"] key=item
+            column align-items="center"
+              do-wardrobe seed="pip0" colour="moss" item=item side="100" width=100 height=100 aria-label=item testId=`wear-${item}`
+              text item
+        do-sky seed="pip0" colour="moss" hatching=skyHatch.toString() out=skyOut.toString() state=(skyOut ? "speaking" : "idle") talk=`${talked}` glow=`${glowed}` fly=fly
+          reduced=reduced.toString() dawn="1" message=skyHeard width=480 max-width="100%" height=360 aria-label="Egg arriving on its island" id="sky" testId="sky"
+
+        row gap=12
+          button press=skyHatchIt testId="sky-hatch"
+            text "Hatch on island"
+          button press=talk testId="sky-talk"
+            text "Talk"
+          button press=flyAway testId="sky-fly"
+            text "Fly to its place"
+          do-creature seed="pip0" colour="moss" state="idle" side="96" width=96 height=96 aria-label="Where it lands" testId="landing"
+          text sceneLast testId="scene-last"
+          text giftLast testId="gift-last"
+          text eggLast testId="egg-last"

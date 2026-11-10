@@ -1,0 +1,19 @@
+use Page, Workspace from "./shapes.contract"
+use WorkspaceSettingsFrame, workspaceOf from "./settings-kit.contract"
+use TeamSettingsContent from "./people.contract"
+use ComputersContent, computersLead from "./computers.contract"
+
+// The workspace's section list on a phone, with its first section open beside it on a wide
+// window: People for a team, Computers for one's own, as the React app's dialog opens them.
+component WorkspaceSettingsScreen
+  props
+    page: Page
+  inject
+    workspaceList: Workspace[]
+  derive team = workspaceOf(workspaceList, page.workspaceId).kind == "team"
+  view
+    WorkspaceSettingsFrame(page=page, route=(team ? "people" : "workspaceComputers"), title=(team ? "People" : "Computers"), lead=(team ? "Who is in this team, and who has been asked to join it." : computersLead()), listing=true)
+      if team
+        TeamSettingsContent(workspaceId=page.workspaceId, route="people")
+      else
+        ComputersContent(page=page)

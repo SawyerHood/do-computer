@@ -1,0 +1,144 @@
+// Do Computer's look, shared: the type, the sidebar's rows, the pill over a Dood's pages, the
+// chat's bubbles and composer. Colours are app.tamber's tokens; sizes are the React app's
+// (Tailwind's rem steps, apps/web/src/styles.css and the shell's classes).
+
+// The page under a screen, and the sidebar's frame.
+style Screen
+  background-color="canvas" color="ink" font-family="Geist"
+
+style Frame
+  background-color="frame" color="ink" font-family="Geist"
+
+// The small grey heading over a list ("Doods", a workspace's name).
+style ListHeading
+  font-size="0.8125rem" font-weight=500 color="ink.muted"
+
+// A row in the sidebar: a Dood, or an entry under the list. A chosen one is washed.
+style SidebarRow
+  display="flex" align-items="center" gap=12 padding="8px 8px" border-radius="0.7rem"
+  text-decoration="none" color="ink"
+  :hover
+    background-color="wash"
+  :checked
+    background-color="wash"
+
+style RowName
+  font-size="0.90625rem" font-weight=500 color="ink"
+
+style RowLine
+  font-size="0.75rem" color="ink.muted"
+
+style RowTime
+  font-size="0.71875rem" color="ink.muted"
+
+// A small round button with a symbol: the sidebar's + and …, the composer's.
+style IconButton
+  min-width="1.75rem" min-height="1.75rem" border-radius=8 display="flex" align-items="center" justify-content="center"
+  color="ink.muted" background-color="transparent" border="none" padding=0
+  :hover
+    background-color="wash"
+
+// The pill at the top of a Dood's pages: its face, its name and the way to its other pages.
+style Pill
+  display="flex" align-items="center" gap=2 padding=2 border-radius=999
+  background-color="popover" box-shadow="0 0 0 1px var(--hairline), 0 1px 2px rgb(0 0 0 / 0.07)"
+
+style PillButton
+  display="flex" align-items="center" gap=6 min-height="2rem" padding="0 10px 0 6px" border-radius=999
+  background-color="transparent" border="none" color="ink"
+  :hover
+    background-color="wash"
+
+// A menu that drops from a button (the pill's, a row's, the account's).
+style Menu
+  min-width=224 padding=4 border-radius=12 background-color="popover" color="ink" font-family="Geist"
+  box-shadow="0 0 0 1px var(--hairline), 0 2px 5px rgb(0 0 0 / 0.05), 0 22px 48px -22px rgb(0 0 0 / 0.26)"
+
+style MenuItem
+  display="flex" align-items="center" gap=8 padding="6px 10px" border-radius=8 font-size="0.875rem"
+  color="ink" background-color="transparent" border="none" text-decoration="none"
+  :hover
+    background-color="wash"
+
+// A screen's title and the words under it, on a page that is not the chat.
+style PageTitle
+  font-size="1.25rem" font-weight=600 letter-spacing="-0.01em" color="ink"
+
+style PageLead
+  font-size="0.875rem" color="ink.muted"
+
+// What a person said: ink at 11% over the page, round, on the right.
+style UserBubble
+  padding="8px 16px" border-radius=18 background-color="bubble" color="ink"
+  font-size="1rem" line-height=1.55
+
+// The composer: a raised field with round ends, the send button inside it.
+style Composer
+  display="flex" align-items="flex-end" gap=4 padding=6 border-radius=24
+  background-color="popover"
+  box-shadow="0 0 0 1px var(--hairline), 0 1px 2px rgb(0 0 0 / 0.07)"
+
+style SendButton
+  min-width="2.25rem" min-height="2.25rem" border-radius=999 display="flex" align-items="center" justify-content="center"
+  background-color="primary" color="primary.ink" border="none" padding=0
+  :disabled
+    background-color="muted"
+    color="ink.muted"
+
+// A filled button in the app's colour: the main action on a page.
+style PrimaryButton
+  min-height="2.125rem" padding="0 14px" border-radius=8 font-size="0.875rem" font-weight=500
+  background-color="primary" color="primary.ink" border="none"
+  :disabled
+    opacity=0.6
+
+// A field in a form (sign-in): the React app's input, bordered and rounded.
+style Field
+  min-height="2.25rem" padding="0 10px" border-radius=8 border="1px solid var(--input)" font-size="0.875rem"
+  background-color="transparent" color="ink" font-family="Geist"
+
+style FieldLabel
+  font-size="0.875rem" font-weight=500 color="ink"
+
+// --- chat transcript ---
+// A card in the chat (a file, a site, a pin, a request for leave): raised off the page, as the
+// React app's `bg-card shadow-raised`.
+style Card
+  background-color="popover" color="ink"
+  box-shadow="0 0 0 1px var(--hairline), 0 1px 2px rgb(0 0 0 / 0.07)"
+
+// What floats over the transcript's top: the way back to the main chat, a thread's place in Slack.
+style FloatPill
+  display="flex" align-items="center" gap=4 min-height="2rem" padding="0 12px 0 8px" border-radius=999
+  font-size="0.8125rem" font-weight=500 color="ink.muted" text-decoration="none" background-color="popover"
+  box-shadow="0 0 0 1px var(--hairline), 0 1px 2px rgb(0 0 0 / 0.07)"
+// The React app's small outline button (`variant="outline" size="xs"/"sm"`).
+style OutlineButton
+  display="flex" align-items="center" gap=6 min-height="1.75rem" padding="0 10px" border-radius=8
+  font-size="0.8125rem" font-weight=400 color="ink" background-color="canvas" border="1px solid var(--border)"
+  text-decoration="none" white-space="nowrap"
+  :hover
+    background-color="wash"
+  :disabled
+    opacity=0.5
+
+// A button with nothing round it but a wash on hover (`variant="ghost"`).
+style QuietButton
+  display="flex" align-items="center" gap=6 min-height="1.75rem" padding="0 10px" border-radius=8
+  font-size="0.8125rem" color="ink" background-color="transparent" border="none" text-decoration="none"
+  :hover
+    background-color="wash"
+  :disabled
+    opacity=0.5
+
+// The round button that brings the transcript back to its newest message.
+style JumpButton
+  min-width="2rem" min-height="2rem" border-radius=999 display="flex" align-items="center" justify-content="center"
+  padding=0 border="none" color="ink" background-color="popover"
+  box-shadow="0 0 0 1px var(--hairline), 0 2px 6px rgb(0 0 0 / 0.12)"
+  :hover
+    background-color="muted"
+
+// A line the chat was told of (an answer, a report, a command that ended): a rule at its start.
+style EventLine
+  border-left="2px solid var(--border)" padding="2px 0 2px 12px" font-size="0.875rem" color="ink.muted"

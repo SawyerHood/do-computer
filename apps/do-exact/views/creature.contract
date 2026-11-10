@@ -1,0 +1,81 @@
+// A Dood's face: its creature, the `do-creature` web native view (modules/web/, the React app's
+// mascot drawn by the same package). Everything that shows a Dood draws it through DoodFace, so
+// what the creature can do (petting, outfits, hatching) is added here and nowhere else.
+// modules/web/README.md lists the view's props and messages.
+use Dood from "./shapes.contract"
+
+// What a Dood's creature is doing right now, wherever it is drawn (panel.contract `liveFaces`):
+// in its egg until it has hatched, wearing what it has on, and acting out what its chat says.
+shape Face
+  id: string
+  seed: string
+  // idle, listening, thinking, working, speaking, waiting, done, error or asleep.
+  state: string
+  // For working: command, file, search or memory.
+  variant: string
+  // The protocol's Outfit, in JSON.
+  outfit: string
+  hatched: bool
+  // Its hatch is playing, where its owner is watching.
+  hatching: bool
+
+// The face a Dood's own record gives, before anything live is known of it.
+fn restingFace(d: Dood): Face = Face(id=d.id, seed=d.seed, state=(d.asking ? "waiting" : d.working ? "working" : "idle"), variant="", outfit=d.outfit, hatched=d.hatched, hatching=false)
+
+component DoodFace
+  props
+    // What its features grow from, and its colour (a hex): AgentSummary's avatar, resolved.
+    seed: string
+    color: string
+    // What it is doing where nothing live is known of it: "idle", "working" or "asking".
+    state: string
+    // Its name, which a reader hears.
+    name: string
+    // Its width and height, in px.
+    size: number
+  inject
+    liveFaces: Face[]
+    liveSeeds: string[]
+  // The live face of the Dood that grows from this seed, as AgentFace reads its mood by its id:
+  // found by its place among the seeds, a person's Doods being few.
+  derive live = match liveFaces.at(liveSeeds.indexOf(seed)) {
+    case some(f) => liveSeeds.indexOf(seed) >= 0 ? f : Face(id="", seed=seed, state=state, variant="", outfit="{}", hatched=true, hatching=false),
+    case none => Face(id="", seed=seed, state=state, variant="", outfit="{}", hatched=true, hatching=false)
+  }
+  // Drawn 12% past its box on each side, as AgentAvatar's canvas is: the creature keeps room
+  // around itself for hops and rings, and is as large in its box as the React app's.
+  view
+    do-creature seed=seed colour=color state=(live.hatched ? live.state : "egg") variant=live.variant outfit=live.outfit overscan="true" side=`${size}` width=size height=size flex-shrink=0
+      role="img" aria-label=name
+
+// A Dood's creature at a size to watch it at (chat-view.tsx Hatchling): in its egg, hatching
+// while its owner watches, or doing what it does; petted with a click or by rubbing, and fed.
+// A press while it is in its egg or hatching skips to its end.
+component Hatchling
+  props
+    dood: Dood
+    size: number
+    // The treat being eaten, counted, and the colour of its crumbs (care.contract).
+    feed: string
+    crumb: string
+    testId: string
+  inject
+    liveFaces: Face[]
+    treatNear: bool
+    skipHatch: action
+    hatchDone: action
+  derive live = match first(liveFaces.filter(f => f.id == dood.id)) { case some(f) => f, case none => restingFace(dood) }
+  derive out = live.hatched and not live.hatching
+  action heard(word: string)
+    if word == "hatched"
+      hatchDone(dood.id)
+  action pressed
+    if not out
+      skipHatch(dood.id)
+  view
+    do-creature seed=dood.seed colour=dood.color state=(live.hatched ? live.state : "egg") variant=live.variant outfit=live.outfit
+      hatching=(live.hatching ? "true" : "false") pettable=(out ? "true" : "false") feed=feed crumb=crumb
+      offer=(feed != "" and treatNear ? "true" : "false")
+      overscan="true" side=`${size}` width=size height=size flex-shrink=0 press=pressed message=heard
+      role=(out ? "img" : "button") aria-label=(out ? `${dood.name == "" ? "New Dood" : dood.name}: pet it` : "Skip the hatching")
+      testId=testId

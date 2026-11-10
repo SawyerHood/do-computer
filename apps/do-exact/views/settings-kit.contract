@@ -1,0 +1,484 @@
+// The settings' frame and the pieces their sections are made of, shared by every settings page
+// (a Dood's, the person's own, a workspace's). The React app draws these as one dialog over the
+// page (apps/web/src/components/settings/settings-dialog.tsx); here each section is a route of
+// its own, drawn in the content area as that dialog's card: the list of sections beside the open
+// one on a wide window, the open one alone on a phone with the way back to the list (GAPS.md,
+// "Settings"). A section's screen is one use of DoodSettings, AccountSettings or
+// WorkspaceSettingsFrame; what it holds is built from SettingsSection, SettingsCard, SettingsRow,
+// SettingsList with SettingsItem, SettingsEmpty, Confirm and the styles below.
+//
+// Hrefs here are written out, not `path(…)`, so that a checkout that has not got every settings
+// route yet still builds. Keep component names and props stable: other areas copy this file.
+use Session, Workspace, Dood, Page from "./shapes.contract"
+use Screen, IconButton from "./styles.contract"
+use DoodHeader, doodOf, nameOf from "./shell.contract"
+use DoodFace from "./creature.contract"
+
+// One section in the frame's list.
+shape SettingsEntry
+  // The route that is the section, to tell the open one.
+  route: string
+  href: string
+  label: string
+  // A symbol, "symbol:icon.gear".
+  icon: string
+  // The few words a group of sections is listed under ("Server"); "" for none.
+  group: string
+
+// A Dood's sections, in the React app's order (settings.tsx `AGENT`). Slack is reached from the
+// connectors, and the Dood's computers from "Model and computers".
+fn doodEntries(agentId: string): SettingsEntry[] = [
+  SettingsEntry(route="profile", href=`/a/${agentId}/profile`, label="Profile", icon="symbol:icon.user-circle", group=""),
+  SettingsEntry(route="memory", href=`/a/${agentId}/memory`, label="Memory", icon="symbol:icon.book-open", group=""),
+  SettingsEntry(route="model", href=`/a/${agentId}/model`, label="Model and computers", icon="symbol:icon.cpu", group=""),
+  SettingsEntry(route="skills", href=`/a/${agentId}/skills`, label="Skills", icon="symbol:icon.lightning", group=""),
+  SettingsEntry(route="connectors", href=`/a/${agentId}/connectors`, label="Connectors", icon="symbol:icon.plugs", group=""),
+  SettingsEntry(route="permissions", href=`/a/${agentId}/permissions`, label="Permissions", icon="symbol:icon.shield-check", group=""),
+  SettingsEntry(route="usage", href=`/a/${agentId}/usage`, label="Usage", icon="symbol:icon.chart-bar", group="")
+]
+
+// What is the person's own, and what the deployment offers, for those who look after it (`OWN`, `SERVER`).
+fn accountEntries(admin: bool, waitlist: bool): SettingsEntry[] = [
+  SettingsEntry(route="general", href="/settings/general", label="General", icon="symbol:icon.gear", group=""),
+  SettingsEntry(route="notifications", href="/settings/notifications", label="Notifications", icon="symbol:icon.bell", group=""),
+  SettingsEntry(route="doodsList", href="/settings/doods", label="Doods", icon="symbol:icon.smiley", group=""),
+  SettingsEntry(route="workspacesList", href="/settings/workspaces", label="Workspaces", icon="symbol:icon.squares-four", group="")
+].concat(admin ? [
+  SettingsEntry(route="serverModels", href="/settings/server", label="Global models", icon="symbol:icon.hard-drives", group="Server")
+] : []).concat(admin and waitlist ? [
+  SettingsEntry(route="waitlist", href="/settings/waitlist", label="Waiting list", icon="symbol:icon.hourglass", group="Server")
+] : [])
+
+// A workspace's (`WORKSPACE`): its people only for a team.
+fn workspaceEntries(w: Workspace): SettingsEntry[] = (w.kind == "team" ? [
+  SettingsEntry(route="people", href=`/w/${w.id}/people`, label="People", icon="symbol:icon.users", group="")
+] : []).concat([
+  SettingsEntry(route="workspaceComputers", href=`/w/${w.id}/computers`, label="Computers", icon="symbol:icon.desktop", group=""),
+  SettingsEntry(route="workspaceModels", href=`/w/${w.id}/models`, label="Models", icon="symbol:icon.cpu", group="")
+]).concat(w.secrets ? [
+  SettingsEntry(route="passwords", href=`/w/${w.id}/passwords`, label="Passwords", icon="symbol:icon.key", group="")
+] : [])
+
+fn workspaceOf(workspaces: Workspace[], id: string): Workspace = match first(workspaces.filter(w => w.id == id)) {
+  case some(w) => w,
+  case none => Workspace(id=id, name="", kind="personal", color="#5b6672", role="owner", secrets=false)
+}
+
+// --- Styles ---
+
+// A section's title and the words under it (`text-lg font-semibold tracking-tight`).
+style SettingsTitle
+  font-size="1.125rem" font-weight=600 letter-spacing="-0.01em" color="ink" hyphens="auto" overflow-wrap="break-word"
+
+style SettingsLead
+  font-size="0.875rem" line-height=1.45 color="ink.muted"
+
+// A part's heading in a section (`text-sm font-medium`) and the words under it.
+style PartTitle
+  font-size="0.875rem" font-weight=500 color="ink"
+
+style Hint
+  font-size="0.875rem" line-height=1.45 color="ink.muted"
+
+style SmallHint
+  font-size="0.75rem" line-height=1.4 color="ink.muted"
+
+// A button with a line round it (`variant="outline"`), and a quiet one (`variant="ghost"`).
+style OutlineButton
+  min-height="2rem" padding="0 12px" border-radius=8 font-size="0.875rem" font-weight=500
+  display="flex" align-items="center" justify-content="center" gap=6
+  background-color="popover" color="ink" border="1px solid var(--border)"
+  :hover
+    background-color="wash"
+  :disabled
+    opacity=0.5
+
+style GhostButton
+  min-height="2rem" padding="0 10px" border-radius=8 font-size="0.875rem" font-weight=500
+  display="flex" align-items="center" justify-content="center" gap=6
+  background-color="transparent" color="ink.muted" border="none"
+  :hover
+    background-color="wash"
+  :disabled
+    opacity=0.5
+
+// What deletes for good (`variant="destructive"`).
+style DangerButton
+  min-height="2.125rem" padding="0 14px" border-radius=8 font-size="0.875rem" font-weight=500
+  background-color="danger" color="ink.on-color" border="none"
+  :disabled
+    opacity=0.5
+
+// The act a confirmation asks for, where it destroys nothing: the app's filled button.
+style ConfirmButton
+  min-height="2.125rem" padding="0 14px" border-radius=8 font-size="0.875rem" font-weight=500
+  background-color="primary" color="primary.ink" border="none"
+  :disabled
+    opacity=0.5
+
+// A field: the React app's input, bordered and rounded, full width of its column.
+style SettingsField
+  min-height="2.25rem" padding="0 10px" border-radius=8 border="1px solid var(--input)" font-size="0.875rem"
+  background-color="transparent" color="ink" font-family="Geist" min-width=0
+
+// It grows with what is typed, from four lines' height, as the React app's Textarea.
+style SettingsTextArea
+  padding="8px 10px" border-radius=8 border="1px solid var(--input)" font-size="0.875rem" line-height=1.5
+  field-sizing="content" min-height="4rem"
+  background-color="transparent" color="ink" font-family="Geist" min-width=0
+
+style FieldName
+  font-size="0.875rem" font-weight=500 color="ink"
+
+// A choice of two to five (`ToggleGroup`): a row of buttons in a bordered box, the chosen one washed.
+style Choices
+  display="flex" flex-wrap="wrap" gap=2 padding=2 border-radius=9 border="1px solid var(--border)" align-self="flex-start"
+
+style ChoiceButton
+  min-height="1.625rem" padding="0 12px" border-radius=7 font-size="0.8125rem" font-weight=400
+  background-color="transparent" color="ink.muted" border="none"
+  :hover
+    color="ink"
+  :checked
+    background-color="wash"
+    color="ink"
+    font-weight=500
+
+// What went wrong, and what went right.
+style ErrorWords
+  font-size="0.875rem" color="danger"
+
+style StatusWords
+  font-size="0.875rem" color="ink.muted"
+
+// --- The frame ---
+
+// The settings card: the list of sections, then the open one. A route's screen is one use, under
+// the scope's own wrapper (DoodSettings and the others below), which fills in whose they are.
+component SettingsFrame
+  props
+    page: Page
+    // The route that is open; its test ids end in it.
+    route: string
+    // The open section's title and the words under it.
+    title: string
+    lead: string
+    // The route is the list itself (`/a/:id/settings`, `/settings`): a phone shows only the list,
+    // a wide window the list beside the section given as the children.
+    listing: bool
+    entries: SettingsEntry[]
+    // Whose settings: the Dood's or workspace's name, or "Settings", and a few words under it.
+    name: string
+    kind: string
+    // The mark beside the name: a Dood's face where `seed` is not "", else a tile of `color` (a
+  // hex) with `letter`, or with no colour a person's round face.
+    seed: string
+    color: string
+    letter: string
+    // The list itself, for a phone's way back to it from a section.
+    home: string
+    // The list this one was chosen from ("Doods", "Workspaces"), "" for none.
+    up: string
+    upLabel: string
+    // Where the cross goes: the page the settings were opened over.
+    close: string
+    // A Dood's settings keep its pill over them on a wide window.
+    dood: bool
+  slot
+  inject
+    wide: bool
+  view
+    column navigationKey=page.key navigationScroll=`scroll-${page.key}` position="absolute" inset=0 display="flex" flex-direction="column"
+      class=Screen testId=`screen-${route}`
+      if wide
+        // A Dood's settings keep its pill over them, as its other pages; the others need no bar.
+        if dood
+          DoodHeader(page=page, route=route)
+        // The dialog's card, in the page's middle.
+        column flex=1 min-height=0 align-items="center" padding=(dood ? "4px 24px 24px" : "24px")
+          // The list of sections is laid over the card's start, so the section's scroll is the
+          // route's own (the build warns of a scroll beside another box in a row).
+          column position="relative" width="100%" max-width="56rem" flex=1 max-height="42rem" min-height=0 border-radius=16 overflow="hidden"
+            background-color="popover" box-shadow="0 0 0 1px var(--hairline), 0 16px 48px -24px rgb(0 0 0 / 0.25)" testId=`settings-card-${route}`
+            column position="absolute" top=0 bottom=0 left=0 width="14rem" overflow-y="auto" background-color="frame" border-right="1px solid var(--hairline)"
+              SettingsNav(route=route, entries=entries, name=name, kind=kind, seed=seed, color=color, letter=letter, up=up, upLabel=upLabel, phone=false)
+            column flex=1 min-height=0 margin-left="14rem" position="relative"
+              scroll id=`scroll-${page.key}` flex=1 min-height=0
+                column padding="28px 36px 36px" gap=24
+                  SettingsHeading(route=route, title=title, lead=lead)
+                  children
+              link href=close aria-label="Close" class=IconButton position="absolute" top=12 right=12 testId=`close-${route}`
+                image "symbol:icon.x" font-size="1rem"
+      else
+        // A phone's: the whole screen, the list or one section at a time, as the React app's
+        // dialog on a narrow screen. Back from a section goes to the list; the cross closes.
+        header appearance="none" display="flex" align-items="center" gap=6 padding="6px 8px" min-height=52 flex-shrink=0
+          background-color=(listing ? "frame" : "canvas") border-bottom="1px solid var(--hairline)"
+          // The list's own way up (to the list of Doods or workspaces) is here on a phone, beside the cross.
+          if listing and up != ""
+            link href=up aria-label=`Back to ${upLabel}` display="flex" align-items="center" gap=4 padding="6px 8px" border-radius=8 min-width=0 flex=1
+              color="ink.muted" text-decoration="none" font-size="0.875rem" testId=`settings-up-${route}`
+              image "symbol:icon.caret-left" aria-hidden=true
+              text upLabel min-width=0 overflow-wrap="break-word"
+          if not listing
+            link href=home aria-label=`Back to ${name}` display="flex" align-items="center" gap=4 padding="6px 8px" border-radius=8 min-width=0
+              color="ink.muted" text-decoration="none" font-size="0.875rem" testId=`settings-home-${route}`
+              image "symbol:icon.caret-left" aria-hidden=true
+              text name overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`title-${route}`
+          if not listing or up == ""
+            column flex=1 min-width=0
+          link href=close aria-label="Close" class=IconButton min-width="2.25rem" min-height="2.25rem" flex-shrink=0 testId=`close-${route}`
+            image "symbol:icon.x" font-size="1rem"
+        if listing
+          scroll id=`scroll-${page.key}` flex=1 min-height=0 background-color="frame"
+            SettingsNav(route=route, entries=entries, name=name, kind=kind, seed=seed, color=color, letter=letter, up=up, upLabel=upLabel, phone=true)
+        else
+          scroll id=`scroll-${page.key}` flex=1 min-height=0
+            column padding="16px 20px 40px" gap=24
+              SettingsHeading(route=route, title=title, lead=lead)
+              children
+
+// A section's title and the line under it.
+component SettingsHeading
+  props
+    route: string
+    title: string
+    lead: string
+  inject
+    wide: bool
+  view
+    // Clear of the card's cross, which a phone has in its bar instead.
+    column gap=4 padding-right=(wide ? 32 : 0)
+      text title role="heading" aria-level=2 class=SettingsTitle hyphens="auto" overflow-wrap="break-word" testId=`heading-${route}`
+      if lead != ""
+        text lead class=SettingsLead
+
+// The list of sections: the way up to the list this was chosen from, whose they are, and the
+// sections, the open one washed. On a phone each is a row to go into.
+component SettingsNav
+  props
+    route: string
+    entries: SettingsEntry[]
+    name: string
+    kind: string
+    seed: string
+    color: string
+    letter: string
+    up: string
+    upLabel: string
+    phone: bool
+  view
+    nav aria-label=`${name}: sections` display="flex" flex-direction="column" gap=2 padding=10 testId=`settings-nav-${route}`
+      if up != "" and not phone
+        link href=up aria-label=`Back to ${upLabel}` display="flex" align-items="center" gap=4 align-self="flex-start" padding="4px 8px"
+          border-radius=8 color="ink.muted" text-decoration="none" font-size="0.875rem" testId=`settings-up-${route}`
+          :hover
+            background-color="wash"
+          image "symbol:icon.caret-left" aria-hidden=true font-size="0.875rem"
+          text upLabel
+      row align-items="center" gap=10 padding="4px 8px 12px"
+        if seed != ""
+          DoodFace(seed=seed, color=color, state="idle", name=name, size=32)
+        else
+          // A person's initials on the muted ink, as the React app's PersonFace; a workspace's on its colour.
+          if color == ""
+            column width="2rem" height="2rem" border-radius=16 background-color="ink.muted" align-items="center" justify-content="center" flex-shrink=0
+              text letter color="canvas" font-size="0.75rem" font-weight=600
+          else
+            column width="2rem" height="2rem" border-radius=8 background-color=color align-items="center" justify-content="center" flex-shrink=0
+              text letter color="ink.on-color" font-size="0.8125rem" font-weight=600
+        column flex=1 min-width=0
+          text name font-size="0.875rem" font-weight=600 overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`settings-name-${route}`
+          text kind font-size="0.75rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+      for e, i in entries key=e.route
+        if e.group != "" and (i == 0 or match entries.at(i - 1) { case some(p) => p.group != e.group, case none => true })
+          text e.group font-size="0.75rem" font-weight=500 color="ink.muted" padding="16px 10px 4px"
+        link href=e.href aria-current=(e.route == route and not phone ? "page" : "false") aria-selected=(e.route == route and not phone)
+          display="flex" align-items="center" gap=10 min-height=(phone ? 44 : 34) padding="0 10px" border-radius=8
+          text-decoration="none" font-size=(phone ? "0.9375rem" : "0.875rem")
+          color=(e.route == route or phone ? "ink" : "ink.muted") font-weight=(e.route == route and not phone ? 500 : 400)
+          background-color=(e.route == route and not phone ? "wash" : "transparent") testId=`settings-go-${e.route}-${route}`
+          :hover
+            background-color="wash"
+          image e.icon aria-hidden=true font-size="1rem" flex-shrink=0
+          text e.label flex=1 min-width=0 overflow-wrap="break-word"
+          if phone
+            image "symbol:icon.caret-right" aria-hidden=true color="ink.muted" font-size="0.875rem" flex-shrink=0
+
+// --- A frame for each whose ---
+
+// One of a Dood's settings: its pill over them, its face and name over the list of its sections.
+component DoodSettings
+  props
+    page: Page
+    route: string
+    title: string
+    lead: string
+    listing: bool
+  slot
+  inject
+    doodList: Dood[]
+    workspaceList: Workspace[]
+  derive dood = doodOf(doodList, page.agentId)
+  derive w = workspaceOf(workspaceList, dood.workspaceId)
+  view
+    SettingsFrame(page=page, route=route, title=title, lead=lead, listing=listing, entries=doodEntries(page.agentId),
+      name=nameOf(dood), kind=(w.kind == "team" ? `Dood in ${w.name}` : "Your Dood"), seed=dood.seed, color=dood.color, letter="",
+      home=`/a/${page.agentId}/settings`, up="/settings/doods", upLabel="Doods", close=`/a/${page.agentId}`, dood=true)
+      children
+
+// One of the person's own settings, or what the deployment offers.
+component AccountSettings
+  props
+    page: Page
+    route: string
+    title: string
+    lead: string
+    listing: bool
+    // They look after the deployment, so its sections are listed; the waiting list where it has one.
+    admin: bool
+    waitlist: bool
+    // The page the settings were opened over, where the cross goes back to.
+    close: string
+  slot
+  inject
+    session: Session
+  view
+    SettingsFrame(page=page, route=route, title=title, lead=lead, listing=listing, entries=accountEntries(admin, waitlist),
+      name="Settings", kind=session.name, seed="", color="", letter=session.initials,
+      home="/settings", up="", upLabel="", close=close, dood=false)
+      children
+
+// One of a workspace's settings.
+component WorkspaceSettingsFrame
+  props
+    page: Page
+    route: string
+    title: string
+    lead: string
+    listing: bool
+  slot
+  inject
+    session: Session
+    workspaceList: Workspace[]
+  derive w = workspaceOf(workspaceList, page.workspaceId)
+  // One's own workspace is marked with one's own face, a team's with its tile (WorkspaceMark).
+  derive own = w.kind != "team"
+  view
+    SettingsFrame(page=page, route=route, title=title, lead=lead, listing=listing, entries=workspaceEntries(w),
+      name=w.name, kind=(own ? "Only you" : "Team"), seed="", color=(own ? "" : w.color), letter=(own ? session.initials : w.name.slice(0, 1).toUpperCase()),
+      home=`/w/${w.id}/settings`, up="/settings/workspaces", upLabel="Workspaces", close=`/w/${w.id}`, dood=false)
+      children
+
+// --- Pieces ---
+
+// A part of a section under a line, with its heading and the words under it (profile.tsx `Section`).
+component SettingsSection
+  props
+    title: string
+    hint: string
+    testId: string
+  slot
+  view
+    section display="flex" flex-direction="column" gap=12 padding-top=24 border-top="1px solid var(--hairline)" testId=testId
+      column gap=2
+        text title role="heading" aria-level=3 class=PartTitle
+        if hint != ""
+          text hint class=Hint
+      children
+
+// A box with a line round it (`rounded-2xl border p-4`).
+component SettingsCard
+  props
+    testId: string
+  slot
+  view
+    column gap=12 padding=16 border-radius=16 border="1px solid var(--border)" testId=testId
+      children
+
+// A row with its label and a line under it on the start side and its control on the end side,
+// the control under the words where there is no room beside them.
+component SettingsRow
+  props
+    label: string
+    hint: string
+    testId: string
+  slot
+  view
+    row flex-wrap="wrap" align-items="center" justify-content="space-between" gap=8 padding="10px 0" testId=testId
+      column flex="1 1 14rem" min-width=0 gap=2
+        text label font-size="0.875rem"
+        if hint != ""
+          text hint class=SmallHint
+      children
+
+// A list in a box, its items under one another with a line between (`divide-y rounded-2xl border`).
+component SettingsList
+  props
+    label: string
+    testId: string
+  slot
+  view
+    column role="list" aria-label=label border-radius=16 border="1px solid var(--border)" overflow="hidden" testId=testId
+      children
+
+// One thing in a SettingsList: its title and a line about it, and what can be done to it (the
+// children: a Remove, an Edit) at the end. `first` leaves out the line above it.
+component SettingsItem
+  props
+    first: bool
+    title: string
+    detail: string
+    testId: string
+  slot
+  view
+    row role="listitem" flex-wrap="wrap" align-items="center" gap=12 padding=14 border-top=(first ? "none" : "1px solid var(--border)") testId=testId
+      column flex="1 1 12rem" min-width=0 gap=2
+        text title font-size="0.875rem" font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+        if detail != ""
+          text detail class=SmallHint
+      children
+
+// What a list shows with nothing in it, and the way to add the first (the children).
+component SettingsEmpty
+  props
+    title: string
+    message: string
+    testId: string
+  slot
+  view
+    column align-items="flex-start" gap=12 padding=16 border-radius=16 border="1px dashed var(--border)" testId=testId
+      column gap=2
+        text title class=PartTitle
+        text message class=Hint
+      children
+
+// Asking before what cannot be undone: open it with `showModal(id)` from the action that asks.
+// `confirm` runs on the action's button, and Cancel closes it.
+component Confirm
+  props
+    id: string
+    title: string
+    message: string
+    action: string
+    destructive: bool
+    confirm: action
+    testId: string
+  view
+    // The React app's AlertDialog: what will happen, then Cancel and the act, which is red where
+    // it destroys something.
+    dialog id=id role="alertdialog" aria-label=title testId=testId
+      text message
+      button commandfor=id command="close" class=OutlineButton testId=`${testId}-no`
+        text "Cancel"
+      button press=confirm destructive=destructive commandfor=id command="close" class=(destructive ? DangerButton : ConfirmButton) testId=`${testId}-yes`
+        text action
+
+// A refusal in words, where it happened.
+component ErrorLine
+  props
+    text: string
+    testId: string
+  view
+    if text != ""
+      text text role="alert" class=ErrorWords testId=testId

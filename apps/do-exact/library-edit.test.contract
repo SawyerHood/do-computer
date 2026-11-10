@@ -1,0 +1,71 @@
+test "failed saves keep the draft and concurrent revisions offer keep mine or show theirs"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "library-edit-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-library-dood"
+  clock data
+  tap "library-new"
+  clock data
+  clock settle
+  clock data
+  tap "library-mode-edit"
+  clock data
+  clock settle
+  clock data
+  type "library-editor" "Hello"
+  tap "library-format-Bold"
+  clock data
+  expect text "library-editor" == "Hello**text**"
+  clock +1000
+  clock data
+  fail fetch "http://127.0.0.1:"
+  type "library-editor" "# Kept through an outage"
+  clock +1000
+  clock data
+  expect text "library-save-state" == "Could not save"
+  expect text "library-editor" == "# Kept through an outage"
+  pass fetch "http://127.0.0.1:"
+  tap "library-save-retry"
+  clock data
+  clock settle
+  clock data
+  expect text "library-save-state" == "Saved"
+  tap "library-history"
+  clock data
+  type "library-editor" "# Mine"
+  tap "library-revert-0"
+  clock data
+  clock settle
+  clock data
+  expect tree has "library-conflict"
+  expect text "library-editor" == "# Mine"
+  tap "library-keep-mine"
+  clock data
+  clock settle
+  clock data
+  expect tree missing "library-conflict"
+  expect text "library-editor" == "# Mine"
+  tap "library-history"
+  clock data
+  type "library-editor" "# Discard this draft"
+  tap "library-revert-0"
+  clock data
+  clock settle
+  clock data
+  expect tree has "library-conflict"
+  tap "library-take-theirs"
+  clock data
+  clock settle
+  clock data
+  expect text "library-editor" == "# Untitled\n\n"
+  expect tree missing "library-conflict"
+  clock +11000
+  clock data

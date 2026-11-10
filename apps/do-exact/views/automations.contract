@@ -1,0 +1,98 @@
+use Page from "./shapes.contract"
+use OutlineButton, GhostButton from "./settings-kit.contract"
+use DoodScreen from "./shell.contract"
+use PrimaryButton, PageLead from "./styles.contract"
+
+shape AutomationReply
+  owner: string
+  agentId: string
+  ok: bool
+  error: string
+shape Automation
+  id: string
+  title: string
+  prompt: string
+  schedule: string
+  enabled: bool
+  running: bool
+  status: string
+  next: string
+  check: string
+  command: string
+  last: string
+  chatId: string
+  tally: string
+shape Automations
+  owner: string
+  agentId: string
+  items: Automation[]
+
+members App
+  resource automations = loadAutomations(session.owner, onRoute == "automations" ? openAgentId : "") with pulse.asks.tools as shape Automations else empty()
+  mutation automationChanged as shape AutomationReply refreshes automations
+  derive automationItems = automations.owner == session.owner and automations.agentId == openAgentId ? automations.items : []
+  derive automationsLoading = pending(automations)
+  derive automationsFailed = failed(automations)
+  derive automationsBusy = pending(automationChanged)
+  derive automationsError = pending(automationChanged) ? "" : match automationChanged { case some(r) => (r.owner == session.owner and r.agentId == openAgentId ? r.error : ""), case none => "" }
+  action changeAutomation(id: string, operation: string, enabled: bool)
+    if not pending(automationChanged)
+      send automationChanged = changeAutomation(session.owner, openAgentId, id, operation, enabled)
+  action retryAutomations
+    refresh automations
+
+component AutomationsScreen
+  props
+    page: Page
+  inject
+    automationItems: Automation[]
+    automationsLoading: bool
+    automationsFailed: bool
+    automationsBusy: bool
+    automationsError: string
+    changeAutomation: action
+    retryAutomations: action
+  view
+    DoodScreen(page=page, route="automations", lead="Things your Dood does on its own, once or on a schedule. To add one, ask in chat: “Every weekday at 9, tell me what is on my calendar.”")
+      column gap=12
+        if automationsLoading
+          progress aria-label="Loading automations" testId="automations-loading"
+        if automationsFailed
+          text "Could not load automations." role="alert" color="danger" testId="automations-failed"
+          button press=retryAutomations class=OutlineButton align-self="start" testId="automations-retry"
+            text "Try again"
+        if not automationsLoading and automationItems.length == 0 and not automationsFailed
+          text "Nothing scheduled yet." padding=24 border="1px dashed var(--hairline)" border-radius=16 text-align="center" class=PageLead testId="automations-empty"
+        for s in automationItems key=s.id
+          column padding=20 gap=12 border-radius=16 background-color="popover" border="1px solid var(--border)" testId=`automation-${s.id}`
+            row gap=12 align-items="start"
+              column flex=1 min-width=0 gap=4
+                text s.title role="heading" aria-level=2 font-weight=600 hyphens="auto"
+                text (s.next == "" ? s.schedule : `${s.schedule} · ${s.next}`) class=PageLead font-family="Geist Mono"
+              text s.status padding="3px 8px" border-radius=6 background-color=(s.status == "Active" ? "tools.good" : "wash") color=(s.status == "Active" ? "tools.good.ink" : "ink.muted") font-size="0.75rem" testId=`automation-status-${s.id}`
+            text s.prompt white-space="pre-wrap" font-size="0.875rem"
+            if s.check != ""
+              text s.check class=PageLead
+              text s.command white-space="pre-wrap" hyphens="auto" padding=10 background-color="wash" font-family="Geist Mono" font-size="0.8125rem"
+            if s.last != ""
+              text s.last class=PageLead
+            if s.chatId != ""
+              link href=path("chat", page.agentId, s.chatId) testId=`automation-history-${s.id}`
+                text "View run"
+            if s.tally != ""
+              text s.tally class=PageLead
+            row gap=8 flex-wrap="wrap"
+              if s.status != "Done"
+                button press=changeAutomation(s.id, "toggle", not s.enabled) disabled=automationsBusy class=OutlineButton testId=`automation-toggle-${s.id}`
+                  text (s.enabled ? "Pause" : "Resume")
+              button press=changeAutomation(s.id, "run", s.enabled) disabled=(automationsBusy or s.running) class=OutlineButton testId=`automation-run-${s.id}`
+                text (s.running ? "Running…" : "Run now")
+              button press=changeAutomation(s.id, "remove", s.enabled) disabled=automationsBusy class=GhostButton margin-left="auto" aria-label=`Delete ${s.title}` testId=`automation-delete-${s.id}`
+                text "Delete"
+        if automationItems.length > 0 and not automationsFailed
+          button press=retryAutomations class=GhostButton align-self="start" testId="automations-retry"
+            text "Refresh"
+        if automationsError != ""
+          text automationsError color="danger" role="alert" testId="automations-error"
+        link href=path("dood", page.agentId) testId="automations-chat"
+          text "Ask in chat to create or edit an automation" color="ink.muted" font-size="0.875rem"

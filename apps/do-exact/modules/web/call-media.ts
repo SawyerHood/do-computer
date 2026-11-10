@@ -1,0 +1,116 @@
+// Browser media adapter, matching apps/web/src/lib/call.ts.
+import type { OpenVoiceLine } from "../../../../packages/client/src/call.ts";
+export const openLine = async (place: Parameters<OpenVoiceLine>[0], onEvent: Parameters<OpenVoiceLine>[1], onLost: Parameters<OpenVoiceLine>[2], signal?: AbortSignal): ReturnType<OpenVoiceLine> => {
+  if (!navigator.mediaDevices?.getUserMedia || typeof RTCPeerConnection === "undefined") throw new Error("This browser cannot make voice calls.");
+  const permission = await navigator.permissions?.query({ name: "microphone" as PermissionName }).catch(() => null);
+  if (permission?.state === "denied") throw new DOMException("The microphone is not allowed here.", "NotAllowedError");
+  const microphone = await navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+  })
+  if (signal?.aborted) { microphone.getTracks().forEach(track => track.stop()); throw new DOMException("The call ended.", "AbortError"); }
+  const peer = new RTCPeerConnection()
+  const player = new Audio()
+  player.autoplay = true
+  let context: AudioContext | undefined
+  let closed = false
+  const meters: { you?: AnalyserNode; dood?: AnalyserNode } = {}
+  const meter = (stream: MediaStream): AnalyserNode | undefined => {
+    try {
+      context ??= new AudioContext()
+      const analyser = context.createAnalyser()
+      analyser.fftSize = 512
+      context.createMediaStreamSource(stream).connect(analyser)
+      return analyser
+    } catch {
+      return undefined
+    }
+  }
+  const samples = new Uint8Array(512)
+  const level = (analyser: AnalyserNode | undefined) => {
+    if (analyser === undefined) return 0
+    analyser.getByteTimeDomainData(samples)
+    let sum = 0
+    for (const sample of samples) sum += ((sample - 128) / 128) ** 2
+    return Math.min(1, Math.sqrt(sum / samples.length) * 3)
+  }
+  const close = () => {
+    if (closed) return
+    closed = true
+    signal?.removeEventListener("abort", close)
+    for (const track of microphone.getTracks()) track.stop()
+    player.srcObject = null
+    peer.close()
+    void context?.close().catch(() => {})
+  }
+  signal?.addEventListener("abort", close, { once: true })
+  try {
+    for (const track of microphone.getTracks()) peer.addTrack(track, microphone)
+    meters.you = meter(microphone)
+    peer.ontrack = (event) => {
+      const stream = event.streams[0] ?? new MediaStream([event.track])
+      player.srcObject = stream
+      void player.play().catch(() => {})
+      meters.dood = meter(stream)
+    }
+    // The call does not connect without this channel, and the voice's events come over it.
+    const channel = peer.createDataChannel("oai-events")
+    const waiting: string[] = []
+    channel.onopen = () => {
+      for (const event of waiting.splice(0)) channel.send(event)
+    }
+    channel.onmessage = (event) => {
+      if (typeof event.data === "string") onEvent(event.data)
+    }
+    peer.onconnectionstatechange = () => {
+      if (!closed && (peer.connectionState === "failed" || peer.connectionState === "closed")) {
+        onLost()
+      }
+    }
+    await peer.setLocalDescription(await peer.createOffer())
+    // The offer is sent whole, with every way of reaching this browser in it.
+    await new Promise<void>((done) => {
+      if (peer.iceGatheringState === "complete") return done()
+      const timer = setTimeout(done, 2_500)
+      peer.onicegatheringstatechange = () => {
+        if (peer.iceGatheringState !== "complete") return
+        clearTimeout(timer)
+        done()
+      }
+    })
+    const call = await place(peer.localDescription?.sdp ?? "")
+    if (call.sdp === null) throw new Error("The call was not answered.")
+    await peer.setRemoteDescription({ type: "answer", sdp: call.sdp })
+    return {
+      call,
+      line: {
+        send(events) {
+          for (const event of events) {
+            if (channel.readyState === "open") channel.send(event)
+            else waiting.push(event)
+          }
+        },
+        setMuted(muted) {
+          for (const track of microphone.getAudioTracks()) track.enabled = !muted
+        },
+        levels: () => ({ you: level(meters.you), dood: level(meters.dood) }),
+        close,
+      },
+    }
+  } catch (error) {
+    close()
+    throw error
+  }
+}
+
+/** What went wrong asking for the microphone, in words. */
+export function microphoneProblem(error: unknown): string {
+  const name = error instanceof DOMException ? error.name : ""
+  if (name === "NotAllowedError" || name === "SecurityError") {
+    return "The microphone is not allowed here. Check the permission for this site, then call again."
+  }
+  if (name === "NotFoundError" || name === "OverconstrainedError") {
+    return "No microphone was found."
+  }
+  return error instanceof Error ? error.message : "The call could not be started."
+}
+

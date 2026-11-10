@@ -1,0 +1,90 @@
+// Who is where in a team, as the React app shows it (lib/workspaces.ts `useHere`): who is with
+// each Dood in the sidebar, who has the open chat open and who is writing in it, and who is here
+// at all on the team's People. Read from the team's presence socket (data/teams-here.ts).
+use Reply from "./shapes.contract"
+use TeamInfo, TeamMember, teamOf from "./teams.contract"
+
+shape HerePlace
+  userId: string
+  agentId: string
+  chatId: string
+  typing: bool
+
+shape Here
+  owner: string
+  workspaceId: string
+  places: HerePlace[]
+  changes: number
+  lost: bool
+
+// The people of `places` for whom it holds, each once, in the order they came (`whoIs`).
+fn peopleIn(places: HerePlace[], members: TeamMember[]): TeamMember[] = members.filter(m => places.map(p => p.userId).includes(m.id))
+
+// "Ada", "Ada and Grace", "Ada, Grace and Lin" (lib/workspaces.ts `names`).
+fn namesOf(people: TeamMember[]): string = people.length <= 1 ? people.map(p => p.name).join("") : `${people.slice(0, -1).map(p => p.name).join(", ")} and ${people.slice(-1).map(p => p.name).join("")}`
+
+members App
+  // --- teams: who is here ---
+  // The team on screen: the open Dood's, or the workspace page's.
+  derive hereTeam = teamOf(teamList, openAgentId != "" ? openDood.workspaceId : teamWorkspaceId).kind == "team" ? (openAgentId != "" ? openDood.workspaceId : teamWorkspaceId) : ""
+  resource here = followHere(session.owner, hereTeam) as shape Here else empty()
+  task hereMend mount
+    every(5000, hereHeal)
+  action hereHeal
+    if here.lost
+      refresh here
+  derive herePlaces = here.owner == session.owner and here.workspaceId == hereTeam ? here.places : []
+  derive hereOthers = herePlaces.filter(p => p.userId != session.userId)
+  derive hereMembers = teamOf(teamList, hereTeam).members
+  derive hereChatId = onRoute == "dood" or onRoute == "chat" ? openChatId : ""
+  // Whether its person is writing in the open chat: from a keystroke until four quiet seconds
+  // later, or until what was written is sent (lib/workspaces.ts `noteTyping`).
+  state hereTyping = false
+  task hereTypingOn key=draft
+    after(1, hereTypingNoted)
+  action hereTypingNoted
+    hereTyping = draft != "" and hereChatId != ""
+  task hereTypingLapse key=draft
+    after(4000, hereTypingStopped)
+  action hereTypingStopped
+    hereTyping = false
+  mutation hereSaid as shape Reply
+  task hereWhere key=`${hereTeam}:${openAgentId}:${hereChatId}:${hereTyping}`
+    after(1, hereSay)
+  action hereSay
+    send hereSaid = sayHere(session.owner, hereTeam, openAgentId, hereChatId, hereTyping)
+  // What the team said changed: its people, its Doods or its name.
+  task hereChanged key=`${hereTeam}:${here.changes}`
+    after(1, hereRefresh)
+  action hereRefresh
+    if here.changes > 0
+      refresh teams
+      refresh workspaces
+      refresh doods
+  derive hereInChat = peopleIn(herePlaces.filter(p => p.agentId == openAgentId and p.chatId == hereChatId and hereChatId != ""), hereMembers)
+  derive hereWriting = peopleIn(hereOthers.filter(p => p.agentId == openAgentId and p.chatId == hereChatId and hereChatId != "" and p.typing), hereMembers)
+
+// Faces in a row, a little over each other: a picture, or initials on the muted ink.
+component HereFaces
+  props
+    people: TeamMember[]
+    size: number
+  view
+    row testId="here-faces"
+      for p, i in people.slice(0, 3) key=p.id
+        column width=size height=size border-radius=999 background-color="ink.muted" align-items="center" justify-content="center" flex-shrink=0 overflow="hidden"
+          margin-left=(i == 0 ? 0 : -(size / 4)) box-shadow="0 0 0 2px var(--frame)" title=p.name
+          if p.image != ""
+            image p.image width=size height=size alt=p.name
+          else
+            text p.initials color="canvas" font-size=`${size * 0.4}px` font-weight=600 aria-hidden=true
+
+// Who else is writing in the open chat, over the composer.
+component HereTyping
+  inject
+    hereWriting: TeamMember[]
+  view
+    if hereWriting.length > 0
+      row role="status" width="100%" max-width="45rem" margin="0 auto" box-sizing="border-box" padding="0 24px 6px" gap=8 align-items="center" testId="here-typing"
+        HereFaces(people=hereWriting, size=18)
+        text `${namesOf(hereWriting)} ${hereWriting.length == 1 ? "is" : "are"} typing…` font-size="0.75rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"

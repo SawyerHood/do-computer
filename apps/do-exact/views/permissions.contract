@@ -1,0 +1,103 @@
+// What a Dood may do without asking, as the React app's PermissionsSettings
+// (apps/web/src/components/settings/permissions.tsx): a rule for each thing it can do, each
+// connector and each of the person's computers. Everything is allowed until a rule says
+// otherwise. data/settings-dood.ts answers it.
+use Session, Reply, Page from "./shapes.contract"
+use DoodSettings, SettingsSection, ErrorLine, Hint from "./settings-kit.contract"
+use ApprovalAsk from "./chat-shapes.contract"
+
+// Something a rule can be set for, with the rule it has: "allow", "ask" or "deny".
+shape Subject
+  id: string
+  // "tool", "connector" or "computer".
+  kind: string
+  label: string
+  hint: string
+  rule: string
+
+shape Approvals
+  owner: string
+  agentId: string
+  subjects: Subject[]
+  // What it waits for someone to allow: the chat shows these over its composer (chat-asks.contract).
+  pending: ApprovalAsk[]
+
+shape RuleGroup
+  kind: string
+  title: string
+  empty: string
+
+shape RuleChoiceShape
+  id: string
+  label: string
+
+fn ruleChoices(): RuleChoiceShape[] = [RuleChoiceShape(id="allow", label="Allow"), RuleChoiceShape(id="ask", label="Ask first"), RuleChoiceShape(id="deny", label="Never")]
+
+fn ruleGroups(): RuleGroup[] = [
+  RuleGroup(kind="tool", title="What it can do", empty=""),
+  RuleGroup(kind="connector", title="Connectors", empty="No connectors yet."),
+  RuleGroup(kind="computer", title="Your computers", empty="No computers connected yet.")
+]
+
+members App
+  // --- permissions ---
+  // The chat's pages show what it waits for someone to allow, so they ask for it too.
+  resource approvals = loadApprovals(session.owner, onRoute == "permissions" or onRoute == "dood" or onRoute == "chat" ? openAgentId : "") with pulse.asks.approvals as shape Approvals else empty()
+  mutation ruled as shape Reply refreshes approvals
+  // What was just chosen, shown at once until the server has answered either way.
+  state ruleFor = ""
+  state ruleTo = ""
+  derive ruleError = pending(ruled) ? "" : match ruled { case some(r) => r.error, case none => "" }
+  action setRule(subjectId: string, rule: string)
+    ruleFor = subjectId
+    ruleTo = rule
+    send ruled = setApproval(openAgentId, subjectId, rule)
+
+component PermissionsScreen
+  props
+    page: Page
+  inject
+    session: Session
+    approvals: Approvals
+    ruling: bool
+    ruleFor: string
+    ruleTo: string
+    ruleError: string
+    setRule: action
+  derive ours = approvals.owner == session.owner and approvals.agentId == page.agentId
+  view
+    DoodSettings(page=page, route="permissions", title="Permissions", lead="Your Dood acts without asking unless you say otherwise here. A few things that cost money or give it more reach start on “Ask first”. With “Ask first” it stops, tells you what it wants to do, and waits for your answer in the chat. Scheduled runs follow the same rules, and wait the same way.", listing=false)
+      ErrorLine(text=ruleError, testId="permissions-error")
+      if not ours
+        progress aria-label="Loading"
+      else
+        for g in ruleGroups() key=g.kind
+          column gap=4 testId=`permissions-${g.kind}`
+            text g.title role="heading" aria-level=3 font-size="0.875rem" font-weight=500
+            if approvals.subjects.filter(s => s.kind == g.kind).length == 0
+              text g.empty class=Hint
+            else
+              column role="list"
+                for s, i in approvals.subjects.filter(x => x.kind == g.kind) key=s.id
+                  RuleRow(subject=s, rule=(ruling and ruleFor == s.id ? ruleTo : s.rule), first=(i == 0), pick=setRule(s.id))
+
+// One thing a rule is set for, and the rule: Allow, Ask first or Never.
+component RuleRow
+  props
+    subject: Subject
+    rule: string
+    first: bool
+    pick: action
+  view
+    row role="listitem" flex-wrap="wrap" align-items="center" justify-content="space-between" gap=8 padding="10px 0"
+      border-top=(first ? "none" : "1px solid var(--border)") testId=`rule-${subject.id}`
+      column flex="1 1 14rem" min-width=0
+        text subject.label font-size="0.875rem"
+        if subject.hint != ""
+          text subject.hint font-size="0.75rem" color="ink.muted"
+      row role="radiogroup" aria-label=subject.label appearance="none" gap=0 padding=2 border-radius=8 border="1px solid var(--border)"
+        for c in ruleChoices() key=c.id
+          button role="radio" aria-checked=(rule == c.id) press=pick(c.id) min-height="1.5rem" padding="0 12px" border-radius=6 font-size="0.75rem"
+            background-color=(rule == c.id ? "wash" : "transparent") color=(rule == c.id ? "ink" : "ink.muted") font-weight=(rule == c.id ? 500 : 400) border="none"
+            testId=`rule-${subject.id}-${c.id}`
+            text c.label

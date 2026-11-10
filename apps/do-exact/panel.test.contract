@@ -1,0 +1,71 @@
+// A Dood's panel beside its chat, and its creature wherever it is drawn: a Dood hatched from the
+// sidebar's + is met as an egg that hatches while its owner watches, and its face then acts out
+// what its chat says. Against the real server, with the echo model; each test makes an account
+// of its own (`panel-<n>@example.com`).
+
+test "a new Dood is an egg that hatches in its panel, and its owner's having watched is kept"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "panel-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  expect state doods.doods.0 .hatched == false
+  expect state liveFaces.0 .hatched == false
+  expect tree has "hello-face"
+  expect text "hello-title" == "Say hello"
+  tap "panel-toggle-dood"
+  expect tree has "dood-panel"
+  expect tree missing "hello-face"
+  expect text "panel-status" == "About to hatch"
+  expect tree missing "panel-wardrobe"
+  expect tree missing "give-treat"
+  clock +1700
+  expect state liveFaces.0 .hatching == true
+  clock +10000
+  clock data
+  expect state liveFaces.0 .hatched == true
+  expect state doods.doods.0 .hatched == true
+  expect text "panel-status" == "Ready"
+  expect tree has "panel-wardrobe"
+  expect tree has "give-treat"
+  reload
+  clock data
+  clock settle
+  clock data
+  expect state liveFaces.0 .hatched == true
+  expect state hatchingFor == ""
+
+test "pressing the egg skips the hatch, and its face listens while something is typed"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "panel-2@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "hello-face"
+  clock data
+  expect state liveFaces.0 .hatched == true
+  expect state doods.doods.0 .hatched == true
+  tap "panel-toggle-dood"
+  expect text "panel-status" == "Ready"
+  type "composer" "hel"
+  expect state openMood.state == "listening"
+  expect text "panel-status" == "Listening"
+  clock +2600
+  expect state openMood.state == "idle"
+  expect text "panel-status" == "Ready"
+  type "composer" ""
+  clock +240000
+  expect state openMood.state == "asleep"
+  expect text "panel-status" == "Resting"

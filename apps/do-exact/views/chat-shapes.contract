@@ -1,0 +1,187 @@
+// The shapes of a Dood's chat and what goes with it: the rows of its transcript
+// (data/chat-rows.ts makes them), what came before it, its kind, and what the Dood waits on
+// someone for. In a file of their own, so that the chat's views can share them.
+
+// One piece of a message as the transcript draws it (data/chat-rows.ts says what each kind
+// carries): "text" (Markdown), "image", "file", "visual", "site", "pin", "subagent", "command",
+// "agentMessage", "use", "kept", "mcpApp", "schedule", and a notice message's one "notice". A
+// line is `text`, then `name` in bold, then `after`; `more` is folded under it behind `moreLabel`.
+shape Block
+  id: string
+  kind: string
+  text: string
+  name: string
+  after: string
+  status: string
+  detail: string
+  more: string
+  moreLabel: string
+  // `more` starts unfolded.
+  open: bool
+  // `name` is a command, a computer, a variable: in the code font.
+  mono: bool
+  chatId: string
+  agentId: string
+  linkLabel: string
+  path: string
+  fileId: string
+  src: string
+  outcome: string
+  // Under way: drawn moving.
+  going: bool
+  lines: string[]
+
+// A row of the transcript: a message, as transcript.tsx `MessageView` draws it.
+shape Message
+  id: string
+  // "user", "assistant" or "notice".
+  role: string
+  status: string
+  error: string
+  blocks: Block[]
+  // A user's message from someone other than the one signed in: "person" (in a team), "agent"
+  // (another Dood), "slack"; "" for one's own. `author` is who, `time` when.
+  from: string
+  author: string
+  authorId: string
+  time: string
+  // Said out loud on a call.
+  spoken: bool
+  // In a sub-agent's chat: the person's answer to something it asked leave for.
+  answered: bool
+  // "sent" while it waits for the Dood, "delivered" once it has it; "" where nothing is said.
+  delivery: string
+  // The files it named for the Dood, other than the pictures it shows.
+  files: string[]
+  notSent: string
+  // A reply that failed: how many times in a row, and the failure put into words.
+  failures: number
+  errorTitle: string
+  errorHint: string
+  errorDetail: string
+  errorFacts: string[]
+  errorKind: string
+  retryable: bool
+  stopped: bool
+
+shape Chat
+  owner: string
+  // Whose chat this answer is, so a retained one is never shown under another Dood.
+  agentId: string
+  chatId: string
+  busy: bool
+  // The stream ended or skipped events: what is shown may be behind until it is followed again.
+  lost: bool
+  messages: Message[]
+  // Its first snapshot has come. A chat lost before that could not be opened.
+  loaded: bool
+  // What the Dood is doing, one line, while nothing on screen says so.
+  activity: string
+  // It begins after a summary or a fresh start: what came before can be loaded.
+  midway: bool
+  firstId: string
+  // A message of the user's that has just reached the Dood.
+  justDelivered: string
+  // What the Dood is thinking in its newest message. The transcript does not draw it, as the
+  // React app does not; the transport's tests and tools/stream-check.mjs read it.
+  thought: string
+  // What the Dood is doing, for its creature to act out (protocol/activity.ts `chatMood`):
+  // "idle", "thinking", "working", "speaking" or "error"; for working, the kind of work.
+  moodState: string
+  moodVariant: string
+
+// Which chat is a Dood's main one: what `/a/:agentId` opens.
+shape Opened
+  owner: string
+  agentId: string
+  chatId: string
+
+// What came before the live transcript, as many pages as were asked for.
+shape Earlier
+  owner: string
+  chatId: string
+  anchor: string
+  messages: Message[]
+  more: bool
+
+// What the open Dood's event stream said changed, counted, for what the chat shows of it: each
+// count asks again for what it is about. The shell's stream carries it (DoodPulse `asks`).
+shape AskCounts
+  tools: number
+  jobs: number
+  pins: number
+  approvals: number
+  secrets: number
+  chats: number
+  connectors: number
+  library: number
+
+shape ApprovalAsk
+  id: string
+  chatId: string
+  chatTitle: string
+  chatKind: string
+  task: string
+  title: string
+  detail: string
+  onceOnly: bool
+  // What a yes has to come with, typed: a card's security code. "" for nothing.
+  wants: string
+
+shape SecretField
+  name: string
+  description: string
+
+shape SecretAsk
+  id: string
+  chatId: string
+  purpose: string
+  // A sub-agent's ask, under its title, with the start of its task.
+  subagent: string
+  task: string
+  // "dotenv", "connector" or "login"; `name` the file, the connector or the site; `place` the
+  // computer or the connector's host.
+  kind: string
+  name: string
+  place: string
+  fields: SecretField[]
+
+shape SecretAsks
+  owner: string
+  agentId: string
+  asks: SecretAsk[]
+
+shape SignInAsk
+  id: string
+  name: string
+  host: string
+
+shape SignIns
+  owner: string
+  agentId: string
+  connectors: SignInAsk[]
+
+shape SignInReply
+  ok: bool
+  error: string
+  url: string
+
+// A computer the Dood asked to use, for whoever it belongs to to answer.
+shape ComputerAsk
+  id: string
+  computer: string
+  workspaceId: string
+  // Who paired it, for "Waiting for … to answer".
+  pairedBy: string
+  readOnly: bool
+  reason: string
+  canAnswer: bool
+
+shape ComputerAsks
+  owner: string
+  agentId: string
+  asks: ComputerAsk[]
+
+// The address of one of a Dood's chats, safe to make before what it names has arrived: no Dood is
+// the list, no chat the Dood's main one.
+fn chatHref(agentId: string, chatId: string): string = agentId == "" ? "/" : (chatId == "" ? path("dood", agentId) : path("chat", agentId, chatId))
