@@ -27,6 +27,8 @@ shape Viewport
   height: number
 
 shape Workspace
+  // This person may use saved logins or cards here.
+  secrets: bool
   id: string
   name: string
   // "personal" or "team".

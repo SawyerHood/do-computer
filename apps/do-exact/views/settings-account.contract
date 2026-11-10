@@ -261,9 +261,13 @@ component WorkspacesListScreen
     session: Session
     workspaceList: Workspace[]
     workspacesAbout: WorkspacesAbout
+    teamNew: action
   derive ours = workspacesAbout.owner == session.owner
   view
     AccountSettings(page=page, route="workspacesList", title="Workspaces", lead="Your own, and the teams you are in. A workspace has the computers its Doods work on and the models they can run on; a team has its people too.", listing=false, admin=admin, waitlist=hasWaitlist, close=settingsReturn)
+      button press=teamNew class=OutlineButton align-self="flex-start" testId="workspaces-new-team"
+        image "symbol:icon.plus" aria-hidden=true
+        text "New team"
       column role="list"
         for w, i in workspaceList key=w.id
           link href=`/w/${w.id}/settings` role="listitem" aria-label=`${w.name}: workspace settings` display="flex" align-items="center" gap=12 padding="10px 6px"

@@ -16,6 +16,7 @@ const ICONS = {
   gear: "Gear",
   users: "Users",
   check: "Check",
+  "dots-six-vertical": "DotsSixVertical",
   brain: "Brain",
   stop: "Stop",
   x: "X",

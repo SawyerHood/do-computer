@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs an Exact verb for this app with the tools on PATH: ./x test web, ./x agent web …, ./x verify.
-# Every checkout of this repository on a machine shares the two ports (the server's 3911, the
-# page's 8766), so the verbs that use them wait their turn on one lock.
+# The server and interactive page use the checkout's slot, and wait their turn on its lock.
+# Verify's concurrent page drives use a small slot-specific range instead of one fixed port.
 set -euo pipefail
 cd "$(dirname "$0")"
 export PATH="$HOME/.bun-1.4.2/bin:$HOME/.nvm/versions/node/v24.18.0/bin:$HOME/.cargo/bin:$PATH"
@@ -19,6 +19,18 @@ if [ -z "${CHROME:-}" ]; then
   [ -n "$CHROME" ] && export CHROME
 fi
 case "${1:-}" in
-  test|verify|agent|web) exec flock "/tmp/do-exact-ports-$slot.lock" bun exact.mjs "$@" ;;
+  verify)
+    # Exact launches the initial phone and desktop checks together. A fixed EXACT_PORT makes
+    # one fail with EADDRINUSE. Keep the API on its slot, but let the page drives pick a free
+    # port from this slot's range; the local test server must trust each of those origins.
+    export PORT_LO="${PORT_LO:-$((18766 + slot * 10))}"
+    export PORT_HI="${PORT_HI:-$((PORT_LO + 9))}"
+    origins="http://127.0.0.1:$EXACT_PORT"
+    for ((port=PORT_LO; port<=PORT_HI; port++)); do origins+=",http://127.0.0.1:$port"; done
+    export DC_CLIENT_ORIGINS="${DC_CLIENT_ORIGINS:-$origins}"
+    unset EXACT_PORT
+    exec flock "/tmp/do-exact-ports-$slot.lock" bun exact.mjs "$@"
+    ;;
+  test|agent|web) exec flock "/tmp/do-exact-ports-$slot.lock" bun exact.mjs "$@" ;;
   *) exec bun exact.mjs "$@" ;;
 esac

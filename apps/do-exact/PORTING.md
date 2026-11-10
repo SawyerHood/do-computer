@@ -58,6 +58,11 @@ build compiles Rust for a minute or two; later ones take seconds.
   (`echo 3 > .slot`); without one you share slot 0 and wait your turn. Never start `server.ts`,
   the React dev server or anything else on those ports yourself and leave it running; never
   `pkill` by a broad pattern. The React app for comparison is at the server's port.
+  `verify` opens its initial phone and desktop checks concurrently, so `./x verify` keeps the
+  API and slot lock but gives its page drives ten ports starting at `18766 + 10 * slot`
+  (`PORT_LO`/`PORT_HI` override that range). Its empty local server trusts those page origins.
+  Interactive `web`/`agent` and standalone `test` keep the usual `8766 + slot` page port;
+  do not force a single `EXACT_PORT` through a direct `bun exact.mjs verify` invocation.
 
 ## Structure
 

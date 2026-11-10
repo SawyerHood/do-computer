@@ -10,6 +10,7 @@ import { careSources } from './data/care.ts';
 import { doodSources } from './data/dood.ts';
 import { sessionSources } from './data/session.ts';
 import { shellSources } from './data/shell.ts';
+import { teamsSources } from './data/teams.ts';
 import { transportSources } from './data/transport.ts';
 import { doodSettingsSources } from './data/settings-dood.ts';
 import { accountSettingsSources } from './data/settings-account.ts';
@@ -35,6 +36,7 @@ const sources: Sources = {
   ...sessionSources,
   ...shellSources,
   ...chatSources,
+  ...teamsSources,
   ...transportSources,
   ...composerSources,
   ...composerJobSources,

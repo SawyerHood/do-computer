@@ -49,6 +49,14 @@ what Exact cannot do yet.
   side chat each say whose they are, lead back, and have their own foot in the composer's place.
   The composer (views/composer.contract) is under it. Its panel beside the chat, from its face
   in the pill, with what is pinned to it.
+- Teams: create one with a colour, optional personal Doods and invitations; rename it, manage
+  members and their roles, hand ownership on, leave, or delete an empty team. People and
+  workspace settings use the shared settings frame; New team is in both its Workspaces list
+  and the sidebar. Pending email/GitHub invitations can be
+  renewed or withdrawn; links can be copied, previewed signed out, accepted or dismissed.
+- The sidebar folds workspaces, opens their people/settings, renames/moves/deletes Doods and
+  saves their order to the deployment. Drag a grip with a mouse in a wide window, use Move
+  up/down on a phone, or give up a custom order with Sort by latest. Deleting a Dood here keeps its computers.
 - Settings, in the React app's settings window's card (`views/settings-kit.contract`): a Dood's
   profile (name, tagline, colour, a new look, voice, personality, moving it, deleting it),
   memory (with starting the main chat fresh), model and thinking with its computers, usage and
@@ -58,24 +66,16 @@ what Exact cannot do yet.
   to a provider with a key, a subscription or a code) and Passwords (logins and cards); and for
   whoever looks after the deployment, Global models and the waiting list. The account menu
   leads to them.
-- A Dood's other pages, from the pill's menu: library, automations, skills, connectors,
-  computers; and a workspace's page, people and settings. Each is a titled placeholder for now.
-- Tests (`chat.test.contract`, `shell.test.contract`, `sign-in.test.contract`,
-  `settings.test.contract`) that drive all of that against Do Computer's own server on the web
-  host, and `./x verify` clean. `server.ts` turns saved logins and cards on (`DC_SECRETS=on`) so
-  that Passwords can be tested.
 - The library: recent previews and folder tree, filtering, document creation, multi-upload,
   image/page/PDF/media/table/text viewers, Markdown editing and split preview, autosave and
   conflicts, rename/move/download/delete, revision revert and deleted-file restore. Pins open
   a document over chat. Files/folders can be shared with the workspace or anyone with a link.
   [LIBRARY-PORT.md](LIBRARY-PORT.md) records the scope and integration seams.
-- A Dood's other pages, from the pill's menu: automations, skills, connectors,
-  computers, permissions, profile, settings; and a workspace's page, people and settings. Each
-  is a titled placeholder for now.
-- Tests (`chat.test.contract`, `chat-transcript.test.contract`, `shell.test.contract`, `sign-in.test.contract`, `library*.test.contract`,
-  `pins.test.contract`, `welcome.test.contract`, `panel.test.contract`, `care.test.contract`,
-  `wardrobe.test.contract`) that drive all of that against Do Computer's own server on the web
-  host, and `./x verify` clean.
+- The remaining automations, skills, connectors and computer-management bodies are placeholders.
+- Every `*.test.contract` beside the app drives the real server. `server.ts` turns saved logins
+  and cards on (`DC_SECRETS=on`) so Passwords can be tested. The teams screenshot tools compare
+  React and Exact; `tools/teams-integration-shots.sh` captures the merged sidebar, settings and
+  a second account accepting an invitation.
 
 ## Run it
 
@@ -137,13 +137,13 @@ React app (`apps/web/src/server/exact-app.ts`). Node only for now. `tools/same-o
 
 In the order it would be built:
 
-1. **The pages' bodies.** Pages other than chat and library are placeholders (PORTING.md says how to fill
-   one in). Of the creature: claiming a Dood hatched in a post, the waiting list's own first run,
-   and the public Dood page (`/dood/:id`, `/hatch`), which nothing in the signed-in app links to.
-2. **The rest of a chat.** Slash commands, MCP apps, and what GAPS.md's "Chat transcript" lists.
-3. **The rest of the shell.** Naming and hatching with the egg, starting a team and answering
-   invitations, putting Doods in order by dragging, folding a workspace, calls, and the
-   React app's wide sidebar that folds to a column of faces.
+1. **The remaining pages.** Automations, skills, connectors and computer-management bodies
+   remain placeholders. Claiming a Dood hatched in a post, the waiting list's own first run and
+   the public Dood page (`/dood/:id`, `/hatch`) remain outside this signed-in client.
+2. **The rest of a chat.** Slash commands, MCP apps, authenticated screen pictures, visual
+   message bridging and what GAPS.md's "Chat transcript" lists.
+3. **The rest of the shell.** Touch drag ordering, calls, team live presence, and the React
+   app's wide sidebar that folds to a column of faces.
 4. **Any deployment.** The address is a constant. A person should type it at sign-in, as on the
    phone, which needs the grant `net.fetch https:` and the address kept in the store.
 5. **Apple hosts.** Nothing here was built for iOS or macOS yet: that needs a Mac with Xcode.
@@ -153,9 +153,8 @@ In the order it would be built:
    native launch opens at the list of Doods: the open chat is not kept across launches.
 6. **The app served on Cloudflare.** `DC_EXACT_APP` is the Node server's; the Worker would serve
    the build from its static assets, which the deploy would have to build with Exact's tools.
-7. **What Exact has no answer for yet.** Mermaid and Shiki (npm packages with DOM or wasm needs,
-   which would be web native views as the creature is), MCP app and visual embeds beyond a plain
-   `iframe`, push on native hosts, and the desktop app's work: running the daemon and driving the screen
+7. **What Exact has no answer for yet.** MCP app and visual embeds beyond a plain `iframe`,
+   push on native hosts, and the desktop app's work: running the daemon and driving the screen
    and browser. Windows is unfinished in Exact.
 
 ## Things learned about Exact, 2026-11-09

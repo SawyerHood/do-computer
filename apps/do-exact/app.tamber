@@ -87,6 +87,7 @@ icons
   icon.eye = icon(sf "eye", svg "icons/eye.svg")
   icon.eye-slash = icon(sf "eye.slash", svg "icons/eye-slash.svg")
   icon.copy = icon(sf "doc.on.doc", svg "icons/copy.svg")
+  icon.dots-six-vertical = icon(sf "line.3.horizontal", svg "icons/dots-six-vertical.svg")
   icon.t-shirt = icon(sf "tshirt", svg "icons/t-shirt.svg")
   icon.dice = icon(sf "dice", svg "icons/dice-five.svg")
   icon.question-mark = icon(sf "questionmark", svg "icons/question-mark.svg")

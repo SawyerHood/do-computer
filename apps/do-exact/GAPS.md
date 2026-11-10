@@ -113,9 +113,10 @@ under a finger.
 three seconds without fading.
 
 **Who else is here, and typing.** A team's presence and "Ada is typing…" come over the person's
-own socket in the React app (`useHere`, `noteTyping`), which cannot carry this app's session
-(The shell, above). A call held in the chat (`CallInChat`) and the starters a Dood offers when it
-is first met (`meetingWith`, kept in the first run's browser storage) are not here either.
+own socket in the React app (`useHere`, `noteTyping`). This app has live personal-feed and
+Dood sockets, but has not wired team presence or outgoing typing notifications into them.
+A call held in the chat (`CallInChat`) and the starters a Dood offers when it is first met
+(`meetingWith`, kept in the first run's browser storage) are not here either.
 
 **Earlier messages** ("Show earlier messages") are loaded a page at a time from
 `/chats/:id/history`, after the chat was started fresh from the Dood's Memory settings
@@ -209,9 +210,62 @@ server. With the required port 8766 pin they collide (`port 8766 (--port or EXAC
 use: another drive or program holds it`), even though no other process holds the port before
 or after the command. The gallery is checked sequentially with `./x test web --size …` and
 `./x agent web … "check both"` instead; the machine-wide lock and port policy are unchanged.
-The root app's own verify is not affected: it has a server, and runs clean. No Exact patch was
+The root app has a server. Its wrapper gives verify's concurrent initial page drives separate
+ports in a slot-specific range, with those origins trusted by the empty local test server;
+a fixed `EXACT_PORT` otherwise makes one initial viewport fail to start. No Exact patch was
 made.
 
+
+## Teams and sidebar
+
+**Live people are not wired yet.** The people list shows membership and roles, and the sidebar
+keeps its existing unread, working and asking marks. React also draws who is with a Dood and
+who is here (`components/shell/agent-list.tsx`, `components/people.tsx`). This client
+uses the merged personal WebSocket feed for live Dood rows, but does not open a second
+team-presence connection. Initials or account images stand for members; the public invitation
+preview lists their names, not React's row of faces.
+
+**The waiting-list flow is partial.** Deployment admins use the merged Settings → Waiting
+list to read/admit people; the duplicate workspace waitlist and its data source were removed.
+A waiting account gets an explanation, Check again and Sign out. React also lets it
+hatch and pet its first Dood (the welcome stage and `components/settings/waitlist.tsx`). The
+normal first run now has that egg and care; the waiting-account version is not added here.
+Existing shell sources still request the admitted-user workspaces/Doods APIs for a waiting
+session; those APIs return 403. Their waiting-state gating remains deployment-mode integration
+work. The local test server forces `DC_SIGNUP=open`, so invitation-only sign-up, waiting-account
+admission and admin-only waitlist controls still need deployment-mode integration tests. Normal signed-out preview, sign-up, acceptance and Not now are covered
+against the real server. An email inbox invitation belongs only to an email-verified account;
+verified inbox dismissal and GitHub sign-in need accounts the local password-only harness
+does not supply. Not now treats only the server's expected 404 as leaving a public link alone;
+other failures remain visible.
+
+**Moving is a dialog, deleting keeps computers.** Reorder is native within one workspace;
+Move to a workspace confirms the sharing implications separately. The sidebar's typed-name
+Delete removes the Dood but always keeps computers. React's full deletion dialog can also offer
+to remove eligible computers. There is no such destructive option in this sidebar port.
+
+**Teams use the merged settings window.** The kit from `exact-client` replaces the copied
+snapshot. Workspaces → a team opens People beside its section list on a wide window, or the
+list alone on a phone. People, Computers, Models and (where enabled) Passwords are separate
+sections; New team is available from Workspaces and the sidebar. Workspace computers remains
+an explicit placeholder, matching the unported computer-management area. Public share links
+remain the canonical absolute URLs returned by the deployment; View invitation uses the
+relative Exact route. See Settings below for the address-versus-query difference.
+
+**The driver can retain duplicate sidebar targets after crossing routes or accounts.** A
+workspace menu or Dood menu can have two nodes with its same label and ID, even after settling.
+The cross-route and multi-user tests reload before acting on the affected sidebar. Shared
+sign-out/navigation is left unchanged as requested; this should be investigated when
+integrating the areas. Dood action menus are explicitly hidden before opening a dialog
+or changing row order, so a virtualized row is not held by an open popover after it moves.
+
+**Phone reorder uses Move up / Move down.** Native mouse drag is tested and persists after
+reload, including clearing the override with Sort by latest. Finger-driven reorder at 390×844
+did not change the stored order, even with a held press and the list scrolled up. Its cause is
+not established. The grip is therefore offered only in the wide layout; phones keep the
+explicit Move up / Move down actions, which use the same persisted order API. The regression
+test covers that phone alternative rather than claiming touch drag works. Wide touch screens
+still need a real-device check.
 
 ## Rich message content
 
@@ -223,8 +277,9 @@ in one shadow DOM tree so selection crosses prose and code. The native content h
 web layout height; no Apple/Linux implementation or native intrinsic sizing was added. The
 Exact agent sees tags/props, not their text or buttons; the separate gallery's Playwright
 probe tests those. A simple reply can change renderer once richer syntax arrives, which may
-lose a selection over that change. The real chat has not been wired while another branch
-rewrites it; the exact `MessageText` call is in `modules/web/README.md`.
+lose a selection over that change. The real transcript now calls `MessageText` in
+`views/chat-rows.contract`; `chatLibraryLinks` resolves its files and `markdownSaid` handles
+file and image presses, opening the library panel or the root picture viewer.
 
 React's `components/chat/markdown.tsx` resolves library links and images using the chat's
 library query, previews local CSV/TSV, opens files beside the chat, refreshes expired view
@@ -232,8 +287,8 @@ URLs, and uses the full multi-picture viewer with download. This presentation-on
 accepts a caller-resolved `files` prop and emits `file:<id-or-path>`, renders known image
 URLs and browser video/audio controls, and otherwise shows alt text. It does not fetch the
 library, preview CSV/TSV, refresh authorization, open a side panel, or provide the picture
-viewer. A figure opens in a new tab and emits `image:<url>`. The chat/library owner must
-supply browser-loadable URLs and consume file events; no bearer secret belongs in props.
+viewer itself. It emits `image:<url>` for a figure. The integrated chat supplies browser-loadable
+URLs and consumes file/image events; no bearer secret belongs in props.
 Attachments that are separate message blocks remain that screen's responsibility.
 
 Remote pictures/media wait for Show, as in React, but there is no persistent Always from
@@ -304,10 +359,8 @@ under it (`settings` is the list of its sections, which the React app's
 `/a/:id/settings` sends to the person's General instead), the person's own are under
 `/settings`, a workspace's under `/w/:id`. Back and reload work on each.
 
-**A workspace's Passwords is listed whether or not it keeps any.** The React app lists the
-section only where the workspace keeps logins or cards this person may see (`workspaceSections`).
-The kit's frame reads the shell's `Workspace`, which does not say; the Passwords page says when
-there is nothing it keeps, and lists logins and cards only where it does.
+The shared `Workspace.secrets` now comes from `savedLogins` / `savedCards` on the server's
+workspace summary, so the section list offers Passwords only where this person may use it.
 
 **Web push works through a service worker the page module registers under `/modules/`.** A data
 module cannot reach `navigator.serviceWorker` or `Notification`, and an Exact web build serves

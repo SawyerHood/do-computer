@@ -30,8 +30,19 @@ members App
     after(1, outOnceTalked)
 
   action beginHatch
-    if doodList.filter(d => d.id == openAgentId).length > 0 and not openDood.hatched and not hatchedHere.includes(`|${openAgentId}|`) and hatchingFor == ""
+    // A second sidebar + can leave a hatch before its view sends "hatched". Finish that one
+    // first, so the new Dood is not left in its egg behind the old hatchingFor. State writes
+    // land together at the end; these bindings are the state this action began with.
+    let before = hatchingFor
+    let watched = hatchedHere
+    let leftHatch = before != "" and before != openAgentId
+    if leftHatch and doodList.filter(d => d.id == before).length > 0 and not watched.includes(`|${before}|`)
+      hatchedHere = `${watched}|${before}|`
+      send hatchSeen = markHatched(before)
+    if doodList.filter(d => d.id == openAgentId).length > 0 and not openDood.hatched and not watched.includes(`|${openAgentId}|`) and (before == "" or leftHatch)
       hatchingFor = openAgentId
+    else if leftHatch
+      hatchingFor = ""
   action outOnceTalked
     if ours and chat.messages.length > 0 and doodList.filter(d => d.id == openAgentId).length > 0 and not openDood.hatched
       hatchDone(openAgentId)

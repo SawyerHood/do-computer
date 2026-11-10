@@ -6,6 +6,7 @@
 use Page from "./views/shapes.contract"
 use SignIn from "./views/sign-in.contract"
 use Sidebar from "./views/shell.contract"
+use SidebarDialogs from "./views/teams-sidebar.contract"
 use ChatScreen from "./views/chat.contract"
 use LibraryScreen from "./views/library.contract"
 use LibraryFileCard, LibraryPictureViewer from "./views/library-card.contract"
@@ -25,7 +26,9 @@ use WaitlistScreen from "./views/settings-waitlist.contract"
 use NotificationsScreen from "./views/settings-notifications.contract"
 use WorkspaceHomeScreen from "./views/workspace.contract"
 use PeopleScreen from "./views/people.contract"
-use WorkspaceSettingsScreen from "./views/workspace-settings.contract"
+use WorkspaceSettingsScreen, WorkspaceComputersScreen from "./views/workspace-settings.contract"
+use TeamDialogs from "./views/teams.contract"
+use TeamInviteScreen, TeamWaitingScreen from "./views/teams-invite.contract"
 use WelcomeScene from "./views/welcome.contract"
 use CreatureWindows from "./views/wardrobe.contract"
 
@@ -59,10 +62,12 @@ routes nav
     workspacesList "/settings/workspaces"
     serverModels "/settings/server"
     waitlist "/settings/waitlist"
+    invite "/invite/:token"
     workspace "/w/:workspaceId"
       people "/w/:workspaceId/people"
       workspaceSettings "/w/:workspaceId/settings"
       // --- settings: a workspace's sections ---
+      workspaceComputers "/w/:workspaceId/computers"
       workspaceModels "/w/:workspaceId/models"
       passwords "/w/:workspaceId/passwords"
 
@@ -72,13 +77,14 @@ fn segment(url: string, at: number): string = match url.split("?").at(0) {
   case none => ""
 }
 // The page a location's other pages hang from: a Dood's chat or a workspace's page, else the list.
-// The person's own settings (`/settings/…`) hang from the list, each in place of the other.
-fn baseOf(url: string): string = url.startsWith("/a/") ? `/a/${segment(url, 2)}` : url.startsWith("/w/") ? `/w/${segment(url, 2)}` : url.startsWith("/settings") ? url : "/"
+// Account settings and invitations are their own locations above the list.
+fn baseOf(url: string): string = url.startsWith("/a/") ? `/a/${segment(url, 2)}` : url.startsWith("/w/") ? `/w/${segment(url, 2)}` : url.startsWith("/settings") or url.startsWith("/invite/") ? url : "/"
 
 component App
   members "./views/sign-in.contract"
   members "./views/shell.contract"
   members "./views/chat.contract"
+  members "./views/teams.contract"
   members "./views/transport.contract"
   members "./views/composer.contract"
   members "./views/composer-jobs.contract"
@@ -116,6 +122,64 @@ component App
     signOut
     togglePanel
     back
+    follow
+    teamList
+    teamInbox
+    teamColors
+    teamFolded
+    teamBusy
+    teamError
+    teamChanged
+    teamInvited
+    teamLoading = pending(teams)
+    teamFailed = failed(teams) or failed(teamInvitations)
+    teamRetry
+    teamNew
+    teamInvite
+    teamChange
+    teamSortLatest
+    teamReorder
+    teamNudge
+    teamFold
+    sidebarError
+    teamOrderError
+    sidebarChange
+    sidebarAskRename
+    sidebarAskMove
+    sidebarAskDelete
+    sidebarEditName
+    sidebarPickDestination
+    sidebarConfirmName
+    sidebarTargetId
+    sidebarTarget
+    sidebarTitle
+    sidebarName
+    sidebarDestination
+    sidebarTyped
+    sidebarBusy = pending(sidebarChanged)
+    teamCreateName
+    teamCreateColor
+    teamCreateMoving
+    teamCreateWho
+    teamCreating = pending(teamMade)
+    teamMade
+    teamEditName
+    teamPickColor
+    teamBring
+    teamEditWho
+    teamCreate
+    teamGoCreated
+    teamCreateClosed
+    teamInviteWorkspace
+    teamInviteWho
+    teamInviteRole
+    teamInviteNote
+    teamSending = pending(teamSent)
+    teamSent
+    teamEditInviteWho
+    teamEditInviteRole
+    teamEditInviteNote
+    teamSendInvites
     // --- chat transcript ---
     chatThread
     mainChatId
@@ -521,12 +585,16 @@ component App
   view
     main navigationKey=`${top(nav).id}` navigationBack="back" navigate=follow interactive-widget="resizes-content"
       width="100%" height="100%" font-family="Geist" color="ink" testId="app"
-      if not session.signedIn
+      if onRoute == "invite" and (session.signedIn or not teamAuth)
+        TeamInviteScreen(key=`${top(nav).id}`, preview=teamPreview, loading=pending(teamPreview), failed=failed(teamPreview), answer=teamAnswered, busy=pending(teamAnswered), accept=teamAccept, decline=teamDecline, authenticate=teamShowAuth, authenticateNew=teamShowJoinAuth, switchAccount=teamSwitchAccount, retry=teamRetryPreview)
+      else if not session.signedIn
         if pending(session)
           column position="absolute" inset=0 justify-content="center" align-items="center" background-color="frame"
             progress aria-label="Loading" testId="session-loading"
         else
           SignIn(email=email, password=password, name=name, joining=joining, error=signError, busy=pending(signed), canSign=canSign, editEmail=editEmail, editPassword=editPassword, editName=editName, toggleJoining=toggleJoining, sign=sign)
+      else if teamWaiting
+        TeamWaitingScreen(retry=teamCheckAdmission)
       else
         for e in stack(nav) key=e.id
           // --- shell ---
@@ -591,6 +659,8 @@ component App
           if e.name == "workspaceSettings"
             WorkspaceSettingsScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=e.params.workspaceId))
           // --- settings: a workspace's sections ---
+          if e.name == "workspaceComputers"
+            WorkspaceComputersScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=e.params.workspaceId))
           if e.name == "workspaceModels"
             WorkspaceModelsScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=e.params.workspaceId))
           if e.name == "passwords"
@@ -600,6 +670,8 @@ component App
           LibraryDocumentPanel()
           // --- chat transcript --- a picture opened from the chat, large; the chat opens it.
           LibraryPictureViewer(pictures=[chatPicture], tag="chat", trigger=false)
+        TeamDialogs()
+        SidebarDialogs()
         // --- dood --- the creature's windows, and the first run's scene over everything
         CreatureWindows()
         if welcomeOn

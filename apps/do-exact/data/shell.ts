@@ -59,7 +59,7 @@ export const shellSources: Pick<Sources, 'loadWorkspaces' | 'loadDoods' | 'follo
     const state = await get<WorkspacesState>(store, '/api/workspaces');
     return {
       owner,
-      workspaces: state.workspaces.map((w) => ({ id: w.id, name: w.name, kind: w.kind, color: workspaceColor(w.color), role: w.role })),
+      workspaces: state.workspaces.map((w) => ({ id: w.id, name: w.name, kind: w.kind, color: workspaceColor(w.color), role: w.role, secrets: w.savedLogins === true || w.savedCards === true })),
     };
   },
   // Each workspace's Doods in the order the person put them in, else the latest first

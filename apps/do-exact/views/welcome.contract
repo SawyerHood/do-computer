@@ -97,7 +97,7 @@ members App
   // moment after the list says there are none, as the React app's scene comes once its drawing
   // has loaded, so a Dood made in that moment (the sidebar's + pressed at once) is opened and
   // the scene never comes.
-  task welcomeCheck key=`${session.owner}:${doods.owner}:${doodList.length}:${onRoute}`
+  task welcomeCheck key=`${session.owner}:${doods.owner}:${doodList.length}:${onRoute}:${teamCreateOpen}:${pending(hatched)}`
     after(400, maybeWelcome)
   // The title over the night while the egg falls.
   task welcomeTitle key=`${welcomeOn}:${welcomeStep}`
@@ -114,7 +114,7 @@ members App
     after(230, welcomeCardIn)
 
   action maybeWelcome
-    if not session.signedIn
+    if not session.signedIn or teamCreateOpen or pending(hatched)
       welcomeOn = false
     else if welcomeOn and not welcomeLeaving and onRoute != "doods"
       welcomeOn = false

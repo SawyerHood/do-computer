@@ -1,0 +1,81 @@
+use DoodFace from "./creature.contract"
+use Session from "./shapes.contract"
+use TeamPreview, TeamAnswered, TeamHint, TeamTile from "./teams.contract"
+use PrimaryButton, Screen from "./styles.contract"
+
+component TeamInviteScreen
+  props
+    key: string
+    preview: TeamPreview
+    loading: bool
+    failed: bool
+    answer: option<TeamAnswered>
+    busy: bool
+    accept: action
+    decline: action
+    authenticate: action
+    authenticateNew: action
+    switchAccount: action
+    retry: action
+  inject
+    session: Session
+  view
+    column navigationKey=key position="absolute" inset=0 align-items="center" justify-content="center" padding=24 background-color="frame" overflow="auto" testId="team-invite-screen"
+      column max-width="28rem" width="100%" box-sizing="border-box" padding=32 gap=16 align-items="center" text-align="center" border-radius=16 border="1px solid var(--hairline)" box-shadow="0 4px 12px rgb(0 0 0 / 0.04)" class=Screen
+        if loading
+          progress aria-label="Reading invitation" testId="team-preview-loading"
+        else if failed or not preview.valid
+          text "This invitation is no longer good" role="heading" font-size="1.25rem" font-weight=600 testId="team-preview-invalid"
+          text "It may have been used, withdrawn, or have run out. Ask whoever sent it for a new one." class=TeamHint
+          button press=retry testId="team-preview-retry"
+            text "Try again"
+          link href=path("doods") color="ink.muted"
+            text "Go to Do Computer"
+        else
+          TeamTile(name=preview.name, color=preview.color, size=56)
+          text `${preview.inviter} invited you to ${preview.name}` role="heading" font-size="1.25rem" font-weight=600 testId="team-preview-title"
+          if preview.note != ""
+            text `“${preview.note}”` class=TeamHint
+          if preview.doods.length > 0
+            row gap=12 flex-wrap="wrap" justify-content="center"
+              for d in preview.doods.slice(0, 4) key=d.id
+                column gap=6 align-items="center"
+                  DoodFace(seed=d.seed, color=d.color, state="idle", name=d.name, size=72)
+                  text d.name font-size="0.875rem" font-weight=500
+          text (preview.doods.length == 0 ? `${preview.people} ${preview.people.includes(",") ? "are" : "is"} in it` : `You would share these Doods and their chats with ${preview.people}`) class=TeamHint
+          match answer
+            case some(r)
+              if r.error != "" and not busy
+                text r.error color="danger" role="alert" testId="team-answer-error"
+            case none
+              text ""
+          if session.signedIn
+            button press=accept disabled=busy class=PrimaryButton width="100%" box-sizing="border-box" testId="team-accept"
+              text (busy ? "Joining…" : `Join ${preview.name}`)
+            button press=decline disabled=busy testId="team-decline"
+              text "Not now"
+            text `Signed in as ${session.email}.` class=TeamHint
+            button press=switchAccount testId="team-invite-switch-account"
+              text "Use a different account"
+          else
+            button press=authenticate class=PrimaryButton width="100%" box-sizing="border-box" min-height=44 testId="team-invite-sign-in"
+              text "Sign in to join"
+            button press=authenticateNew width="100%" box-sizing="border-box" border="none" background-color="transparent" testId="team-invite-sign-up"
+              text "Create an account"
+
+component TeamWaitingScreen
+  props
+    retry: action
+  inject
+    session: Session
+    signOut: action
+  view
+    column position="absolute" inset=0 padding=24 align-items="center" justify-content="center" background-color="frame" overflow="auto" testId="team-waiting-screen"
+      column max-width="26rem" padding=28 gap=16 border-radius=16 class=Screen
+        text "You’re on the list" role="heading" font-size="1.5rem" font-weight=600
+        text "Your account is ready. This deployment is for the people invited to a team and whoever its owner lets in. We’ll be here when it is your turn." class=TeamHint
+        text `Signed in as ${session.email}.` class=TeamHint
+        button press=retry class=PrimaryButton testId="team-check-admission"
+          text "Check again"
+        button press=signOut testId="team-waiting-sign-out"
+          text "Sign out"

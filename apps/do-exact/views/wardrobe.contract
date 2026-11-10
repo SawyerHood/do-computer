@@ -78,7 +78,7 @@ component WardrobeWindow
     dialog id="wardrobe" closedby="any" aria-label=`${name}'s wardrobe` class=Window padding=0 overflow="hidden"
       width=(wide ? "min(64rem, calc(100% - 3rem))" : "100%") max-width=(wide ? "64rem" : "100%") height=(wide ? "min(43rem, calc(100dvh - 3rem))" : "100dvh")
       max-height="100dvh" border-radius=(wide ? 16 : 0) testId="wardrobe"
-      row display="flex" flex-direction=(wide ? "row" : "column") height="100%" min-height=0
+      row display="flex" flex-direction=(wide ? "row" : "column") height="100%" min-height=0 overflow-y=(wide ? "hidden" : "auto")
         column flex-shrink=0 align-items="center" text-align="center" background-color="panel"
           width=(wide ? "19rem" : "auto") padding=(wide ? "48px 20px 20px" : "36px 56px 20px")
           border-right=(wide ? "1px solid var(--hairline)" : "none") border-bottom=(wide ? "none" : "1px solid var(--hairline)") box-sizing="border-box"
@@ -107,18 +107,19 @@ component WardrobeWindow
                       image "symbol:icon.x" font-size="0.875rem"
             text (others > 0 ? "Six hours after a box is opened another turns up, with something new inside. Any of your Doods can open it, and all of them can wear what it held." : `Six hours after ${name}'s box is opened another turns up, with something new to wear inside. Treats are only because it likes them.`)
               margin-top=16 font-size="0.75rem" color="ink.muted"
-        column flex=1 min-width=0 min-height=0 padding=(wide ? "28px 28px 12px" : "12px 16px 12px")
+        // At large type the creature and tabs must scroll away, not squeeze the clothes to a sliver.
+        column flex=1 min-width=0 min-height=(wide ? 0 : "20rem") padding=(wide ? "28px 28px 12px" : "12px 16px 12px")
           if wide
             text "Wardrobe" role="heading" aria-level=2 padding-bottom=12 font-size="1.25rem" font-weight=600
           if others > 0
             row role="radiogroup" aria-label="Who to dress" gap=6 flex-shrink=0 overflow-x="auto" padding-bottom=12
               for d in wardrobeDoods key=d.id
-                button role="radio" aria-checked=(d.id == dressedDood.id) press=dressDood(d.id) display="flex" align-items="center" gap=6 height=32 flex-shrink=0
+                button role="radio" aria-checked=(d.id == dressedDood.id) press=dressDood(d.id) display="flex" align-items="center" gap=6 height="2rem" flex-shrink=0
                   padding="0 12px 0 4px" border-radius=999 font-size="0.875rem" color="ink" background-color="transparent"
                   border=(d.id == dressedDood.id ? "1px solid var(--primary)" : "1px solid var(--border)") testId=`dress-${d.id}`
                   do-creature seed=d.seed colour=d.color state="idle" outfit=d.outfit side="24" width=24 height=24 aria-hidden=true
                   text nameOf(d)
-          row role="tablist" aria-label="Where it is worn" height=40 flex-shrink=0 overflow-x="auto" border-bottom="1px solid var(--border)"
+          row role="tablist" aria-label="Where it is worn" height="2.5rem" flex-shrink=0 overflow-x="auto" border-bottom="1px solid var(--border)"
             for p in wearPlaces() key=p.slot
               button role="tab" aria-selected=(p.slot == wardrobeSlot) press=pickWardrobeSlot(p.slot) position="relative" display="flex" align-items="center" gap=6 height="100%"
                 padding="0 12px" background-color="transparent" border="none" font-size="0.875rem" font-weight=500 color=(p.slot == wardrobeSlot ? "ink" : "ink.muted")
@@ -128,7 +129,7 @@ component WardrobeWindow
                 if p.slot == wardrobeSlot
                   column position="absolute" left=8 right=8 bottom=0 height=2 border-radius=1 background-color="primary"
           scroll flex=1 min-height=0
-            column role="list" aria-label=wardrobeSlot display="grid" grid-template-columns=(wide ? "repeat(6, minmax(0, 1fr))" : "repeat(3, minmax(0, 1fr))") gap=8 padding="16px 2px 8px"
+            column role="list" aria-label=wardrobeSlot display="grid" grid-template-columns=(wide ? "repeat(6, minmax(0, 1fr))" : "repeat(auto-fit, minmax(min(100%, 6rem), 1fr))") gap=8 padding="16px 2px 8px"
               column role="listitem"
                 button press=putOn(wardrobeSlot, "") aria-label="Nothing" aria-pressed=(wornHere == "") class=Tile
                   border=(wornHere == "" ? "1px solid var(--primary)" : "1px solid var(--border)") testId="wear-nothing"
@@ -185,4 +186,4 @@ component WornBy
 // One thing in the wardrobe.
 style Tile
   position="relative" display="flex" flex-direction="column" align-items="center" gap=4 min-height=108 overflow="hidden" border-radius=12
-  background-color="surface" padding="10px 4px 12px" text-align="center" font-size="0.75rem" line-height=1.25 color="ink" width="100%" box-sizing="border-box"
+  background-color="surface" padding="10px 4px 12px" text-align="center" font-size="0.75rem" line-height=1.4 color="ink" width="100%" box-sizing="border-box"

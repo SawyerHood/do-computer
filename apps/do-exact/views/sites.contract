@@ -33,7 +33,7 @@ members App
   derive libraryShareSite = librarySiteOf(librarySiteList, librarySharePath)
   derive librarySharingBusy = pending(libraryShared)
   derive librarySharingError = pending(libraryShared) ? "" : match libraryShared { case some(r) => r.error, case none => "" }
-  derive libraryWorkspace = match first(workspaceList.filter(w => w.id == openDood.workspaceId)) { case some(w) => w, case none => Workspace(id="", name="", kind="personal", color="", role="owner") }
+  derive libraryWorkspace = match first(workspaceList.filter(w => w.id == openDood.workspaceId)) { case some(w) => w, case none => Workspace(id="", name="", kind="personal", color="", role="owner", secrets=false) }
   derive libraryAudience = libraryWorkspace.kind == "team" ? `People in ${libraryWorkspace.name}` : "Only you"
   action shareLibraryPath(path: string)
     librarySharePath = path
