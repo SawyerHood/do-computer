@@ -16,7 +16,7 @@ component LibraryFileCard
   derive pinned = libraryPinnedIds.includes(fileId)
   view
     row align-items="center" flex-wrap="wrap" gap=2 max-width="100%" padding=4 border-radius=12 background-color="popover" box-shadow="0 0 0 1px var(--hairline), 0 1px 2px rgb(0 0 0 / 0.05)" testId=`library-card-${fileId}`
-      button press=openLibraryPanel(fileId) class=MenuItem min-width=0 flex="1 1 8rem" aria-label=`Open ${name}` testId=`library-card-open-${fileId}`
+      button press=openLibraryPanel(fileId) class=MenuItem min-width=0 flex="1 1 auto" aria-label=`Open ${name}` testId=`library-card-open-${fileId}`
         image "symbol:document" aria-hidden=true
         text name overflow-wrap="break-word" font-size="0.875rem"
       button press=libraryTogglePinFile(fileId) class=IconButton aria-pressed=pinned aria-label=(pinned ? `Unpin ${name}` : `Pin ${name}`) testId=`library-card-pin-${fileId}`
