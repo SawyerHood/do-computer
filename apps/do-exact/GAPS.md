@@ -96,9 +96,8 @@ hatch from `components/welcome/stage.ts`, but not the UI's flight from island to
 screen that owns both boxes must implement that transition. Petting emits `message="pet"`;
 the Contract caller must apply server care limits and mutations, as React's creature care
 does. If WebGL is unavailable, `do-creature` uses the protocol's plain SVG; it has no clothes,
-seed-specific silhouette or egg, like React's stand-in. Syntax highlighting, Mermaid and other
-foreign views are not implemented by this piece; PORTING.md's Native views section gives the
-worked integration recipe.
+seed-specific silhouette or egg, like React's stand-in. Rich message content is now implemented
+separately below; PORTING.md's Native views section gives the integration recipe.
 
 ## Data-free gallery verification
 
@@ -109,3 +108,36 @@ or after the command. The gallery is checked sequentially with `./x test web --s
 `./x agent web … "check both"` instead; the machine-wide lock and port policy are unchanged.
 The root app's own verify is not affected: it has a server, and runs clean. No Exact patch was
 made.
+
+
+## Rich message content
+
+`views/markdown.contract` and the web-only `do-markdown`, `do-code` and `do-mermaid` tags
+render the React app's sanitized GFM, highlighted code, scrolling/copyable tables, GitHub
+alerts, folding HTML and diagrams. Exact's `text markup="markdown"` reader leaves tables as
+text and does not supply these controls; it is retained for simple prose. Rich messages stay
+in one shadow DOM tree so selection crosses prose and code. The native content has natural
+web layout height; no Apple/Linux implementation or native intrinsic sizing was added. The
+Exact agent sees tags/props, not their text or buttons; the separate gallery's Playwright
+probe tests those. A simple reply can change renderer once richer syntax arrives, which may
+lose a selection over that change. The real chat has not been wired while another branch
+rewrites it; the exact `MessageText` call is in `modules/web/README.md`.
+
+React's `components/chat/markdown.tsx` resolves library links and images using the chat's
+library query, previews local CSV/TSV, opens files beside the chat, refreshes expired view
+URLs, and uses the full multi-picture viewer with download. This presentation-only piece
+accepts a caller-resolved `files` prop and emits `file:<id-or-path>`, renders known image
+URLs and browser video/audio controls, and otherwise shows alt text. It does not fetch the
+library, preview CSV/TSV, refresh authorization, open a side panel, or provide the picture
+viewer. A figure opens in a new tab and emits `image:<url>`. The chat/library owner must
+supply browser-loadable URLs and consume file events; no bearer secret belongs in props.
+Attachments that are separate message blocks remain that screen's responsibility.
+
+Remote pictures/media wait for Show, as in React, but there is no persistent Always from
+this host permission yet. Responsive raw-HTML `<source srcset>` is skipped because it could
+make a request around that gate. Failed pictures show their words. Raw HTML uses the exact
+React sanitizer, not unrestricted innerHTML; only strict Mermaid's own sanitized SVG is
+inserted as markup. Alerts have their kind/title/color but not the React icon set, and fonts
+inherit the host rather than shipping React's Geist fonts. Code over 80,000 characters and
+unknown languages remain plain, as in React. There is no math renderer or custom mention
+widget in the React reference either: math delimiters and @names remain text.
