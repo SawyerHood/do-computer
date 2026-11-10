@@ -206,6 +206,12 @@ component SettingsFrame
         // dialog on a narrow screen. Back from a section goes to the list; the cross closes.
         header appearance="none" display="flex" align-items="center" gap=6 padding="6px 8px" min-height=52 flex-shrink=0
           background-color=(listing ? "frame" : "canvas") border-bottom="1px solid var(--hairline)"
+          // The list's own way up (to the list of Doods or workspaces) is here on a phone, beside the cross.
+          if listing and up != ""
+            link href=up aria-label=`Back to ${upLabel}` display="flex" align-items="center" gap=4 padding="6px 8px" border-radius=8
+              color="ink.muted" text-decoration="none" font-size="0.875rem" testId=`settings-up-${route}`
+              image "symbol:icon.caret-left" aria-hidden=true
+              text upLabel
           if not listing
             link href=home aria-label=`Back to ${name}` display="flex" align-items="center" gap=4 padding="6px 8px" border-radius=8 min-width=0
               color="ink.muted" text-decoration="none" font-size="0.875rem" testId=`settings-home-${route}`
@@ -251,7 +257,7 @@ component SettingsNav
     phone: bool
   view
     nav aria-label=`${name}: sections` display="flex" flex-direction="column" gap=2 padding=10 testId=`settings-nav-${route}`
-      if up != ""
+      if up != "" and not phone
         link href=up aria-label=`Back to ${upLabel}` display="flex" align-items="center" gap=4 align-self="flex-start" padding="4px 8px"
           border-radius=8 color="ink.muted" text-decoration="none" font-size="0.875rem" testId=`settings-up-${route}`
           :hover

@@ -166,11 +166,12 @@ component GeneralBody
   view
     column gap=24 testId="general-body"
       SettingsSection(title="Theme", hint="How Do Computer looks in this browser. System follows what the device is set to.", testId="general-theme")
-        row role="radiogroup" aria-label="Theme" appearance="none" gap=0 align-self="flex-start" border-radius=8 border="1px solid var(--border)" overflow="hidden"
-          for t, i in themeChoices() key=t.id
+        // The React app's outlined ToggleGroup: each choice a bordered button, the chosen one washed.
+        row role="radiogroup" aria-label="Theme" appearance="none" gap=6 align-self="flex-start"
+          for t in themeChoices() key=t.id
             button role="radio" aria-checked=(theme == t.id) press=chooseTheme(t.id) min-height="2rem" padding="0 14px" font-size="0.875rem"
-              border="none" border-left=(i == 0 ? "none" : "1px solid var(--border)") border-radius=0
-              background-color=(theme == t.id ? "wash" : "popover") color="ink" font-weight=(theme == t.id ? 500 : 400) testId=`theme-${t.id}`
+              border="1px solid var(--border)" border-radius=8 background-color=(theme == t.id ? "wash" : "popover") color="ink"
+              font-weight=(theme == t.id ? 500 : 400) testId=`theme-${t.id}`
               text t.label
       if not accountOurs
         progress aria-label="Loading"

@@ -103,6 +103,10 @@ views/sign-in.contract    members: the session, signing in and out. SignIn
 views/chat.contract       members: the open chat, sending. ChatScreen, MessageRow, DoodPanel
 views/creature.contract   DoodFace: a Dood's creature, the `do-creature` native view (seed, colour,
                           state, name, size)
+views/settings-kit.contract  the settings' frame (DoodSettings, AccountSettings,
+                          WorkspaceSettingsFrame: the settings window's card, its list of sections
+                          beside the open one) and pieces (SettingsSection, SettingsCard,
+                          SettingsRow, SettingsList, SettingsItem, SettingsEmpty, Confirm, styles)
 views/<area>.contract     each other page: a placeholder screen in DoodScreen or WorkspaceScreen
 data/api.ts               the session, ask/get/post/put/patch/del, reply, ownerOf/current, follow
 data/<area>.ts            an area's sources, exported as `<area>Sources`
@@ -147,7 +151,11 @@ parallel merges.
   with them; the type is Geist; icons are `symbol:icon.<name>` from `app.tamber` (add one to
   `tools/phosphor-icons.mjs`, run it, list it in `icons`). Shared looks are styles in
   `views/styles.contract`. A page that is not the chat is drawn in `DoodScreen` or
-  `WorkspaceScreen`, which give it the header, its title and a lead line.
+  `WorkspaceScreen`, which give it the header, its title and a lead line. A page that is a
+  section of the React app's settings window is drawn in `DoodSettings` (a Dood's),
+  `AccountSettings` (the person's own) or `WorkspaceSettingsFrame` (a workspace's), from
+  `views/settings-kit.contract`, whose list of sections names its route (`doodEntries` and the
+  others there).
 
 ### Adding an area: the library, say
 
