@@ -100,17 +100,6 @@ shape TeamAccess
   owner: string
   waiting: bool
   admin: bool
-shape TeamWaitingPerson
-  id: string
-  name: string
-  email: string
-  since: string
-  dood: string
-shape TeamWaitlist
-  owner: string
-  total: number
-  people: TeamWaitingPerson[]
-
 fn teamOf(teams: TeamInfo[], id: string): TeamInfo = match first(teams.filter(w => w.id == id)) { case some(w) => w, case none => TeamInfo(id="", name="", color="", kind="", role="", members=[]) }
 
 members App
@@ -129,14 +118,11 @@ members App
   derive teamColors = teams.owner == session.owner ? teams.colors : []
   derive teamInvited = teamInvitations.owner == session.owner and teamInvitations.workspaceId == teamWorkspaceId ? teamInvitations.invitations : []
   derive teamWaiting = teamAccess.owner == session.owner and teamAccess.waiting
-  derive teamAdmin = teamAccess.owner == session.owner and teamAccess.admin
-  resource teamWaitlist = loadTeamWaitlist(session.owner, teamAdmin and onRoute == "workspaceSettings") as shape TeamWaitlist else empty()
-  mutation teamAdmitted as shape Reply refreshes teamWaitlist
-  mutation teamMade as shape TeamMade refreshes workspaces, teams, doods
-  mutation teamChanged as shape TeamChanged refreshes workspaces, teams, doods then teamAfterChange
+  mutation teamMade as shape TeamMade refreshes workspaces, teams, doods, workspacesAbout, doodsAbout
+  mutation teamChanged as shape TeamChanged refreshes workspaces, teams, doods, workspacesAbout, doodsAbout then teamAfterChange
   mutation teamSent as shape TeamSent refreshes teamInvitations
   mutation teamAnswered as shape TeamAnswered refreshes workspaces, teams, doods, teamAccess then teamAfterAnswer
-  mutation sidebarChanged as shape Reply refreshes doods then sidebarAfterChange
+  mutation sidebarChanged as shape Reply refreshes doods, workspacesAbout, doodsAbout then sidebarAfterChange
   mutation teamOrdered as shape Reply queue refreshes doods
   state teamInviteWorkspace = ""
   state teamCreateName = ""
@@ -306,8 +292,6 @@ members App
     let placed = ids.slice(0, at).concat([item]).concat(ids.slice(at))
     teamOrderOwner = session.owner
     send teamOrdered = orderTeamDoods(session.owner, workspaceId, placed, false)
-  action teamAdmit(id: string)
-    send teamAdmitted = admitTeamPerson(id)
   action teamCheckAdmission
     refresh teamAccess
     refresh teams
@@ -317,7 +301,6 @@ members App
     refresh teams
     refresh workspaces
     refresh teamInvitations
-    refresh teamWaitlist
   action teamRetryPreview
     refresh teamPreview
 

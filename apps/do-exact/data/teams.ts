@@ -13,7 +13,7 @@ const preview = (i: InvitationPreview) => ({ id: i.id, workspaceId: i.workspace.
 const sent = (i: SentInvitation) => ({ id: i.id, who: i.email ?? `@${i.githubLogin}`, link: `/invite/${i.link.split('/invite/')[1] ?? i.id}`, share: i.link, emailed: i.emailed, github: i.email === null });
 const invites = (r: InviteResult) => ({ links: r.invitations.map(sent), problems: r.problems.map(p => `${p.who}: ${p.error}`) });
 
-export const teamsSources: Pick<Sources, 'loadTeams' | 'loadTeamInvitations' | 'createTeam' | 'changeTeam' | 'sendTeamInvites' | 'loadTeamPreview' | 'answerTeamInvite' | 'changeSidebarDood' | 'orderTeamDoods' | 'loadTeamAccess' | 'loadTeamWaitlist' | 'admitTeamPerson' | 'loadTeamFirstDood'> = {
+export const teamsSources: Pick<Sources, 'loadTeams' | 'loadTeamInvitations' | 'createTeam' | 'changeTeam' | 'sendTeamInvites' | 'loadTeamPreview' | 'answerTeamInvite' | 'changeSidebarDood' | 'orderTeamDoods' | 'loadTeamAccess' | 'loadTeamFirstDood'> = {
   loadTeams: async ([owner], store): Promise<Result<'loadTeams'>> => {
     if (!current(owner, store)) return { owner: NOBODY, teams: [], inbox: [], colors: [] };
     const me = await get<{ waiting?: boolean }>(store, '/api/me');
@@ -98,15 +98,9 @@ export const teamsSources: Pick<Sources, 'loadTeams' | 'loadTeamInvitations' | '
     const me = await get<{ waiting?: boolean; admin?: boolean }>(store, '/api/me');
     return { owner, waiting: me.waiting === true, admin: me.admin === true };
   },
-  loadTeamWaitlist: async ([owner, enabled], store): Promise<Result<'loadTeamWaitlist'>> => {
-    if (!current(owner, store) || !enabled) return { owner: '', total: 0, people: [] };
-    const r = await get<{ total: number; people: { id: string; name: string; email: string; joinedAt: number; dood: { name: string } | null }[] }>(store, '/api/waitlist');
-    return { owner, total: r.total, people: r.people.map(p => ({ id: p.id, name: p.name, email: p.email, since: new Date(p.joinedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), dood: p.dood?.name ?? '' })) };
-  },
   loadTeamFirstDood: async ([owner, workspaceId], store): Promise<Result<'loadTeamFirstDood'>> => {
     if (!current(owner, store) || workspaceId === '') return { owner: '', workspaceId: '', agentId: '' };
     const { agents } = await get<{ agents: { id: string; workspaceId?: string; createdAt: number }[] }>(store, '/api/agents');
     return { owner, workspaceId, agentId: agents.filter(a => a.workspaceId === workspaceId).sort((a, b) => a.createdAt - b.createdAt)[0]?.id ?? '' };
   },
-  admitTeamPerson: ([userId], store) => reply(() => post(store, `/api/waitlist/${seg(userId)}`)),
 };

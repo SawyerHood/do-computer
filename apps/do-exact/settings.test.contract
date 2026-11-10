@@ -1,0 +1,540 @@
+// The settings: a Dood's (profile, memory, model and computers, usage, permissions), the
+// person's own (general, the lists of Doods and workspaces), a workspace's models and passwords,
+// and the frame they are drawn in, wide and on a phone. Against Do Computer's own server
+// (server.ts), empty for each run, with the echo model and saved logins and cards turned on.
+// Every test starts signed out, with empty storage, on a server the whole run shares: it makes
+// an account of its own first, with the same six lines and an address no other test uses.
+
+test "a Dood's profile is saved: its name, tagline, colour and personality, and they are there after a reload"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "settings-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-profile-dood"
+  clock data
+  clock settle
+  clock data
+  expect state onRoute == "profile"
+  expect text "heading-profile" == "Profile"
+  expect text "settings-name-profile" == "New Dood"
+  expect disabled "dood-save"
+  type "profile-name" "Pico"
+  type "profile-tagline" "Plans weekends"
+  tap "profile-color-moss"
+  type "profile-soul" "You are cheerful."
+  expect state doodFormDirty == true
+  tap "dood-save"
+  clock data
+  clock settle
+  clock data
+  expect state doodFormDirty == false
+  expect text "dood-saved" == "Saved"
+  expect state doods.doods.0 .name == "Pico"
+  expect state doodSetup.form.color == "moss"
+  expect state doodSetup.form.soul == "You are cheerful."
+  reload
+  clock data
+  clock settle
+  clock data
+  expect state onRoute == "profile"
+  expect text "profile-name" == "Pico"
+  expect text "profile-tagline" == "Plans weekends"
+  expect text "settings-name-profile" == "Pico"
+
+test "a new look is rolled, kept only once saved"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "settings-2@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-profile-dood"
+  clock data
+  clock settle
+  clock data
+  expect state doodSetup.form.seed == ""
+  tap "profile-roll"
+  expect state doodFormDirty == true
+  expect state doodSetup.form.seed == ""
+  tap "dood-save"
+  clock data
+  clock settle
+  clock data
+  expect state doodFormDirty == false
+  expect state doodSaved.ok == true
+
+test "memory and what the Dood knows of the person are saved, counted against their limits"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "settings-3@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-profile-dood"
+  clock data
+  clock settle
+  tap "settings-go-memory-profile"
+  clock data
+  clock settle
+  clock data
+  expect state onRoute == "memory"
+  expect text "heading-memory" == "Memory"
+  type "memory-text" "Likes trains."
+  expect text "memory-text-count" == "13 / 6000"
+  type "memory-about" "Ada lives in Lisbon."
+  tap "dood-save"
+  clock data
+  clock settle
+  clock data
+  expect text "dood-saved" == "Saved"
+  expect state doodSetup.form.memory == "Likes trains."
+  expect state doodSetup.form.user == "Ada lives in Lisbon."
+
+test "what is typed on one of a Dood's sections is kept while another is open, and saved from there"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "settings-4@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-profile-dood"
+  clock data
+  clock settle
+  clock data
+  type "profile-name" "Maple"
+  tap "settings-go-memory-profile"
+  clock data
+  clock settle
+  type "memory-text" "Knows Maple's name."
+  tap "settings-go-profile-memory"
+  clock data
+  clock settle
+  expect text "profile-name" == "Maple"
+  tap "dood-save"
+  clock data
+  clock settle
+  clock data
+  expect state doodSetup.named == "Maple"
+  expect state doodSetup.form.memory == "Knows Maple's name."
+
+test "starting the main chat fresh asks first"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "settings-5@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-profile-dood"
+  clock data
+  clock settle
+  tap "settings-go-memory-profile"
+  clock data
+  clock settle
+  clock data
+  tap "memory-fresh-start"
+  clock settle
+  expect tree has "memory-fresh-confirm"
+  tap "memory-fresh-confirm-no"
+  clock settle
+  expect tree missing "memory-fresh-done"
+  tap "memory-fresh-start"
+  clock settle
+  tap "memory-fresh-confirm-yes"
+  clock data
+  clock settle
+  expect text "memory-fresh-done" == "Started fresh"
+
+test "the model page shows the Dood's model, its thinking and the computers it can work on"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "settings-6@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-profile-dood"
+  clock data
+  clock settle
+  tap "settings-go-model-profile"
+  clock data
+  clock settle
+  clock data
+  expect state onRoute == "model"
+  expect text "heading-model" == "Model and computers"
+  expect text "model-picker-value" == "Echo (no model key configured)"
+  tap "model-picker"
+  clock settle
+  type "model-picker-search" "echo"
+  expect tree has "model-picker-option-echo/echo-1"
+  type "model-picker-search" "nothing like it"
+  expect tree missing "model-picker-option-echo/echo-1"
+  expect state doodComputers.usable.length == 1
+  expect tree missing "model-no-computers"
+
+test "a rule for what a Dood may do is set and kept, and its usage says there is none yet"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "settings-7@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-permissions-dood"
+  clock data
+  clock settle
+  clock data
+  expect state onRoute == "permissions"
+  expect text "heading-permissions" == "Permissions"
+  expect tree has "rule-tool:bash"
+  tap "rule-tool:bash-ask"
+  clock data
+  expect state approvals.subjects.0 .rule == "ask"
+  reload
+  clock data
+  clock settle
+  clock data
+  expect state approvals.subjects.0 .rule == "ask"
+  tap "settings-go-usage-permissions"
+  clock data
+  clock settle
+  clock data
+  expect text "usage-nothing" == "Nothing yet."
+
+test "a Dood is deleted only once its name is typed, and the app goes back to the list"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "settings-8@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-profile-dood"
+  clock data
+  clock settle
+  clock data
+  expect text "profile-move-nowhere" == "Start a team with New team, at the foot of the sidebar, to have somewhere to move it."
+  tap "profile-delete-open"
+  type "profile-delete-typed" "something else"
+  expect disabled "profile-delete-confirm"
+  tap "profile-delete-cancel"
+  expect tree missing "profile-delete-typed"
+  tap "profile-delete-open"
+  type "profile-delete-typed" "delete"
+  tap "profile-delete-confirm"
+  clock data
+  clock settle
+  clock data
+  expect state onRoute == "doods"
+  expect state doods.doods.length == 0
+
+test "a phone shows a Dood's sections as a list, a section over it, and the cross goes back to its chat"
+  size 390x844
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "settings-9@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-settings-dood"
+  clock data
+  clock settle
+  clock data
+  expect state onRoute == "settings"
+  expect tree has "settings-nav-settings"
+  expect tree missing "profile-body"
+  tap "settings-go-permissions-settings"
+  clock data
+  clock settle
+  expect state onRoute == "permissions"
+  expect tree missing "settings-nav-permissions"
+  tap "settings-home-permissions"
+  clock data
+  clock settle
+  expect state onRoute == "settings"
+  tap "close-settings"
+  clock data
+  clock settle
+  expect state onRoute == "dood"
+
+test "a wide window shows a Dood's sections beside its profile, and the person's own from the account menu"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "settings-10@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-settings-dood"
+  clock data
+  clock settle
+  clock data
+  expect tree has "settings-nav-settings"
+  expect tree has "profile-body"
+  tap "settings-up-settings"
+  clock data
+  clock settle
+  clock data
+  expect state onRoute == "doodsList"
+  expect tree has "doods-list-0-0"
+  tap "settings-go-workspacesList-doodsList"
+  clock data
+  clock settle
+  clock data
+  expect tree has "workspaces-list-personal"
+  tap "close-workspacesList"
+  clock data
+  clock settle
+  tap "account"
+  tap "account-settings"
+  clock data
+  clock settle
+  clock data
+  expect state onRoute == "account"
+  expect text "heading-account" == "General"
+  expect tree has "default-model-is-server"
+  tap "close-account"
+  clock data
+  clock settle
+  expect state onRoute == "doods"
+
+test "the theme is chosen, set on the app and kept"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "settings-11@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "account"
+  tap "account-settings"
+  clock data
+  clock settle
+  expect state theme == "system"
+  tap "theme-dark"
+  expect state theme == "dark"
+  reload
+  clock data
+  clock settle
+  expect state theme == "dark"
+  tap "theme-system"
+  expect state theme == "system"
+
+test "a workspace is signed in to a provider with a key, which is not kept here, and signed out after asking"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "settings-12@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-profile-dood"
+  clock data
+  clock settle
+  tap "settings-go-model-profile"
+  clock data
+  clock settle
+  tap "model-workspace-models"
+  clock data
+  clock settle
+  clock data
+  expect state onRoute == "workspaceModels"
+  expect text "models-own-words" == "A built-in echo model that repeats what it is told: this deployment has no model key and is signed in to nothing."
+  tap "provider-key-openai"
+  clock data
+  clock settle
+  clock +1000
+  clock data
+  expect text "model-sign-in-title" == "OpenAI API key"
+  type "model-sign-in-typed" "sk-test-not-a-real-key"
+  tap "model-sign-in-submit"
+  clock data
+  clock +1000
+  clock data
+  clock settle
+  expect state loginTyped == ""
+  expect tree has "provider-signed-in-openai"
+  tap "provider-sign-out-openai"
+  clock settle
+  tap "provider-sign-out-confirm-yes"
+  clock data
+  clock settle
+  expect tree missing "provider-signed-in-openai"
+
+test "a login is added, changed, given a new password and removed, and a card added and removed"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "settings-13@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-profile-dood"
+  clock data
+  clock settle
+  tap "settings-go-model-profile"
+  clock data
+  clock settle
+  tap "model-workspace-models"
+  clock data
+  clock settle
+  tap "settings-go-passwords-workspaceModels"
+  clock data
+  clock settle
+  clock data
+  expect state onRoute == "passwords"
+  expect tree has "logins-empty"
+  tap "login-add"
+  clock settle
+  type "login-name" "GitHub"
+  type "login-username" "ada@example.com"
+  type "login-password" "hunter2"
+  tap "login-save"
+  clock data
+  expect text "login-error" == "Add the site it is used on."
+  type "login-site" "not a site"
+  tap "login-save"
+  clock data
+  expect text "login-error" == "“not a site” is not a site. Type one like github.com."
+  type "login-site" "https://github.com/login"
+  tap "login-save"
+  clock data
+  clock settle
+  clock data
+  expect state lPassword == ""
+  expect state savedLogins.logins.length == 1
+  expect text "login-about-0" == "ada@example.com · github.com"
+  tap "login-menu-0"
+  tap "login-change-0"
+  clock settle
+  type "login-name" "GitHub work"
+  tap "login-save"
+  clock data
+  clock settle
+  clock data
+  expect text "login-name-0" == "GitHub work"
+  tap "login-menu-0"
+  tap "login-password-0"
+  clock settle
+  expect tree missing "login-name"
+  type "login-password" "correct battery"
+  tap "login-save"
+  clock data
+  clock settle
+  clock data
+  expect state lPassword == ""
+  tap "login-menu-0"
+  tap "login-remove-0"
+  clock settle
+  tap "login-remove-confirm-yes"
+  clock data
+  clock settle
+  expect tree has "logins-empty"
+  tap "card-add"
+  clock settle
+  type "card-number" "4242 4242 4242 4241"
+  type "card-expires" "08/30"
+  tap "card-save"
+  clock data
+  expect text "card-error" == "That is not a card number. Check it against the card."
+  type "card-number" "4242424242424242"
+  expect text "card-number" == "4242 4242 4242 4242"
+  tap "card-save"
+  clock data
+  clock settle
+  clock data
+  expect state cNumber == ""
+  expect text "card-name-0" == "Visa ending 4242"
+  tap "card-remove-0"
+  clock settle
+  tap "card-remove-confirm-yes"
+  clock data
+  clock settle
+  expect tree has "cards-empty"
+
+test "the notifications page says how this browser stands and offers to turn them on"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "settings-14@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "account"
+  tap "account-settings"
+  clock data
+  clock settle
+  tap "settings-go-notifications-account"
+  clock data
+  clock settle
+  clock data
+  clock +500 real
+  expect state onRoute == "notifications"
+  expect text "notifications-state" == "Off for this browser."
+  expect tree has "notifications-on"

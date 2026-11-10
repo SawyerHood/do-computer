@@ -4,17 +4,6 @@ One paragraph each: what, where in the React app, what was done instead.
 
 ## The shell
 
-**The sidebar hears of other Doods by asking.** The React app's sidebar follows the person's
-feed, a WebSocket at `/api/presence/personal:<user>` that says when any Dood starts or stops
-work, what it last said, and when one was looked at elsewhere (`apps/web/src/lib/latest.ts`
-`useFeed`). The server takes the session on that socket from a cookie, and an Exact app's
-socket on the web is the browser's, which sends no cookie across origins and no
-`Authorization` header. So `loadDoods` is asked again every 10 s (`task poll` in
-`views/shell.contract`); the open Dood's own event stream (`/api/agents/:id/events`, SSE, which
-takes the bearer) asks again at once when it changes, and its chat asks again when it starts or
-stops working. Once a socket can carry the session (the chat's move to the WebSocket needs the
-same), the feed replaces the poll.
-
 **The sidebar is beside the page from 900 px, not 768.** Exact's web host splits a stack's
 first route from its detail at 900 px (`navigationSplit`); the React app puts the sidebar
 beside the page from `48rem` (`SIDEBAR_BESIDE` in `components/shell/app-shell.tsx`). Between
@@ -30,16 +19,39 @@ column of faces until its edge is dragged out, and is dragged to any width from 
 (`ResizeHandle`, `sidebarColumn`). Exact's split column has one width, given by
 `navigationSplit="288"` (the React app's starting width); there is no way to drag it.
 
-**Some of a Dood's pages are pages here, not sections of a settings window.** The React app
-opens skills, connectors, computers, permissions, profile and settings, and a team's people and
-settings, as sections of one settings dialog over the page, and redirects their old addresses
-to it (`routes/_app.a.$agentId.skills.tsx` and the like). Here each is a route at that address,
-in the content beside the sidebar, which Exact gives Back, reload and links for nothing. A
-modal route (`navigationPresentation="modal"`) would be the dialog, if that is wanted later.
-
 **A pages menu opens from the pill's start, not its middle.** The React app centres the Dood's
 menu under its name (`align="center"`); an Exact popover is placed by the platform under the
 button that opens it.
+
+## Transport
+
+**A stream opens before its answer awaits anything, so socket tickets are kept ready.** On the
+web, Exact starts a stream only as its answer is asked, before the answer's first `await`
+(`host/web-js/ts-fetch.js`), so a source cannot ask for a ticket and then open the socket with
+it. The React app's browser has its cookie and needs none. Here a few tickets are kept ready
+(`stockTickets` in data/api.ts): asked for at sign-in and whenever a page opens sockets or one is
+lost, by `socketTickets` in views/transport.contract. A socket asked for when none is ready is
+`lost`, and its view follows it again a moment later.
+
+**A data source has no clock and cannot see the page's address.** `Date.now()` is refused and
+`location` is hidden from the data module. A ticket's age is counted in rounds of a one-minute
+task (`socketRound`), and a socket that answers no ping for two rounds of the 30 s ping task is
+closed, where the React client times both (`packages/client/src/follow.ts`). Whether the app is
+served by the deployment itself is found out by asking `/api/me` with no token, which only the
+browser's own cookie can answer (`byCookie`).
+
+**An ended socket is followed again on a timer, with no backoff.** Exact does not ask a stream's
+resource again when it ends. The chat (`task mend`, every second) and the Dood and the feed
+(`healPulse`, every 5 s) ask again while theirs is `lost`; the React client backs off
+(`reconnectDelay`) and shares one socket per Dood between its chat and its events, where here the
+chat and the Dood's changes are a socket each.
+
+**Exact knows no path prefix, so the app served at `/x/` runs at the React app's addresses.**
+Exact's router matches a route against the whole `location.pathname` (`host/web-js/router.js`),
+and its deploy anchors locations at `/`. A build served under `/x/` loads its files there
+(`<base href="/x/">`), but its pages have to be at `/a/…`, the React app's addresses. So `/x/`
+sets a cookie that picks the Exact app and sends the browser to the page's own address, which the
+server then answers with the Exact app (apps/web/src/server/exact-app.ts) until `/x/off`.
 
 ## Type and colour
 
@@ -96,9 +108,8 @@ hatch from `components/welcome/stage.ts`, but not the UI's flight from island to
 screen that owns both boxes must implement that transition. Petting emits `message="pet"`;
 the Contract caller must apply server care limits and mutations, as React's creature care
 does. If WebGL is unavailable, `do-creature` uses the protocol's plain SVG; it has no clothes,
-seed-specific silhouette or egg, like React's stand-in. Syntax highlighting, Mermaid and other
-foreign views are not implemented by this piece; PORTING.md's Native views section gives the
-worked integration recipe.
+seed-specific silhouette or egg, like React's stand-in. Rich message content is now implemented
+separately below; PORTING.md's Native views section gives the integration recipe.
 
 ## Data-free gallery verification
 
@@ -115,17 +126,19 @@ made.
 
 **Live people are not wired yet.** The people list shows membership and roles, and the sidebar
 keeps its existing unread, working and asking marks. React also draws who is with a Dood and
-who is here (`components/shell/agent-list.tsx`, `components/people.tsx`). This area does
-not open another presence/feed connection or change `data/shell.ts`/`data/api.ts`: the separate
-live-feed port owns that. Initials or account images stand for members; the public invitation
+who is here (`components/shell/agent-list.tsx`, `components/people.tsx`). This client
+uses the merged personal WebSocket feed for live Dood rows, but does not open a second
+team-presence connection. Initials or account images stand for members; the public invitation
 preview lists their names, not React's row of faces.
 
-**The waiting-list flow is partial.** Deployment admins can read/admit the server's waiting
-list, and a waiting account gets an explanation, Check again and Sign out. React also lets it
+**The waiting-list flow is partial.** Deployment admins use the merged Settings → Waiting
+list to read/admit people; the duplicate workspace waitlist and its data source were removed.
+A waiting account gets an explanation, Check again and Sign out. React also lets it
 hatch and pet its first Dood (the welcome stage and `components/settings/waitlist.tsx`). That
 first-run experience is not added here. Existing shell sources still request the admitted-user
 workspaces/Doods APIs for a waiting session; those APIs return 403. Their waiting-state gating
-must be integrated with the separately owned shell data work, which this area does not edit. The local test server forces `DC_SIGNUP=open`, so invitation-only
+remain deployment-mode integration work. The local test server forces `DC_SIGNUP=open`, so
+invitation-only
 sign-up, waiting-account admission and admin-only waitlist controls still need deployment-mode
 integration tests. Normal signed-out preview, sign-up, acceptance and Not now are covered
 against the real server. An email inbox invitation belongs only to an email-verified account;
@@ -138,12 +151,13 @@ Move to a workspace confirms the sharing implications separately. The sidebar's 
 Delete removes the Dood but always keeps computers. React's full deletion dialog can also offer
 to remove eligible computers. There is no such destructive option in this sidebar port.
 
-**Shared settings need their other routes at merge.** `views/settings-kit.contract` is an
-unchanged copy from `exact-settings` (484387c). Its Workspaces backlink targets
-`/settings/workspaces`, supplied by that branch, not this area's route table. Teams have their
-own working links from the sidebar and empty workspace. Team settings use route URLs instead
-of React's settings query parameter. Public share links remain the canonical absolute URLs
-returned by the deployment; View invitation uses the relative Exact route.
+**Teams use the merged settings window.** The kit from `exact-client` replaces the copied
+snapshot. Workspaces → a team opens People beside its section list on a wide window, or the
+list alone on a phone. People, Computers, Models and (where enabled) Passwords are separate
+sections; New team is available from Workspaces and the sidebar. Workspace computers remains
+an explicit placeholder, matching the unported computer-management area. Public share links
+remain the canonical absolute URLs returned by the deployment; View invitation uses the
+relative Exact route. See Settings below for the address-versus-query difference.
 
 **The driver can retain duplicate sidebar targets after crossing routes or accounts.** A
 workspace menu or Dood menu can have two nodes with its same label and ID, even after settling.
@@ -159,3 +173,197 @@ not established. The grip is therefore offered only in the wide layout; phones k
 explicit Move up / Move down actions, which use the same persisted order API. The regression
 test covers that phone alternative rather than claiming touch drag works. Wide touch screens
 still need a real-device check.
+
+## Rich message content
+
+`views/markdown.contract` and the web-only `do-markdown`, `do-code` and `do-mermaid` tags
+render the React app's sanitized GFM, highlighted code, scrolling/copyable tables, GitHub
+alerts, folding HTML and diagrams. Exact's `text markup="markdown"` reader leaves tables as
+text and does not supply these controls; it is retained for simple prose. Rich messages stay
+in one shadow DOM tree so selection crosses prose and code. The native content has natural
+web layout height; no Apple/Linux implementation or native intrinsic sizing was added. The
+Exact agent sees tags/props, not their text or buttons; the separate gallery's Playwright
+probe tests those. A simple reply can change renderer once richer syntax arrives, which may
+lose a selection over that change. The real chat has not been wired while another branch
+rewrites it; the exact `MessageText` call is in `modules/web/README.md`.
+
+React's `components/chat/markdown.tsx` resolves library links and images using the chat's
+library query, previews local CSV/TSV, opens files beside the chat, refreshes expired view
+URLs, and uses the full multi-picture viewer with download. This presentation-only piece
+accepts a caller-resolved `files` prop and emits `file:<id-or-path>`, renders known image
+URLs and browser video/audio controls, and otherwise shows alt text. It does not fetch the
+library, preview CSV/TSV, refresh authorization, open a side panel, or provide the picture
+viewer. A figure opens in a new tab and emits `image:<url>`. The chat/library owner must
+supply browser-loadable URLs and consume file events; no bearer secret belongs in props.
+Attachments that are separate message blocks remain that screen's responsibility.
+
+Remote pictures/media wait for Show, as in React, but there is no persistent Always from
+this host permission yet. Responsive raw-HTML `<source srcset>` is skipped because it could
+make a request around that gate. Failed pictures show their words. Raw HTML uses the exact
+React sanitizer, not unrestricted innerHTML; only strict Mermaid's own sanitized SVG is
+inserted as markup. Alerts have their kind/title/color but not the React icon set, and fonts
+inherit the host rather than shipping React's Geist fonts. Code over 80,000 characters and
+unknown languages remain plain, as in React. There is no math renderer or custom mention
+widget in the React reference either: math delimiters and @names remain text.
+## Composer and other chats
+
+**Files use Exact's pick, paste and drop support, with a 16 MiB read ceiling.** React's
+`chat/composer.tsx` sends browser `File`s directly; here `input type="file"` produces picked
+paths, and clipboard/drop handlers produce `doc:` paths. `data/composer.ts` reads their bytes
+and uploads to the same library endpoint. Exact's `readFile` result is limited to 16 MiB;
+a larger file reports an attachment error and leaves the draft alone. Images use Exact's
+JPEG compressor at the same 1568-pixel limit and per-message budget instead of React's
+canvas quality ladder. Interactive file drives need `--storage`; authored tests already have
+it. No native file hatch or Exact patch was needed.
+
+**The picture preview is a simple dialog.** Attached pictures open large and close with the
+button or Escape. React's shared `PictureViewer` also has gallery navigation, zoom and swipe;
+those gestures are not ported in this composer dialog.
+
+**The microphone is a web native view.** `do-dictation` in `modules/web/dictation.js` reaches
+`getUserMedia`, `MediaRecorder` and an analyser. Contract owns the recording controls and
+sends the audio through `data/composer.ts` to the unchanged `/api/transcribe`. The waveform
+uses Exact's hatch clock. Cancelling or leaving the chat releases the microphone and ignores
+a late answer. The test deployment has no transcription model key, so recording, cancellation
+and the server's transcription refusal are tested; successful recognition needs a configured
+deployment. There is no implementation for native hosts, nor a live voice-call button here
+(the React composer gets that button from `components/call/call.tsx`).
+
+**Other chats open from a small menu above the composer.** React places old side chats in the
+Dood's pill menu, and agent/Slack threads in its panel; here `views/threads.contract` groups
+old side chats, other Doods, Slack and sub-agents under “Other chats”. All use the same
+`/a/:agentId/c/:chatId` route and are read-only, with Main chat/parent links, status, Stop and
+the Slack address. This React version has no new-side-chat, rename or delete controls, and no
+slash-command or mention menu: `chat/commands.tsx` is background shell commands, not slash
+commands. Their running count, last output and Stop live above this composer's box; transcript
+chips and their notices remain the transcript area's responsibility. Team typing indicators,
+the programmatically given initial cursor, gallery gestures and the live call button have not
+been ported by this area. Model choices use a searchable menu with arrow keys, Enter and Escape
+instead of React's combobox; model/thinking settings are the Dood's saved settings. The
+computer-kind picker is not part of React's composer and remains with computer/settings pages.
+## Settings
+
+**Settings are routes drawn as the settings window's card, beside the sidebar, not a dialog over
+the page.** The React app opens every setting as a section of one dialog over whatever page is
+showing (`components/settings/settings-dialog.tsx`): 56rem across, its sections listed down its
+side, the page dimmed under it. Exact's web host does draw a modal route
+(`navigationPresentation="modal"`) as a dialog over the page under it, but at most 35rem across
+(`host/web/neutral.css`, `width: min(35rem, …) !important`, which an authored width does not
+beat), too narrow for the list of sections beside a section; a `fullscreen` route hides the page
+under it. So each section is a route at an address of its own (`/a/:id/profile`, `/settings`,
+`/w/:id/models`, …) drawn in the content area as the dialog's card: the list of sections
+beside the open one, the open one washed, a cross that goes back to the page (a Dood's chat, or
+the page the person's own settings were opened from). A Dood's keep its pill over them. On a
+phone the React dialog fills the screen and shows the list, then a section with the way back to
+the list; so does this, the list and the section being routes. `views/settings-kit.contract`
+is the frame and its pieces, which every settings page uses.
+
+**Settings have addresses, not a `?settings=` query.** The React app says which section is open
+in the query of whatever page is under it (`lib/settings.ts`), and redirects the old
+`/a/:id/profile`, `/permissions` and `/settings` to it. Here a section is a route: a Dood's are
+under it (`settings` is the list of its sections, which the React app's
+`/a/:id/settings` sends to the person's General instead), the person's own are under
+`/settings`, a workspace's under `/w/:id`. Back and reload work on each.
+
+The shared `Workspace.secrets` now comes from `savedLogins` / `savedCards` on the server's
+workspace summary, so the section list offers Passwords only where this person may use it.
+
+**Web push works through a service worker the page module registers under `/modules/`.** A data
+module cannot reach `navigator.serviceWorker` or `Notification`, and an Exact web build serves
+only what it builds plus `modules/web/` (at `/modules/`). The `do-push` web native view
+(`modules/web/push.js`) registers `modules/web/push-worker.js` with the scope `/modules/`
+(checked on Exact's web host: it registers, and has a `pushManager`), asks the browser's leave,
+subscribes with the server's key, and hands the subscription to the view, which sends it to the
+server with the session. Push needs no wider scope, since the worker answers no requests. Two
+things differ from the React app's `public/sw.js`: a click on a notification posts the page to
+go to and the page loads that address (the worker does not control the page, so cannot steer it
+in place), and a subscription the push service replaces (`pushsubscriptionchange`) is not sent
+to the server, which is on another origin and takes a bearer the worker does not have; opening
+Notifications sends it again. The React app also re-registers a subscribed browser at every
+launch (`syncNotifications`); here that happens when Notifications is opened. Headless Chrome
+cannot deliver a push, so the tests check the page's state, not a notification.
+
+**A model sign-in is asked after every second, not held open.** The React app follows a sign-in
+by a request the server holds until it changes (`modelLogin(id, { rev, waitMs })`). A resource
+that is always waiting keeps a test's `clock data` from ever settling, so the sign-in window
+asks again each second while it waits.
+
+**The password and card checks are said again in `data/settings-passwords.ts`.** Exact refuses a
+data module that imports a file mentioning `Date.now()` or `new Date()`, even as a default
+parameter (`analyze-ambient-api`), and `packages/protocol/src/passwords-typed.ts` does. Its
+`loginToSend`, `withSite`, `cardToSend`, `cardWords` and `cardTrouble` are repeated there with
+the month passed in, using the protocol's `siteHost`, `cardDigits` and limits; keep the two the
+same.
+
+**Secrets typed into settings are states that are never kept.** A model provider's key, a
+login's password and a card's number live in states without `persist`, reach the data module
+only as a mutation's arguments, are never a resource's argument (whose answers Exact may keep),
+and are emptied once sent or when the window closes. A password or a key is an
+`input type="password"`, which Exact never shows in an agent's output. A card's number is a plain
+field, as in the React app, so a drive's tree shows it while it is typed.
+
+**A sentence with a link in it is a row of runs, or Markdown.** A `text` paragraph holds only
+text runs and images (`lower-leaf-children`), so "…under Models in the workspace's settings"
+is a wrapping row of a text, a link and a text (it breaks before the link on a phone), or, on
+Global models, Markdown, whose link is the browser's blue.
+
+**The Move to menu is a menu, not a select.** A `select` anywhere in the app makes the build
+warn that the browser's select takes no `accent-color` (`tamber-unreachable`); the React app's
+Select is a drop-down of its own anyway, so this is a button with a popover menu.
+
+**What is not here.** The person's account (name, email, password, deleting it) has no page in
+the React app either: its menu shows the name and email and signs out. The account menu here
+has Settings and Sign out; the name and email over them are left out, since text in that menu
+makes the build warn of the sidebar's list on iOS (`lower-list-beside-fixed`). Starting a team
+("New team" under Workspaces) and answering an invitation (its View goes to `/invite/:id`,
+which this app has no page for) are the teams area's. A Dood's Voice shows only where calls can
+be made, which the test server cannot, so it is drawn but untested. Global models and the
+waiting list are only for those who look after the deployment, which an account made with an
+email on an open server never is; they were checked by a drive (`DC_SIGNUP=waitlist
+DC_ADMIN_EMAILS=… ./x agent web …`, the first account on such a server counts as vouched for),
+not by a test.
+## Library, pins and sharing
+
+**Library Markdown has one swap point.** `views/library-markdown.contract` wraps Exact's
+`text markup="markdown"`. It is not the React `Markdown` component: code highlighting,
+Mermaid/math, DOM embeds, and the React document typography await the separate Markdown
+port. Inline Markdown images are currently alt text rather than pictures (standalone image
+viewing works). The front page therefore shows shorter previews, and a document's paragraph spacing
+is Exact's. Relative library links/images are resolved in `data/library.ts`; individual
+Markdown nodes do not yet call the chat document-panel action.
+
+**Editors use a textarea, not the React editor DOM.** Read/edit/split, autosave, errors,
+conflict resolution and revision revert use Contract state and the real library API. A
+small `library-format.js` native view applies the toolbar to a textarea's actual selection
+and gives Contract the resulting string. There is no editor scroll synchronisation or
+rich syntax colouring. On phones split keeps the editor; Read switches to the preview rather than
+squeezing two columns together. Folder operations are full-path rename/move; like React,
+folders are implicit and there is no standalone empty-folder operation. Drafts are not a
+persisted offline queue: keep a failed save open and retry it before closing the app.
+
+**Chat has an integration seam, not a second attachment renderer.** `LibraryFileCard` and
+`LibraryPictureViewer` in `views/library-card.contract` are exports for the separate chat
+port. They are not mounted by this branch's basic transcript, so real chat tool-result
+file cards and multiple-picture keyboard navigation are not end-to-end tested here.
+`openLibraryPanel(fileId)` and `LibraryDocumentPanel` are mounted, and a real pinned file
+opens the panel over the chat (tested). `LibraryPinsDock` temporarily occupies the bottom
+of the existing wide Dood panel; the chat port should mount `PinsShelf` in its own scroll
+column and remove that dock. The document panel is a bounded overlay, not a draggable
+split, and has a whole-screen presentation on a phone.
+
+**Pins have dates, not transient change flashes.** The first pin has an image, Markdown or
+sandboxed page preview; subsequent pins are title rows, and deleted pins stay with an
+unpin action. SSE refreshes them after writes and reconnects. The React shelf's live
+"Just changed" label and timed highlight are not reproduced; the file's date is shown.
+A pinned page preview does not receive the host theme message (the full page viewer does).
+
+**Downloads need a browser hatch; shares stay on the server.** Contract's `download` link
+cannot turn a fetched binary response into a named file, so `library-download.js` creates a
+Blob URL in its own web-native button, revokes it and reports success/failure. Uploads use
+Exact's file picker and a read-only grant for `app:/tmp/picked`. Native test drives must
+name a scratch store (`--storage`) or picker reads are unavailable. Sandboxed HTML/PDF
+iframes, new tabs and downloaded files remain browser-owned. `library-frame.js` sends
+host theme messages and only accepts open-document messages from its own iframe. Shared
+URLs are the existing `/s/:siteId` pages on the API origin, including that origin's sign-in
+for restricted links; Exact does not duplicate the public website or promise an Exact
+bearer session is also a cookie there. All three hatches are web-only.

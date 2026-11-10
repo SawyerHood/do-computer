@@ -38,13 +38,14 @@ fn doodEntries(agentId: string): SettingsEntry[] = [
 ]
 
 // What is the person's own, and what the deployment offers, for those who look after it (`OWN`, `SERVER`).
-fn accountEntries(admin: bool): SettingsEntry[] = [
+fn accountEntries(admin: bool, waitlist: bool): SettingsEntry[] = [
   SettingsEntry(route="general", href="/settings/general", label="General", icon="symbol:icon.gear", group=""),
   SettingsEntry(route="notifications", href="/settings/notifications", label="Notifications", icon="symbol:icon.bell", group=""),
   SettingsEntry(route="doodsList", href="/settings/doods", label="Doods", icon="symbol:icon.smiley", group=""),
   SettingsEntry(route="workspacesList", href="/settings/workspaces", label="Workspaces", icon="symbol:icon.squares-four", group="")
 ].concat(admin ? [
-  SettingsEntry(route="serverModels", href="/settings/server", label="Global models", icon="symbol:icon.hard-drives", group="Server"),
+  SettingsEntry(route="serverModels", href="/settings/server", label="Global models", icon="symbol:icon.hard-drives", group="Server")
+] : []).concat(admin and waitlist ? [
   SettingsEntry(route="waitlist", href="/settings/waitlist", label="Waiting list", icon="symbol:icon.hourglass", group="Server")
 ] : [])
 
@@ -52,14 +53,15 @@ fn accountEntries(admin: bool): SettingsEntry[] = [
 fn workspaceEntries(w: Workspace): SettingsEntry[] = (w.kind == "team" ? [
   SettingsEntry(route="people", href=`/w/${w.id}/people`, label="People", icon="symbol:icon.users", group="")
 ] : []).concat([
-  SettingsEntry(route="workspaceSettings", href=`/w/${w.id}/settings`, label="Computers", icon="symbol:icon.desktop", group=""),
-  SettingsEntry(route="workspaceModels", href=`/w/${w.id}/models`, label="Models", icon="symbol:icon.cpu", group=""),
+  SettingsEntry(route="workspaceComputers", href=`/w/${w.id}/computers`, label="Computers", icon="symbol:icon.desktop", group=""),
+  SettingsEntry(route="workspaceModels", href=`/w/${w.id}/models`, label="Models", icon="symbol:icon.cpu", group="")
+]).concat(w.secrets ? [
   SettingsEntry(route="passwords", href=`/w/${w.id}/passwords`, label="Passwords", icon="symbol:icon.key", group="")
-])
+] : [])
 
 fn workspaceOf(workspaces: Workspace[], id: string): Workspace = match first(workspaces.filter(w => w.id == id)) {
   case some(w) => w,
-  case none => Workspace(id=id, name="", kind="personal", color="#5b6672", role="owner")
+  case none => Workspace(id=id, name="", kind="personal", color="#5b6672", role="owner", secrets=false)
 }
 
 // --- Styles ---
@@ -205,6 +207,12 @@ component SettingsFrame
         // dialog on a narrow screen. Back from a section goes to the list; the cross closes.
         header appearance="none" display="flex" align-items="center" gap=6 padding="6px 8px" min-height=52 flex-shrink=0
           background-color=(listing ? "frame" : "canvas") border-bottom="1px solid var(--hairline)"
+          // The list's own way up (to the list of Doods or workspaces) is here on a phone, beside the cross.
+          if listing and up != ""
+            link href=up aria-label=`Back to ${upLabel}` display="flex" align-items="center" gap=4 padding="6px 8px" border-radius=8
+              color="ink.muted" text-decoration="none" font-size="0.875rem" testId=`settings-up-${route}`
+              image "symbol:icon.caret-left" aria-hidden=true
+              text upLabel
           if not listing
             link href=home aria-label=`Back to ${name}` display="flex" align-items="center" gap=4 padding="6px 8px" border-radius=8 min-width=0
               color="ink.muted" text-decoration="none" font-size="0.875rem" testId=`settings-home-${route}`
@@ -228,8 +236,11 @@ component SettingsHeading
     route: string
     title: string
     lead: string
+  inject
+    wide: bool
   view
-    column gap=4 padding-right=32
+    // Clear of the card's cross, which a phone has in its bar instead.
+    column gap=4 padding-right=(wide ? 32 : 0)
       text title role="heading" aria-level=2 class=SettingsTitle testId=`heading-${route}`
       if lead != ""
         text lead class=SettingsLead
@@ -250,7 +261,7 @@ component SettingsNav
     phone: bool
   view
     nav aria-label=`${name}: sections` display="flex" flex-direction="column" gap=2 padding=10 testId=`settings-nav-${route}`
-      if up != ""
+      if up != "" and not phone
         link href=up aria-label=`Back to ${upLabel}` display="flex" align-items="center" gap=4 align-self="flex-start" padding="4px 8px"
           border-radius=8 color="ink.muted" text-decoration="none" font-size="0.875rem" testId=`settings-up-${route}`
           :hover
@@ -281,10 +292,10 @@ component SettingsNav
           background-color=(e.route == route and not phone ? "wash" : "transparent") testId=`settings-go-${e.route}-${route}`
           :hover
             background-color="wash"
-          image e.icon aria-hidden=true font-size="1rem"
-          text e.label flex=1
+          image e.icon aria-hidden=true font-size="1rem" flex-shrink=0
+          text e.label flex=1 min-width=0
           if phone
-            image "symbol:icon.caret-right" aria-hidden=true color="ink.muted" font-size="0.875rem"
+            image "symbol:icon.caret-right" aria-hidden=true color="ink.muted" font-size="0.875rem" flex-shrink=0
 
 // --- A frame for each whose ---
 
@@ -316,15 +327,16 @@ component AccountSettings
     title: string
     lead: string
     listing: bool
-    // They look after the deployment, so its sections are listed.
+    // They look after the deployment, so its sections are listed; the waiting list where it has one.
     admin: bool
+    waitlist: bool
     // The page the settings were opened over, where the cross goes back to.
     close: string
   slot
   inject
     session: Session
   view
-    SettingsFrame(page=page, route=route, title=title, lead=lead, listing=listing, entries=accountEntries(admin),
+    SettingsFrame(page=page, route=route, title=title, lead=lead, listing=listing, entries=accountEntries(admin, waitlist),
       name="Settings", kind=session.name, seed="", color="", letter=session.initials,
       home="/settings", up="", upLabel="", close=close, dood=false)
       children
@@ -339,11 +351,14 @@ component WorkspaceSettingsFrame
     listing: bool
   slot
   inject
+    session: Session
     workspaceList: Workspace[]
   derive w = workspaceOf(workspaceList, page.workspaceId)
+  // One's own workspace is marked with one's own face, a team's with its tile (WorkspaceMark).
+  derive own = w.kind != "team"
   view
     SettingsFrame(page=page, route=route, title=title, lead=lead, listing=listing, entries=workspaceEntries(w),
-      name=w.name, kind=(w.kind == "team" ? "Team" : "Only you"), seed="", color=w.color, letter=w.name.slice(0, 1).toUpperCase(),
+      name=w.name, kind=(own ? "Only you" : "Team"), seed="", color=(own ? "" : w.color), letter=(own ? session.initials : w.name.slice(0, 1).toUpperCase()),
       home=`/w/${w.id}/settings`, up="/settings/workspaces", upLabel="Workspaces", close=`/w/${w.id}`, dood=false)
       children
 

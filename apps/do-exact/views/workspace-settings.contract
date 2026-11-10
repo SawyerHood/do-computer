@@ -1,47 +1,29 @@
-use Page, Reply from "./shapes.contract"
-use WorkspaceSettingsFrame from "./settings-kit.contract"
+use Page, Workspace from "./shapes.contract"
+use WorkspaceSettingsFrame, workspaceOf, Hint from "./settings-kit.contract"
 use TeamSettingsContent from "./people.contract"
-use TeamWaitlist, TeamHint, TeamSection from "./teams.contract"
 
+// The workspace's section list on a phone, with its first section open on a wide window.
 component WorkspaceSettingsScreen
   props
     page: Page
   inject
-    teamAdmin: bool
-    teamWaitlist: TeamWaitlist
-    teamWaitlistLoading: bool
-    teamWaitlistFailed: bool
-    teamRetry: action
-    teamAdmitted: option<Reply>
-    teamAdmitting: bool
-    teamAdmit: action
+    workspaceList: Workspace[]
+  derive team = workspaceOf(workspaceList, page.workspaceId).kind == "team"
   view
-    WorkspaceSettingsFrame(page=page, route="workspaceSettings", title="Workspace settings", lead="What this workspace is called, who is in it, and what each may do.", listing=false)
-      TeamSettingsContent(workspaceId=page.workspaceId, route="workspaceSettings")
-      if teamAdmin
-        column gap=12
-          text "Waiting list" role="heading" class=TeamSection
-          text "Anyone can make an account and hatch a Dood. The app itself is for you, the people you invite to a team, and whoever you let in here." class=TeamHint
-          if teamWaitlistLoading
-            progress aria-label="Reading waiting list"
-          else if teamWaitlistFailed
-            text "The waiting list could not be read." role="alert" class=TeamHint
-            button press=teamRetry
-              text "Try again"
-          else
-            text (teamWaitlist.total == 0 ? "Nobody is waiting." : `${teamWaitlist.total} ${teamWaitlist.total == 1 ? "person is" : "people are"} waiting.`) class=TeamHint testId="team-waitlist-count"
-            for p in teamWaitlist.people key=p.id
-              row gap=12 align-items="center" flex-wrap="wrap" padding=12 border="1px solid var(--hairline)" border-radius=12
-                column flex=1 min-width=0
-                  text `${p.name}${p.dood == "" ? "" : ` with ${p.dood}`}` font-size="0.875rem" font-weight=500
-                  text `${p.email} · since ${p.since}` class=TeamHint
-                button press=teamAdmit(p.id) disabled=teamAdmitting testId=`team-admit-${p.id}`
-                  text (teamAdmitting ? "Letting in…" : "Let in")
-            if teamWaitlist.total > teamWaitlist.people.length
-              text `Showing the ${teamWaitlist.people.length} who have waited longest.` class=TeamHint
-          match teamAdmitted
-            case some(r)
-              if r.error != ""
-                text r.error color="danger" role="alert"
-            case none
-              text ""
+    WorkspaceSettingsFrame(page=page, route=(team ? "people" : "workspaceComputers"), title=(team ? "People" : "Computers"), lead=(team ? "Who is in this team, and who has been asked to join it." : "The computers its Doods work on."), listing=true)
+      if team
+        TeamSettingsContent(workspaceId=page.workspaceId, route="people")
+      else
+        WorkspaceComputersNotice()
+
+// Computers remains a placeholder, as the unported Dood computers page is.
+component WorkspaceComputersScreen
+  props
+    page: Page
+  view
+    WorkspaceSettingsFrame(page=page, route="workspaceComputers", title="Computers", lead="The computers its Doods work on.", listing=false)
+      WorkspaceComputersNotice()
+
+component WorkspaceComputersNotice
+  view
+    text "Workspace computer management is not available in this client yet." class=Hint testId="workspace-computers-gap"

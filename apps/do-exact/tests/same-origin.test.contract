@@ -1,0 +1,43 @@
+// The app served by Do Computer's own server (`DC_EXACT_APP`, apps/web/src/server/exact-app.ts),
+// at its origin: the browser's session cookie is the session and the sockets need no ticket. A
+// test in tests/ runs only when named; this one also needs the server to serve the build the
+// test drives, and the page opened there:
+//   DC_EXACT_APP=$PWD/target/web-dist ./x test web tests/same-origin.test.contract --url http://127.0.0.1:3914/x/
+// (3911 + the checkout's slot). tools/same-origin.mjs checks the session is the React app's too.
+
+test "served by the server itself, the app signs in with a cookie and follows a long reply over its sockets"
+  size 1280x800
+  expect state session.signedIn == false
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "same-origin-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  expect state session.signedIn == true
+  // No ticket is asked for: the sockets carry the cookie.
+  expect state socketTickets.ready == 0
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "Say something long"
+  tap "send"
+  clock data
+  clock until state chat.busy == false within 20000
+  expect state chat.lost == false
+  expect state chat.messages.1 .blocks.0 .kind == "thinking"
+  expect state doodList.0 .working == false
+  reload
+  clock data
+  clock settle
+  clock data
+  expect state session.signedIn == true
+  expect state chat.messages.length == 3
+  tap "account"
+  tap "sign-out"
+  clock data
+  expect state session.signedIn == false
+  reload
+  clock data
+  expect state session.signedIn == false

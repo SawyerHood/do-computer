@@ -1,7 +1,7 @@
 use Page, Session from "./shapes.contract"
 use WorkspaceSettingsFrame from "./settings-kit.contract"
 use PrimaryButton, Field from "./styles.contract"
-use TeamInfo, TeamMember, TeamInvitation, TeamChanged, TeamWaitlist, TeamLinks, TeamTile, TeamHint, TeamSection, TeamDialog, teamOf from "./teams.contract"
+use TeamInfo, TeamMember, TeamInvitation, TeamChanged, TeamLinks, TeamTile, TeamHint, TeamSection, TeamDialog, teamOf from "./teams.contract"
 
 component PeopleScreen
   props

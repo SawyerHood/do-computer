@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Runs an Exact verb for this app with the tools on PATH: ./x test web, ./x agent web …, ./x verify.
+# Every checkout of this repository on a machine shares the two ports (the server's 3911, the
+# page's 8766), so the verbs that use them wait their turn on one lock.
+set -euo pipefail
+cd "$(dirname "$0")"
+export PATH="$HOME/.bun-1.4.2/bin:$HOME/.nvm/versions/node/v24.18.0/bin:$HOME/.cargo/bin:$PATH"
+# Nothing about this project is sent to Expo.
+export EXACT_FEEDBACK=0
+slot="${DCX_SLOT:-$(cat ../../.slot 2>/dev/null || echo 0)}"
+export EXACT_PORT="${EXACT_PORT:-$((8766 + slot))}"
+if [ -z "${CHROME:-}" ]; then
+  CHROME="$(ls -d "$HOME"/.cache/ms-playwright/chromium-*/chrome-linux64/chrome 2>/dev/null | sort -V | tail -1 || true)"
+  [ -n "$CHROME" ] && export CHROME
+fi
+case "${1:-}" in
+  test|verify|agent|web) exec flock "/tmp/do-exact-ports-$slot.lock" bun exact.mjs "$@" ;;
+  *) exec bun exact.mjs "$@" ;;
+esac

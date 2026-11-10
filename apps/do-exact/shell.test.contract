@@ -129,4 +129,4 @@ test "a workspace's settings open from its menu in the sidebar"
   tap "workspace-settings-personal"
   clock settle
   expect state onRoute == "workspaceSettings"
-  expect text "heading-workspaceSettings" == "Workspace settings"
+  expect text "heading-workspaceComputers" == "Computers"

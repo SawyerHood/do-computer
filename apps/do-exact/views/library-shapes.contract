@@ -1,0 +1,84 @@
+shape LibraryFile
+  id: string
+  path: string
+  name: string
+  size: number
+  rev: number
+  kind: string
+  url: string
+  href: string
+  bytes: string
+  when: string
+  by: string
+  preview: string
+  depth: number
+
+shape LibraryRow
+  id: string
+  path: string
+  name: string
+  folder: bool
+  depth: number
+  fileId: string
+
+shape Library
+  owner: string
+  agentId: string
+  files: LibraryFile[]
+  rows: LibraryRow[]
+  deleted: LibraryFile[]
+  total: string
+
+shape LibraryLocation
+  file: string
+  path: string
+  mode: string
+
+shape LibraryWritten
+  edit: bool
+  open: bool
+  ok: bool
+  error: string
+  conflict: bool
+  fileId: string
+  path: string
+  rev: number
+  text: string
+
+shape LibraryContent
+  owner: string
+  fileId: string
+  rev: number
+  text: string
+  rendered: string
+  rows: LibraryTableRow[]
+  cut: bool
+
+shape LibraryTableRow
+  id: string
+  cells: LibraryTableCell[]
+
+shape LibraryTableCell
+  id: string
+  text: string
+
+shape LibraryVersion
+  rev: number
+  detail: string
+
+shape LibraryHistory
+  owner: string
+  fileId: string
+  versions: LibraryVersion[]
+
+fn libraryFileOf(files: LibraryFile[], id: string, wanted: string): LibraryFile = match first(files.filter(f => f.id == id or (wanted != "" and f.path == wanted))) {
+  case some(f) => f,
+  case none => emptyLibraryFile()
+}
+fn emptyLibraryFile(): LibraryFile = LibraryFile(id="", path="", name="", size=0, rev=0, kind="", url="", href="", bytes="", when="", by="", preview="", depth=0)
+fn libraryVisible(path: string, closed: string[]): bool = not closed.map(p => path.startsWith(`${p}/`)).includes(true)
+
+
+shape LibraryPulse
+  changes: number
+  lost: bool

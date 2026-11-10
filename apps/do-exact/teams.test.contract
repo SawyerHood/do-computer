@@ -23,23 +23,23 @@ test "a team is created, renamed, folded, and deleted with confirmations"
   tap "workspace-home-settings"
   clock settle
   clock data
-  tap "team-rename-open-workspaceSettings"
-  type "team-rename-workspaceSettings" "Studio North"
-  tap "team-save-workspaceSettings"
+  tap "team-rename-open-people"
+  type "team-rename-people" "Studio North"
+  tap "team-save-people"
   clock data
-  expect text "team-title-workspaceSettings" == "Studio North"
+  expect text "team-title-people" == "Studio North"
   tap "Collapse Studio North"
   reload
   clock data
   expect state teamFolded.length == 1
   tap "Expand Studio North"
-  tap "team-delete-workspaceSettings"
+  tap "team-delete-people"
   clock settle
-  tap "team-delete-cancel-workspaceSettings"
-  expect text "team-title-workspaceSettings" == "Studio North"
-  tap "team-delete-workspaceSettings"
+  tap "team-delete-cancel-people"
+  expect text "team-title-people" == "Studio North"
+  tap "team-delete-people"
   clock settle
-  tap "team-delete-confirm-workspaceSettings"
+  tap "team-delete-confirm-people"
   clock data
   clock settle
   expect state onRoute == "doods"
@@ -437,3 +437,48 @@ test "Not now leaves a public invitation without spending its link"
   clock settle
   expect state onRoute == "doods"
   expect state teamInbox == []
+
+
+test "New team in account settings joins the workspace section list"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Settings Owner"
+  type "sign-email" "teams-settings@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "account"
+  tap "account-settings"
+  clock data
+  clock settle
+  tap "settings-go-workspacesList-account"
+  clock data
+  clock settle
+  tap "workspaces-new-team"
+  clock settle
+  type "team-name" "Settings Studio"
+  tap "team-create-submit"
+  clock data
+  tap "team-created-go"
+  clock data
+  clock settle
+  tap "workspace-home-people"
+  clock data
+  clock settle
+  expect tree has "settings-go-workspaceModels-people"
+  expect tree has "settings-go-workspaceComputers-people"
+  tap "settings-up-people"
+  clock data
+  clock settle
+  expect state onRoute == "workspacesList"
+  expect state workspaceList.length == 2
+  resize 390x844
+  tap "Settings Studio: workspace settings"
+  clock data
+  clock settle
+  expect state onRoute == "workspaceSettings"
+  expect tree has "settings-nav-people"
+  tap "settings-go-people-people"
+  clock data
+  clock settle
+  expect tree has "team-title-people"

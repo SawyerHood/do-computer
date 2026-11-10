@@ -21,6 +21,12 @@ export type Config = {
    */
   readonly clientOrigins: readonly string[]
   /**
+   * A web build of the Exact app (`pnpm build:exact`), served by this server at `/x/` and, for
+   * whoever opens that, at the app's own addresses: at this origin, with its session. A folder,
+   * on Node only. Undefined: there is none, and nothing is served there.
+   */
+  readonly exactApp: string | undefined
+  /**
    * Set where the Do Computer desktop app runs this server itself, for one person, on their
    * own computer: a secret only the app has. Whoever sends it is signed in as the owner, with
    * no password. Undefined everywhere else.
@@ -302,6 +308,7 @@ export function readConfig(env: Record<string, string | undefined>): Config {
     baseUrl: optional("DC_BASE_URL"),
     alsoAt: listed("DC_ALSO_AT").flatMap((address) => originOf(address) ?? []),
     clientOrigins: listed("DC_CLIENT_ORIGINS").flatMap((address) => originOf(address) ?? []),
+    exactApp: optional("DC_EXACT_APP"),
     ownerKey: optional("DC_OWNER_KEY"),
     authSecret: optional("DC_AUTH_SECRET"),
     openrouterApiKey: optional("OPENROUTER_API_KEY"),
