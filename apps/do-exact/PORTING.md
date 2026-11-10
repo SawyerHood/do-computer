@@ -363,8 +363,8 @@ controls and text need a browser probe while an official `./x agent` drive owns 
   A Dood's face is `DoodFace` in `views/creature.contract`, which draws `do-creature`: add
   what the creature does (petting, outfits, hatching) there.
 - **Tests.** Every feature gets tests in `<area>.test.contract` that drive it against the real
-  server. Someone signed in with no Dood gets the first run's scene over everything, 400 ms after
-  the list says so: a test that taps `new-dood` (or `first-dood`) at once, as the six lines do
+  server. Someone signed in with no Dood, at `/`, gets the first run's scene over everything,
+  400 ms after the list says so: a test that taps `new-dood` (or `first-dood`) at once, as the six lines do
   followed by that tap, has its Dood before the scene comes, and never sees it. Each starts
   signed out with empty storage, on a server the whole run shares, so it signs up first with
   the same six lines and an address no other test uses.

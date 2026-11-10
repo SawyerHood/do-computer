@@ -91,11 +91,13 @@ members App
   derive welcomeBusy = pending(welcomeNamed) or pending(welcomeThought)
   derive welcomeModelsLoading = pending(welcomeModels)
 
-  // Someone signed in with no Dood: the egg comes down for them. One who has a Dood, made any
-  // other way, is sent on to it. It comes a moment after the list says there are none, as the
-  // React app's scene comes once its drawing has loaded, so a Dood made in that moment (the
-  // sidebar's + pressed at once) is opened and the scene never comes.
-  task welcomeCheck key=`${session.owner}:${doods.owner}:${doodList.length}`
+  // Someone signed in with no Dood, at the list (`/`, which the React app sends to /welcome
+  // then): the egg comes down for them. One who has a Dood, made any other way, is sent on to
+  // it, and another page opened takes the scene away, as leaving /welcome does. It comes a
+  // moment after the list says there are none, as the React app's scene comes once its drawing
+  // has loaded, so a Dood made in that moment (the sidebar's + pressed at once) is opened and
+  // the scene never comes.
+  task welcomeCheck key=`${session.owner}:${doods.owner}:${doodList.length}:${onRoute}`
     after(400, maybeWelcome)
   // The title over the night while the egg falls.
   task welcomeTitle key=`${welcomeOn}:${welcomeStep}`
@@ -114,8 +116,10 @@ members App
   action maybeWelcome
     if not session.signedIn
       welcomeOn = false
+    else if welcomeOn and not welcomeLeaving and onRoute != "doods"
+      welcomeOn = false
     else if doods.owner == session.owner
-      if doodList.length == 0 and not welcomeOn
+      if doodList.length == 0 and not welcomeOn and onRoute == "doods"
         welcomeOn = true
         welcomeStep = "fall"
         welcomeCard = false
