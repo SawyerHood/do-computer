@@ -11,7 +11,7 @@ use LibraryScreen from "./views/library.contract"
 use AutomationsScreen from "./views/automations.contract"
 use SkillsScreen from "./views/skills.contract"
 use ConnectorsScreen from "./views/connectors.contract"
-use ComputersScreen from "./views/computers.contract"
+use ComputersScreen, PairComputerScreen from "./views/computers.contract"
 use PermissionsScreen from "./views/permissions.contract"
 use ProfileScreen from "./views/profile.contract"
 use DoodSettingsScreen from "./views/dood-settings.contract"
@@ -37,6 +37,7 @@ routes nav
       permissions "/a/:agentId/permissions"
       profile "/a/:agentId/profile"
       settings "/a/:agentId/settings"
+    pair "/pair"
     workspace "/w/:workspaceId"
       people "/w/:workspaceId/people"
       workspaceSettings "/w/:workspaceId/settings"
@@ -53,11 +54,114 @@ component App
   members "./views/sign-in.contract"
   members "./views/shell.contract"
   members "./views/chat.contract"
+  members "./views/automations.contract"
+  members "./views/skills.contract"
+  members "./views/connectors.contract"
+  members "./views/computers.contract"
   // A new area adds its members line here, in its own place, in the order of the routes.
 
   // What any screen may `inject` instead of taking it as a prop.
   provide
     session
+    computerWorkspaceId
+    computerItems
+    computerRequests
+    computerKinds
+    computerInstall
+    computerShowBrowser
+    computerCanChange
+    computerChosenKind
+    computerAddOpen
+    computerName
+    computersLoading
+    computersFailed
+    computersBusy
+    computersError
+    computerAddError
+    computerBrowserError
+    retryComputers
+    changeComputer
+    showComputerAdd
+    editComputerKind
+    editComputerName
+    addComputer
+    setComputerBrowser
+    pairing
+    pairingCode
+    pairingLoading
+    pairingFailed
+    pairingBusy
+    pairingError
+    pairingOurs
+    pairingDone
+    pairingWorkspace
+    pairingOffered
+    pairingSelected
+    editPairingCode
+    choosePairingWorkspace
+    choosePairingDood
+    pairComputer
+    connectorItems
+    connectorNotice
+    connectorsLoading
+    connectorsFailed
+    connectorsBusy
+    connectorError
+    connectorAddError
+    connectorForm
+    connectorAdvanced
+    connectorName
+    connectorUrl
+    connectorToken
+    connectorClientId
+    connectorClientSecret
+    connectorAuth
+    slackOpen
+    slack
+    slackOurs
+    slackLoading
+    slackFailed
+    slackBusy
+    slackError
+    slackBotToken
+    slackSigningSecret
+    showSlack
+    retryConnectors
+    showConnectorForm
+    showConnectorAdvanced
+    editConnectorName
+    editConnectorUrl
+    editConnectorToken
+    editConnectorClientId
+    editConnectorSecret
+    addConnector
+    changeConnector
+    editSlackBot
+    editSlackSecret
+    saveSlack
+    skillItems
+    skillFiles
+    skillOpen
+    skillUrl
+    skillsLoading
+    skillsFailed
+    skillReading
+    skillReadFailed
+    skillsBusy
+    skillsError
+    skillInstallError
+    editSkillUrl
+    openSkill
+    retrySkills
+    changeSkill
+    installSkill
+    automationItems
+    automationsLoading
+    automationsFailed
+    automationsBusy
+    automationsError
+    changeAutomation
+    retryAutomations
     doodList
     workspaceList
     now
@@ -88,7 +192,7 @@ component App
     let held = stack(nav).filter(e => e.url == base).length > 0
     let under = base == "/" ? home : (held ? go(nav, base) : push(home, base))
     let sibling = base != "/" and url != base and top(nav).url != base and baseOf(top(nav).url) == base
-    nav = sibling ? replace(nav, url) : (base == "/" or url == base or top(under).url == url ? under : push(under, url))
+    nav = url.startsWith("/pair") ? push(home, url) : sibling ? replace(nav, url) : (base == "/" or url == base or top(under).url == url ? under : push(under, url))
   action back
     nav = back(nav)
 
@@ -124,6 +228,9 @@ component App
           // --- computers ---
           if e.name == "computers"
             ComputersScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))
+          // --- pairing ---
+          if e.name == "pair"
+            PairComputerScreen(page=Page(key=`${e.id}`, agentId="", workspaceId=""))
           // --- permissions ---
           if e.name == "permissions"
             PermissionsScreen(page=Page(key=`${e.id}`, agentId=e.params.agentId, workspaceId=""))

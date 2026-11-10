@@ -1,0 +1,34 @@
+test "a saved skill can be read, disabled, enabled and deleted"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "skills-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  type "composer" "/tool skill {\"action\":\"create\",\"name\":\"tools-test\",\"description\":\"A test skill\",\"content\":\"Always check the result.\"}"
+  tap "send"
+  clock +5000 real
+  tap "pages-dood"
+  tap "go-skills-dood"
+  clock settle
+  clock data
+  expect tree has "skill-tools-test"
+  tap "skill-read-tools-test"
+  clock data
+  expect tree has "skill-content-SKILL.md"
+  tap "skill-toggle-tools-test"
+  clock data
+  tap "skill-toggle-tools-test"
+  clock data
+  tap "skill-delete-tools-test"
+  clock data
+  expect tree missing "skill-tools-test"
+  expect disabled "skill-install"
+  type "skill-url" "https://example.com/not-a-skill"
+  tap "skill-install"
+  clock data
+  expect tree has "skill-install-error"

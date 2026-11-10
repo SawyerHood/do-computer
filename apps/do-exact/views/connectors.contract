@@ -1,14 +1,368 @@
-// A Dood's connectors page: a PLACEHOLDER until its area is built. It will hold the connectors, signing in to one, and what each lets the Dood do.
-// The React app's is apps/web/src/components/settings/connectors.tsx. To build it: give this file a `members App` block for its
-// resources, mutations and actions (listed in app.contract beside the others), and its data
-// sources in data/connectors.ts (gathered in app.ts); then pass what the screen reads as props where
-// app.contract draws it. Keep the DoodScreen frame: it is the header, the title and the lead.
-use Page from "./shapes.contract"
-use DoodScreen from "./shell.contract"
+use Page, Reply from "./shapes.contract"
+use DoodSettings, SettingsCard, SettingsRow, OutlineButton, SettingsField, Hint, SmallHint, FieldName from "./settings-kit.contract"
+use DoodFace from "./creature.contract"
+use PrimaryButton from "./styles.contract"
+
+shape ConnectorTool
+  name: string
+  description: string
+shape Connector
+  id: string
+  name: string
+  url: string
+  host: string
+  enabled: bool
+  apps: bool
+  status: string
+  error: string
+  tools: ConnectorTool[]
+shape Connectors
+  owner: string
+  agentId: string
+  notice: string
+  items: Connector[]
+shape ConnectorReply
+  ok: bool
+  error: string
+  authorizationUrl: string
+shape Slack
+  owner: string
+  agentId: string
+  createUrl: string
+  eventsUrl: string
+  connected: bool
+  team: string
+  teamUrl: string
+  bot: string
+  seed: string
+  color: string
+  outfit: string
+  name: string
+shape ConnectorReturn
+  url: string
+members App
+  resource connectorReturn = connectorReturnAddress(openAgentId) as shape ConnectorReturn else empty()
+  resource connectors = loadConnectors(session.owner, onRoute == "connectors" ? openAgentId : "", top(nav).url) with pulse.changes as shape Connectors else empty()
+  resource slack = loadSlack(session.owner, onRoute == "connectors" ? openAgentId : "") as shape Slack else empty()
+  mutation connectorChanged as shape ConnectorReply refreshes connectors then afterConnector
+  mutation connectorAdded as shape ConnectorReply refreshes connectors then afterConnectorAdd
+  mutation slackSaved as shape Reply refreshes slack then afterSlack
+  state connectorForm = false
+  state connectorAdvanced = false
+  state connectorName = ""
+  state connectorUrl = ""
+  state connectorToken = ""
+  state connectorClientId = ""
+  state connectorClientSecret = ""
+  state connectorAuth = ""
+  state connectorReturnNotice = ""
+  state slackOpen = false
+  state slackBotToken = ""
+  state slackSigningSecret = ""
+  derive connectorItems = connectors.owner == session.owner and connectors.agentId == openAgentId ? connectors.items : []
+  derive connectorNotice = connectors.owner == session.owner ? (connectors.notice != "" ? connectors.notice : connectorReturnNotice) : ""
+  derive connectorsLoading = pending(connectors)
+  derive connectorsFailed = failed(connectors)
+  derive connectorsBusy = pending(connectorChanged) or pending(connectorAdded)
+  derive connectorError = pending(connectorChanged) ? "" : match connectorChanged { case some(r) => r.error, case none => "" }
+  derive connectorAddError = pending(connectorAdded) ? "" : match connectorAdded { case some(r) => r.error, case none => "" }
+  derive slackOurs = slack.owner == session.owner and slack.agentId == openAgentId
+  derive slackLoading = pending(slack)
+  derive slackFailed = failed(slack)
+  derive slackBusy = pending(slackSaved)
+  derive slackError = pending(slackSaved) ? "" : match slackSaved { case some(r) => r.error, case none => "" }
+  task connectorSecrets key=`${session.owner}:${onRoute}`
+    after(1, clearConnectorSecrets)
+  task connectorReturned key=`${connectors.owner}:${connectors.notice}`
+    after(100, clearConnectorCallback)
+  action clearConnectorSecrets
+    connectorToken = ""
+    connectorClientSecret = ""
+    slackBotToken = ""
+    slackSigningSecret = ""
+    connectorReturnNotice = ""
+  action clearConnectorCallback
+    if onRoute == "connectors" and connectors.notice != "" and top(nav).url.includes("state=")
+      connectorReturnNotice = connectors.notice
+      nav = replace(nav, path("connectors", openAgentId))
+  action retryConnectors
+    refresh connectors
+    refresh slack
+  action showConnectorForm
+    connectorForm = not connectorForm
+  action showConnectorAdvanced
+    connectorAdvanced = not connectorAdvanced
+  action editConnectorName(v: string)
+    connectorName = v
+  action editConnectorUrl(v: string)
+    connectorUrl = v
+  action editConnectorToken(v: string)
+    connectorToken = v
+  action editConnectorClientId(v: string)
+    connectorClientId = v
+  action editConnectorSecret(v: string)
+    connectorClientSecret = v
+  action addConnector(apps: bool)
+    if not connectorsBusy and connectorReturn.url != ""
+      send connectorAdded = addConnector(session.owner, openAgentId, apps, connectorName.trim(), connectorUrl.trim(), connectorToken, connectorClientId, connectorClientSecret, connectorReturn.url)
+  action changeConnector(id: string, operation: string, enabled: bool)
+    if not connectorsBusy
+      send connectorChanged = changeConnector(session.owner, openAgentId, id, operation, enabled, connectorReturn.url)
+  action afterConnector
+    match connectorChanged
+      case some(r)
+        connectorAuth = r.authorizationUrl
+      case none
+        connectorAuth = ""
+  action afterConnectorAdd
+    match connectorAdded
+      case some(r)
+        connectorAuth = r.authorizationUrl
+        if r.ok
+          connectorName = ""
+          connectorUrl = ""
+          connectorToken = ""
+          connectorClientId = ""
+          connectorClientSecret = ""
+      case none
+        connectorAuth = ""
+  action showSlack
+    slackOpen = not slackOpen
+    slackBotToken = ""
+    slackSigningSecret = ""
+  action editSlackBot(v: string)
+    slackBotToken = v
+  action editSlackSecret(v: string)
+    slackSigningSecret = v
+  action saveSlack(remove: bool)
+    if not slackBusy
+      send slackSaved = saveSlack(session.owner, openAgentId, remove, slackBotToken, slackSigningSecret)
+  action afterSlack
+    if slackError == ""
+      slackBotToken = ""
+      slackSigningSecret = ""
 
 component ConnectorsScreen
   props
     page: Page
+  inject
+    connectorItems: Connector[]
+    connectorNotice: string
+    connectorsLoading: bool
+    connectorsFailed: bool
+    connectorsBusy: bool
+    connectorError: string
+    connectorAddError: string
+    connectorForm: bool
+    connectorAdvanced: bool
+    connectorName: string
+    connectorUrl: string
+    connectorToken: string
+    connectorClientId: string
+    connectorClientSecret: string
+    connectorAuth: string
+    slackOpen: bool
+    slack: Slack
+    slackOurs: bool
+    showSlack: action
+    retryConnectors: action
+    showConnectorForm: action
+    showConnectorAdvanced: action
+    editConnectorName: action
+    editConnectorUrl: action
+    editConnectorToken: action
+    editConnectorClientId: action
+    editConnectorSecret: action
+    addConnector: action
+    changeConnector: action
   view
-    DoodScreen(page=page, route="connectors", lead="Apps and services your Dood can use.")
-      text "Not in this app yet." font-size="0.875rem" color="ink.muted" testId="placeholder-connectors"
+    DoodSettings(page=page, route="connectors", title=(slackOpen ? "Slack" : "Connectors"), listing=false, lead=(slackOpen ? "Put your Dood in Slack as a bot. Mention it in a channel or message it, and it answers there." : "Apps and services your Dood can use."))
+      if slackOpen
+        button press=showSlack class=ConnectorGhost align-self="start" testId="slack-back"
+          text "Connectors"
+        SlackSection(page=page)
+      else
+        if connectorNotice != ""
+          text connectorNotice role="status" class=Hint testId="connector-notice"
+        if connectorsLoading
+          progress aria-label="Loading connectors" testId="connectors-loading"
+        if connectorsFailed
+          text "Could not load connectors." role="alert" color="danger" testId="connectors-failed"
+          button press=retryConnectors class=OutlineButton testId="connectors-retry"
+            text "Try again"
+        if connectorAuth != ""
+          column gap=8 padding=16 border-radius=12 background-color="wash"
+            text "Sign in to the service to finish connecting. You will return here afterwards." class=Hint
+            link href=connectorAuth target="_self" class=PrimaryButton testId="connector-authorize"
+              text "Continue sign-in"
+        for c in connectorItems key=c.id
+          ConnectorCard(connector=c, busy=connectorsBusy, change=changeConnector)
+        if connectorItems.filter(c => c.apps).length == 0
+          SettingsCard(testId="apps-offer")
+            text "Your apps" role="heading" aria-level=3 font-weight=600
+            text "Gmail, Calendar, Drive, Notion, GitHub and hundreds more. Your Dood asks before it acts in one." class=Hint
+            link href="https://do.computer/docs/apps" target="_blank"
+              text "How it works"
+            button press=addConnector(true) disabled=connectorsBusy class=PrimaryButton align-self="start" testId="apps-connect"
+              text (connectorsBusy ? "Connecting…" : "Connect apps")
+        SettingsCard(testId="slack-offer")
+          SettingsRow(label="Slack", hint=(slackOurs and slack.connected ? `Your Dood is in ${slack.team} as @${slack.bot}.` : "Your Dood as a bot of its own, answering where it is mentioned."), testId="slack-offer-row")
+            button press=showSlack class=OutlineButton testId="slack-open"
+              text (slackOurs and slack.connected ? "Manage" : "Set up")
+        if not connectorForm
+          button press=showConnectorForm class=ConnectorGhost align-self="start" testId="connector-open"
+            text "Add a connector"
+        else
+          SettingsCard(testId="connector-form")
+            text "Add a connector" font-weight=500
+            text "Name" class=FieldName
+            input value=connectorName input=editConnectorName maxlength=60 aria-label="Name" placeholder="Calendar" class=SettingsField testId="connector-name"
+            text "Server address" class=FieldName
+            input value=connectorUrl input=editConnectorUrl type="url" aria-label="Server address" placeholder="https://mcp.example.com/mcp" class=SettingsField testId="connector-url"
+            text "Access token (optional)" class=FieldName
+            input value=connectorToken input=editConnectorToken type="password" autocomplete="off" aria-label="Access token" class=SettingsField testId="connector-token"
+            text "Leave empty for a service you sign in to. A token is kept on the server and never shown to the Dood." class=SmallHint
+            button press=showConnectorAdvanced class=ConnectorGhost align-self="start" testId="connector-advanced"
+              text "The service gave me a client ID"
+            if connectorAdvanced
+              text "Client ID" class=FieldName
+              input value=connectorClientId input=editConnectorClientId autocomplete="off" aria-label="Client ID" class=SettingsField testId="connector-client-id"
+              text "Client secret" class=FieldName
+              input value=connectorClientSecret input=editConnectorSecret type="password" autocomplete="off" aria-label="Client secret" class=SettingsField testId="connector-client-secret"
+            row gap=8 flex-wrap="wrap"
+              button press=addConnector(false) disabled=(connectorsBusy or connectorName.trim() == "" or connectorUrl.trim() == "") class=PrimaryButton testId="connector-add"
+                text (connectorsBusy ? "Connecting…" : "Add connector")
+              button press=showConnectorForm disabled=connectorsBusy class=ConnectorGhost testId="connector-cancel"
+                text "Cancel"
+        if connectorError != ""
+          text connectorError role="alert" color="danger" testId="connector-error"
+        if connectorAddError != ""
+          text connectorAddError role="alert" color="danger" testId="connector-add-error"
+
+component ConnectorCard
+  props
+    connector: Connector
+    busy: bool
+    change: action
+  state toolsOpen = false
+  action toggleTools
+    toolsOpen = not toolsOpen
+  view
+    SettingsCard(testId=`connector-${connector.id}`)
+      row gap=12 align-items="start" flex-wrap="wrap"
+        column flex=1 min-width=0 gap=4
+          text connector.name role="heading" aria-level=3 font-weight=600 overflow-wrap="anywhere"
+          text (connector.apps ? "Your accounts on other services, through Composio" : connector.host) class=SmallHint
+        text (connector.status == "connected" ? "Connected" : connector.status == "needs_auth" ? "Needs sign-in" : "Not connected") class=SmallHint padding="3px 8px" border-radius=6 background-color="wash"
+      if connector.apps
+        text (connector.status == "connected" ? "Ask your Dood for something in Gmail, your calendar, Slack, Notion, GitHub or another service. The first time, it gives you a link to sign in. It asks before it does anything in an account of yours." : "Sign in with a Composio account, which is free to make. Your Dood then reaches the services you connect there.") class=Hint
+        link href=connector.url target="_blank"
+          text "Manage your accounts at Composio"
+      else if connector.status == "connected"
+        text (connector.tools.length == 0 ? "It offers no tools." : `${connector.tools.length} ${connector.tools.length == 1 ? "tool" : "tools"}: ${connector.tools.slice(0, 12).map(t => t.name).join(", ")}${connector.tools.length > 12 ? ` and ${connector.tools.length - 12} more` : ""}`) class=Hint overflow-wrap="anywhere"
+        if connector.tools.length > 0
+          button press=toggleTools class=ConnectorGhost align-self="start" testId=`connector-tools-${connector.id}`
+            text (toolsOpen ? "Hide tools" : "All tools")
+          if toolsOpen
+            for t in connector.tools key=t.name
+              column gap=4
+                text t.name font-family="Geist Mono" font-size="0.8125rem" overflow-wrap="anywhere"
+                text t.description class=SmallHint
+      else if connector.status == "needs_auth"
+        text "Sign in to the service to let your Dood use it." class=Hint
+      if connector.error != ""
+        text connector.error color="danger" role="alert"
+      row gap=8 flex-wrap="wrap" align-items="center"
+        button press=change(connector.id, "connect", connector.enabled) disabled=busy class=OutlineButton testId=`connector-refresh-${connector.id}`
+          text (busy ? "Connecting…" : connector.status == "needs_auth" ? "Sign in" : connector.status == "connected" ? "Refresh" : "Try again")
+        input type="checkbox" role="switch" checked=connector.enabled change=change(connector.id, "toggle") disabled=busy aria-label=`Use ${connector.name}` testId=`connector-toggle-${connector.id}`
+        text "In use" class=Hint
+        button press=change(connector.id, "remove", connector.enabled) disabled=busy class=ConnectorGhost testId=`connector-remove-${connector.id}`
+          text "Remove"
+
+component SlackSection
+  props
+    page: Page
+  inject
+    slack: Slack
+    slackOurs: bool
+    slackLoading: bool
+    slackFailed: bool
+    slackBusy: bool
+    slackError: string
+    slackBotToken: string
+    slackSigningSecret: string
+    editSlackBot: action
+    editSlackSecret: action
+    saveSlack: action
+    retryConnectors: action
+  state pictureTicket = 0
+  state pictureStatus = ""
+  action downloadPicture
+    pictureTicket = pictureTicket + 1
+    pictureStatus = "Making picture…"
+  action pictureSaid(v: string)
+    pictureStatus = v
+  view
+    if slackLoading
+      progress aria-label="Loading Slack" testId="slack-loading"
+    if slackFailed
+      text "Could not load Slack." role="alert" color="danger"
+      button press=retryConnectors class=OutlineButton
+        text "Try again"
+    if slackOurs
+      SettingsCard(testId="slack-picture")
+        row gap=12 align-items="center" flex-wrap="wrap"
+          DoodFace(seed=slack.seed, color=slack.color, state="idle", name=slack.name, size=40)
+          text `To give it ${slack.name}’s face, set this picture as the app’s icon: on the app’s page in Slack, Basic Information, then Display Information.` class=Hint flex=1 min-width=0
+          button press=downloadPicture class=OutlineButton testId="slack-download-picture"
+            text "Download picture"
+        do-slack-picture seed=slack.seed colour=slack.color outfit=slack.outfit botname=slack.name ticket=`${pictureTicket}` width=1 height=1 aria-hidden=true message=pictureSaid
+        if pictureStatus != ""
+          text pictureStatus class=SmallHint role="status" testId="slack-picture-status"
+      if slack.connected
+        SettingsCard(testId="slack-connected")
+          text `@${slack.bot} · In Slack` font-weight=600
+          text slack.team class=Hint
+          if slack.teamUrl != ""
+            link href=slack.teamUrl target="_blank"
+              text "Open workspace"
+          button press=saveSlack(true) disabled=slackBusy class=ConnectorGhost testId="slack-remove"
+            text (slackBusy ? "Removing…" : "Remove from Slack")
+        text "Each thread it is spoken to in shows up in your Dood’s panel, under From Slack." class=SmallHint
+        SettingsCard(testId="slack-behavior")
+          text "Works for everyone in the Slack workspace" font-weight=500
+          text "Anyone there can mention your Dood or write to it, and it works for them as it does for you here, with everything it knows and can do." class=Hint
+          text "Writes and reads on its own" font-weight=500
+          text `From any chat or automation, your Dood can read the channels it has been added to and write in them, or to one person. Add it by typing /invite @${slack.bot} in a channel.` class=Hint
+      else
+        column gap=20 testId="slack-setup"
+          column gap=8
+            text "1 · Create the Slack app" font-weight=500
+            text "Slack’s page opens already filled in for your Dood. Choose your workspace there and press Create." class=Hint
+            link href=slack.createUrl target="_blank" class=OutlineButton align-self="start" testId="slack-create"
+              text "Create your Dood’s Slack app"
+          column gap=8
+            text "2 · Install it" font-weight=500
+            text "On the app’s page in Slack, press Install to Workspace. If Slack asks you to verify the address it sends events to, press Verify." class=Hint
+          column gap=8
+            text "3 · Paste what Slack gives you" font-weight=500
+            text "Bot token" class=FieldName
+            input value=slackBotToken input=editSlackBot type="password" autocomplete="off" placeholder="xoxb-…" aria-label="Bot token" class=SettingsField testId="slack-bot-token"
+            text "Under OAuth & Permissions" class=SmallHint
+            text "Signing secret" class=FieldName
+            input value=slackSigningSecret input=editSlackSecret type="password" autocomplete="off" aria-label="Signing secret" class=SettingsField testId="slack-signing-secret"
+            text "Under Basic Information" class=SmallHint
+            button press=saveSlack(false) disabled=(slackBusy or slackBotToken == "" or slackSigningSecret == "") class=PrimaryButton align-self="start" testId="slack-connect"
+              text (slackBusy ? "Connecting…" : "Connect")
+        text `Slack sends what is said to ${slack.eventsUrl}` class=SmallHint overflow-wrap="anywhere"
+      if slackError != ""
+        text slackError role="alert" color="danger" testId="slack-error"
+
+style ConnectorGhost
+  min-height="2rem" padding="0 10px" border-radius=8 font-size="0.875rem" font-weight=500
+  background-color="transparent" color="ink.muted" border="none"
+  :hover
+    background-color="wash"
+  :disabled
+    opacity=0.5

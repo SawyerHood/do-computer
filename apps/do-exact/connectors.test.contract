@@ -1,0 +1,34 @@
+test "connector form, client credentials and Slack setup are reachable and validate errors"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "connectors-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-connectors-dood"
+  clock settle
+  clock data
+  expect tree has "apps-offer"
+  expect tree has "slack-offer"
+  tap "connector-open"
+  expect disabled "connector-add"
+  type "connector-name" "Invalid"
+  type "connector-url" "not a URL"
+  tap "connector-advanced"
+  expect tree has "connector-client-id"
+  expect tree has "connector-client-secret"
+  tap "connector-add"
+  clock data
+  expect tree has "connector-add-error"
+  tap "connector-cancel"
+  tap "slack-open"
+  expect tree has "slack-setup"
+  expect tree has "slack-create"
+  expect disabled "slack-connect"
+  tap "slack-back"
+  expect tree has "apps-offer"

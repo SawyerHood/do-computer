@@ -1,0 +1,48 @@
+test "automations are empty until requested in chat"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "automations-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-automations-dood"
+  clock settle
+  clock data
+  expect text "automations-empty" == "Nothing scheduled yet."
+  tap "automations-chat"
+  clock settle
+  type "composer" "/tool schedule {\"action\":\"create\",\"title\":\"A test automation\",\"schedule\":\"every 24h\",\"prompt\":\"Check the result and report.\"}"
+  tap "send"
+  clock +5000 real
+  tap "pages-dood"
+  tap "go-automations-dood"
+  clock settle
+  clock data
+  expect state automationItems.length == 1
+  expect state automationItems.0.status == "Active"
+  tap "Pause"
+  clock data
+  expect state automationItems.0.status == "Paused"
+  tap "Resume"
+  clock data
+  expect state automationItems.0.status == "Active"
+  tap "Run now"
+  clock data
+  clock +3000 real
+  tap "automations-retry"
+  clock data
+  tap "View run"
+  clock settle
+  expect state onRoute == "chat"
+  tap "pages-chat"
+  tap "go-automations-chat"
+  clock settle
+  clock data
+  tap "Delete"
+  clock data
+  expect state automationItems.length == 0

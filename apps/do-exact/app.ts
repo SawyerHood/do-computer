@@ -1,3 +1,7 @@
+import { computersSources } from './data/computers.ts';
+import { connectorsSources } from './data/connectors.ts';
+import { skillsSources } from './data/skills.ts';
+import { automationsSources } from './data/automations.ts';
 // The data module: it only gathers each area's sources (data/<area>.ts) into one table and
 // answers from it. Shared plumbing is data/api.ts.
 import type { Answer, Sources } from './app.contract.d.ts';
@@ -11,12 +15,16 @@ import { shellSources } from './data/shell.ts';
 export const API = import.meta.env.API_BASE_URL ?? 'http://127.0.0.1:3911';
 setApi(API);
 // What the module may reach: the deployment and the session in the secret store.
-export const grants = `net.fetch ${API}\nsecret.keep session`;
+export const grants = `net.fetch ${API}\nauth.session ${API}\nsecret.keep session`;
 
 const sources: Sources = {
   ...sessionSources,
   ...shellSources,
   ...chatSources,
+  ...automationsSources,
+  ...skillsSources,
+  ...connectorsSources,
+  ...computersSources,
   // A new area spreads its sources here.
 };
 

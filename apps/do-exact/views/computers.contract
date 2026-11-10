@@ -1,14 +1,428 @@
-// A Dood's computers page: a PLACEHOLDER until its area is built. It will hold its computers, pairing one, and answering a Dood that asks for one.
-// The React app's is apps/web/src/components/settings/computers.tsx. To build it: give this file a `members App` block for its
-// resources, mutations and actions (listed in app.contract beside the others), and its data
-// sources in data/computers.ts (gathered in app.ts); then pass what the screen reads as props where
-// app.contract draws it. Keep the DoodScreen frame: it is the header, the title and the lead.
-use Page from "./shapes.contract"
-use DoodScreen from "./shell.contract"
+use Page, Reply, Session, Dood, Workspace from "./shapes.contract"
+use doodOf, nameOf from "./shell.contract"
+use WorkspaceSettingsFrame, SettingsCard, SettingsRow, SettingsEmpty, OutlineButton, SettingsField, Hint, SmallHint, FieldName, Confirm from "./settings-kit.contract"
+use PrimaryButton, Screen from "./styles.contract"
+
+shape ComputerFolder
+  agentId: string
+  path: string
+shape Computer
+  id: string
+  name: string
+  workspaceId: string
+  pairedBy: string
+  pairedName: string
+  machine: bool
+  kind: string
+  description: string
+  online: bool
+  readOnly: bool
+  shareable: bool
+  access: string
+  canManage: bool
+  stale: bool
+  daemon: string
+  lastSeenAt: number
+  screen: string
+  browser: string
+  agentIds: string[]
+  folders: ComputerFolder[]
+shape ComputerKind
+  id: string
+  label: string
+  description: string
+shape ComputerRequest
+  id: string
+  agentId: string
+  computer: string
+  reason: string
+  note: string
+shape Computers
+  owner: string
+  workspaceId: string
+  items: Computer[]
+  requests: ComputerRequest[]
+  kinds: ComputerKind[]
+  preferred: string
+  install: string
+  showBrowser: bool
+  canChange: bool
+shape PairingCode
+  code: string
+shape Pairing
+  owner: string
+  code: string
+  name: string
+  hostname: string
+  home: string
+  readOnly: bool
+members App
+  derive computerWorkspaceId = openDood.workspaceId
+  resource computers = loadComputers(session.owner, onRoute == "computers" ? computerWorkspaceId : "") as shape Computers else empty()
+  resource pairingAddress = pairingCodeFromAddress(onRoute == "pair" ? top(nav).url : "") as shape PairingCode else empty()
+  state pairingTypedCode = ""
+  derive pairingCode = pairingTypedCode != "" ? pairingTypedCode.trim() : pairingAddress.code
+  resource pairing = readPairing(session.owner, onRoute == "pair" ? pairingCode : "") as shape Pairing else empty()
+  mutation computerChanged as shape Reply refreshes computers
+  mutation computerAdded as shape Reply refreshes computers then afterComputerAdd
+  mutation computerBrowserSaved as shape Reply refreshes computers
+  mutation computerPaired as shape Reply refreshes computers then afterComputerPair
+  state computerAddOpen = false
+  state computerKind = ""
+  state computerName = ""
+  state pairingWorkspace = ""
+  state pairingChosen: string[] = []
+  state pairingChosenExplicit = false
+  state pairingDone = false
+  derive computersOurs = computers.owner == session.owner and computers.workspaceId == computerWorkspaceId
+  derive computerItems = computersOurs ? computers.items : []
+  derive computerRequests = computersOurs ? computers.requests : []
+  derive computerKinds = computersOurs ? computers.kinds : []
+  derive computerInstall = computersOurs ? computers.install : ""
+  derive computerShowBrowser = computersOurs and computers.showBrowser
+  derive computerCanChange = computersOurs and computers.canChange
+  derive computerChosenKind = computerKind != "" ? computerKind : computers.preferred
+  derive computersLoading = pending(computers)
+  derive computersFailed = failed(computers)
+  derive computersBusy = pending(computerChanged) or pending(computerAdded) or pending(computerBrowserSaved)
+  derive computersError = pending(computerChanged) ? "" : match computerChanged { case some(r) => r.error, case none => "" }
+  derive computerAddError = pending(computerAdded) ? "" : match computerAdded { case some(r) => r.error, case none => "" }
+  derive computerBrowserError = pending(computerBrowserSaved) ? "" : match computerBrowserSaved { case some(r) => r.error, case none => "" }
+  derive pairingLoading = pending(pairing)
+  derive pairingFailed = failed(pairing)
+  derive pairingBusy = pending(computerPaired)
+  derive pairingError = pending(computerPaired) ? "" : match computerPaired { case some(r) => r.error, case none => "" }
+  derive pairingOurs = pairing.owner == session.owner and pairing.code == pairingCode and pairingCode != ""
+  derive pairingOffered = doodList.filter(d => pairingWorkspace == "" or d.workspaceId == pairingWorkspace)
+  derive pairingSelected = pairingChosenExplicit ? pairingChosen.filter(id => pairingOffered.filter(d => d.id == id).length > 0) : (doodList.length == 1 ? doodList.map(d => d.id) : [])
+  task computerPoll mount
+    every(5000, retryComputers)
+  task pairingChanged key=`${session.owner}:${pairingCode}`
+    after(1, resetPairing)
+  action resetPairing
+    pairingDone = false
+  action retryComputers
+    if onRoute == "computers"
+      refresh computers
+  action changeComputer(id: string, operation: string, value: string, approve: bool)
+    if not computersBusy
+      send computerChanged = changeComputer(session.owner, id, operation, value, approve)
+  action showComputerAdd
+    computerAddOpen = not computerAddOpen
+  action editComputerKind(v: string)
+    computerKind = v
+  action editComputerName(v: string)
+    computerName = v
+  action addComputer
+    if not computersBusy and computerChosenKind != ""
+      send computerAdded = addComputer(session.owner, computerChosenKind, computerName, computerWorkspaceId)
+  action afterComputerAdd
+    if computerAddError == ""
+      computerAddOpen = false
+      computerName = ""
+  action setComputerBrowser(v: bool)
+    if not computersBusy
+      send computerBrowserSaved = showComputerBrowser(session.owner, computerWorkspaceId, v)
+  action editPairingCode(v: string)
+    pairingTypedCode = v
+    pairingDone = false
+  action choosePairingWorkspace(v: string)
+    pairingWorkspace = v
+  action choosePairingDood(id: string, checked: bool)
+    pairingChosenExplicit = true
+    pairingChosen = checked ? pairingSelected.concat([id]) : pairingSelected.filter(x => x != id)
+  action pairComputer
+    if pairingOurs and not pairingBusy
+      send computerPaired = confirmPairing(session.owner, pairingCode, pairingWorkspace, pairingSelected)
+  action afterComputerPair
+    if pairingError == ""
+      pairingDone = true
 
 component ComputersScreen
   props
     page: Page
+  inject
+    doodList: Dood[]
+    computerWorkspaceId: string
+    computerItems: Computer[]
+    computerRequests: ComputerRequest[]
+    computerKinds: ComputerKind[]
+    computerInstall: string
+    computerShowBrowser: bool
+    computerCanChange: bool
+    computerChosenKind: string
+    computerAddOpen: bool
+    computerName: string
+    computersLoading: bool
+    computersFailed: bool
+    computersBusy: bool
+    computersError: string
+    computerAddError: string
+    computerBrowserError: string
+    retryComputers: action
+    changeComputer: action
+    showComputerAdd: action
+    editComputerKind: action
+    editComputerName: action
+    addComputer: action
+    setComputerBrowser: action
+  derive listed = computerItems.filter(c => c.workspaceId == computerWorkspaceId or c.agentIds.filter(id => doodList.filter(d => d.id == id and d.workspaceId == computerWorkspaceId).length > 0).length > 0)
   view
-    DoodScreen(page=page, route="computers", lead="The computers your Dood works on, and the ones it asks to use.")
-      text "Not in this app yet." font-size="0.875rem" color="ink.muted" testId="placeholder-computers"
+    WorkspaceSettingsFrame(page=Page(page, workspaceId=computerWorkspaceId), route="computers", title="Computers", listing=false, lead="Where Doods run commands, and read and write files: machines made here for a workspace, and computers of your own or of a team that you connect. Everything a Dood does on a connected computer is logged on that machine.")
+      if computersLoading
+        progress aria-label="Loading computers" testId="computers-loading"
+      if computersFailed
+        text "Could not load computers." role="alert" color="danger" testId="computers-failed"
+        button press=retryComputers class=OutlineButton testId="computers-retry"
+          text "Try again"
+      for r in computerRequests key=r.id
+        SettingsCard(testId=`computer-request-${r.id}`)
+          text `${nameOf(doodOf(doodList, r.agentId))} asks to use the computer ${r.computer}` font-size="0.875rem"
+          if r.reason != ""
+            text `“${r.reason}”` class=Hint
+          text r.note class=SmallHint
+          row gap=8 flex-wrap="wrap"
+            button press=changeComputer(r.id, "answer", "", true) disabled=computersBusy class=PrimaryButton testId=`computer-allow-${r.id}`
+              text "Allow"
+            button press=changeComputer(r.id, "answer", "", false) disabled=computersBusy class=OutlineButton testId=`computer-deny-${r.id}`
+              text "Don’t allow"
+      for c in listed key=c.id
+        ComputerCard(computer=c, currentAgent=page.agentId, busy=computersBusy, change=changeComputer)
+      if computerKinds.length > 0
+        if not computerAddOpen
+          button press=showComputerAdd class=OutlineButton align-self="start" testId="computer-add-open"
+            text "Add a computer"
+        else
+          SettingsCard(testId="computer-add-form")
+            text "Add a computer" font-weight=500
+            text "A machine made here for the workspace. Every Dood in it can work there, each in a folder of its own, until you choose which ones may." class=Hint
+            ComputerKindPicker(kinds=computerKinds, value=computerChosenKind, busy=computersBusy, choose=editComputerKind)
+            text "Name" class=FieldName
+            input value=computerName input=editComputerName aria-label="Name" placeholder="Left empty, it is given one" class=SettingsField disabled=computersBusy testId="computer-name"
+            if computerAddError != ""
+              text computerAddError color="danger" role="alert" testId="computer-add-error"
+            row gap=8
+              button press=addComputer disabled=computersBusy class=PrimaryButton testId="computer-add"
+                text (computersBusy ? "Adding…" : "Add computer")
+              button press=showComputerAdd disabled=computersBusy class=OutlineButton testId="computer-add-cancel"
+                text "Cancel"
+      SettingsCard(testId="computer-install")
+        text "Connect a computer of your own" font-weight=500
+        ComputerCommand(label="Run this on the computer (macOS or Linux, with Node.js 20 or newer):", command=computerInstall, testId="computer-command")
+        ComputerCommand(label="Or let Doods read files there without being able to run commands or change anything:", command=`${computerInstall} -s -- --read-only`, testId="computer-read-command")
+        text "It prints a link. Open it here to say whose the computer is and which Doods get access. Stopping the daemon, or removing the computer on this page, ends that access at once. The daemon keeps itself up to date from this server; add --no-auto-update to stop it doing so." class=Hint
+        link href="/pair" testId="computer-pair-page"
+          text "Pair with a code"
+      SettingsCard(testId="computer-browser")
+        SettingsRow(label="The browser Doods use", hint="On a computer with a screen, the browser a Dood uses opens in a window you can watch. Off, it works out of sight.", testId="computer-browser-row")
+          input type="checkbox" role="switch" checked=computerShowBrowser change=setComputerBrowser disabled=(computersBusy or not computerCanChange) aria-label="Show the browser Doods use" testId="computer-show-browser"
+        if computerBrowserError != ""
+          text computerBrowserError color="danger" role="alert"
+      if computersError != ""
+        text computersError color="danger" role="alert" testId="computers-error"
+
+component ComputerKindPicker
+  props
+    kinds: ComputerKind[]
+    value: string
+    busy: bool
+    choose: action
+  view
+    column gap=8 role="radiogroup" aria-label="Kind of computer"
+      for k in kinds key=k.id
+        button press=choose(k.id) disabled=busy aria-checked=(value == k.id) role="radio" padding=12 border="1px solid var(--border)" background-color=(value == k.id ? "wash" : "transparent") border-radius=12 text-align="left" testId=`computer-kind-${k.id}`
+          column gap=4
+            text k.label font-size="0.875rem" font-weight=500
+            text k.description class=Hint
+component ComputerCommand
+  props
+    label: string
+    command: string
+    testId: string
+  state copied = false
+  action copy
+    copyText(command)
+    copied = true
+  view
+    column gap=6
+      text label class=Hint
+      text command white-space="pre-wrap" overflow-wrap="anywhere" font-family="Geist Mono" font-size="0.75rem" testId=testId
+      button press=copy class=OutlineButton align-self="start" testId=`${testId}-copy`
+        text (copied ? "Copied" : "Copy command")
+
+component ComputerCard
+  props
+    computer: Computer
+    currentAgent: string
+    busy: bool
+    change: action
+  inject
+    session: Session
+    now: number
+    computersError: string
+    doodList: Dood[]
+    workspaceList: Workspace[]
+  state moveTo = ""
+  state updateSent = false
+  derive personal = match first(workspaceList.filter(w => w.id == computer.workspaceId)) { case some(w) => w.kind == "personal", case none => false }
+  derive teamName = match first(workspaceList.filter(w => w.id == computer.workspaceId)) { case some(w) => w.name, case none => "the team" }
+  derive everyone = `Every Dood in ${personal ? "your workspace" : teamName}`
+  derive chosen = not computer.machine or (computer.shareable and computer.access == "chosen")
+  derive connectable = chosen ? sortBy(doodList.filter(d => not computer.agentIds.includes(d.id) and ((personal and not computer.machine) or d.workspaceId == computer.workspaceId)), d => d.id == currentAgent ? 0 : 1) : []
+  action remove
+    if computer.machine
+      showModal(`computer-remove-${computer.id}`)
+    else
+      change(computer.id, "remove", "", false)
+  action confirmedRemove
+    change(computer.id, "remove", "", false)
+  action move(v: string)
+    if v != computer.workspaceId
+      moveTo = v
+      showModal(`computer-move-${computer.id}`)
+  action confirmedMove
+    change(computer.id, "move", moveTo, false)
+  action connect(v: string)
+    if v != ""
+      change(computer.id, "connect", v, false)
+  action access(v: string)
+    change(computer.id, "access", v, false)
+  action update
+    change(computer.id, "update", "", false)
+    updateSent = true
+  view
+    SettingsCard(testId=`computer-${computer.id}`)
+      row align-items="start" flex-wrap="wrap" gap=12
+        column flex=1 min-width=0 gap=4
+          text computer.name role="heading" aria-level=3 font-family="Geist Mono" font-size="0.9375rem" font-weight=600 overflow-wrap="anywhere"
+          text computer.description class=SmallHint
+        if not computer.machine
+          text (computer.online ? "Online" : "Offline") class=SmallHint padding="3px 8px" background-color="wash" border-radius=6
+      if not computer.machine
+        SettingsRow(label="Screen", hint=computer.screen, testId=`computer-screen-${computer.id}`)
+          text "Last reported by the runner; offline diagnostics may be stale." class=SmallHint
+        SettingsRow(label="Browser", hint=computer.browser, testId=`computer-browser-${computer.id}`)
+          text "Last reported by the runner; offline diagnostics may be stale." class=SmallHint
+      SettingsRow(label="Belongs to", hint="", testId=`computer-owner-row-${computer.id}`)
+        if not computer.machine and computer.pairedBy == session.userId and workspaceList.filter(w => w.kind == "team").length > 0
+          select value=computer.workspaceId change=move disabled=busy aria-label=`Who ${computer.name} belongs to` testId=`computer-owner-${computer.id}`
+            for w in workspaceList key=w.id
+              option (w.kind == "personal" ? "You" : w.name) value=w.id
+        else
+          text (personal ? "You" : `${teamName} · ${computer.machine ? "added" : "paired"} by ${computer.pairedBy == session.userId ? "you" : computer.pairedName}`) class=Hint
+      if computer.machine and computer.shareable
+        SettingsRow(label="Open to", hint="", testId=`computer-access-row-${computer.id}`)
+          select value=computer.access change=access disabled=busy aria-label=`Who can use ${computer.name}` testId=`computer-access-${computer.id}`
+            option everyone value="open"
+            option "Chosen Doods" value="chosen"
+      text "Doods" class=FieldName
+      ComputerConnections(computer=computer, chosen=chosen, busy=busy, change=change)
+      if connectable.length > 0
+        select value="" change=connect disabled=busy aria-label=`Connect a Dood to ${computer.name}` testId=`computer-connect-${computer.id}`
+          option (computer.agentIds.length == 0 ? "Connect a Dood…" : "Connect another…") value=""
+          for d in connectable key=d.id
+            option nameOf(d) value=d.id
+      if computer.machine and not computer.shareable
+        text "It keeps its files with its Dood, so no other Dood can work on it." class=Hint
+      else if computer.machine and computer.access == "open"
+        text `${everyone} can work on it, each in a folder of its own.` class=Hint
+      else if computer.online
+        if computer.stale
+          text ((updateSent and not busy and computersError == "") ? "Its daemon is being replaced. It will be back in a moment." : "Its daemon is out of date and does not update itself. Update it from here, or run the install command there again.") class=Hint
+        else
+          text (computer.agentIds.length == 0 ? "No Dood can work on it until one is connected. A Dood can also ask." : "Its Doods can work on it now.") class=Hint
+      else
+        text (computer.lastSeenAt > 0 ? `Last connected ${computerAgo(now, computer.lastSeenAt)}. Start the daemon there to bring it back.` : "Its daemon has not connected yet.") class=Hint
+      row gap=8 flex-wrap="wrap"
+        if computer.stale and computer.canManage and not computer.readOnly and (not updateSent or computersError != "")
+          button press=update disabled=busy class=OutlineButton testId=`computer-update-${computer.id}`
+            text "Update"
+        if computer.canManage and (not computer.machine or computer.shareable)
+          button press=remove disabled=busy class=OutlineButton testId=`computer-remove-${computer.id}`
+            text "Remove"
+      Confirm(id=`computer-remove-${computer.id}`, title=`Delete ${computer.name}?`, message="The machine and everything on it is deleted. This cannot be undone.", action="Delete", destructive=true, confirm=confirmedRemove, testId=`computer-delete-confirm-${computer.id}`)
+      Confirm(id=`computer-move-${computer.id}`, title=`Give ${computer.name} to another workspace?`, message="Doods outside that workspace will be disconnected from it.", action="Give to workspace", destructive=false, confirm=confirmedMove, testId=`computer-move-confirm-${computer.id}`)
+
+component ComputerConnections
+  props
+    computer: Computer
+    chosen: bool
+    busy: bool
+    change: action
+  inject
+    doodList: Dood[]
+  view
+    column gap=6
+      if computer.agentIds.length == 0
+        text "None yet" class=Hint
+      for id in computer.agentIds key=id
+        row flex-wrap="wrap" gap=8 align-items="center"
+          text nameOf(doodOf(doodList, id)) font-size="0.875rem"
+          text (match first(computer.folders.filter(f => f.agentId == id)) { case some(f) => f.path, case none => "" }) class=SmallHint overflow-wrap="anywhere"
+          if chosen
+            button press=change(computer.id, "disconnect", id, false) disabled=busy class=OutlineButton aria-label=`Disconnect ${nameOf(doodOf(doodList, id))} from ${computer.name}` testId=`computer-disconnect-${computer.id}-${id}`
+              text "Disconnect"
+
+component PairComputerScreen
+  props
+    page: Page
+  inject
+    session: Session
+    pairing: Pairing
+    pairingCode: string
+    pairingLoading: bool
+    pairingFailed: bool
+    pairingBusy: bool
+    pairingError: string
+    pairingOurs: bool
+    pairingDone: bool
+    pairingWorkspace: string
+    pairingOffered: Dood[]
+    pairingSelected: string[]
+    workspaceList: Workspace[]
+    editPairingCode: action
+    choosePairingWorkspace: action
+    choosePairingDood: action
+    pairComputer: action
+  view
+    column navigationKey=page.key navigationScroll="pair-scroll" position="absolute" inset=0 class=Screen
+      scroll id="pair-scroll" flex=1 min-height=0
+        column max-width="28rem" margin="32px auto" padding=24 gap=20 box-sizing="border-box"
+          link href="/" testId="pair-back"
+            text "Your Doods"
+          if pairingDone
+            text "Connected" role="heading" aria-level=1 font-size="1.5rem" font-weight=600 testId="pair-connected"
+            text `${pairing.name} is connected. The daemon in your terminal will connect in a moment; you can close this page. ${pairingSelected.length == 0 ? "No Dood can use it yet: connect one under Computers, or let a Dood ask." : "Your chosen Doods can work on it."}` class=Hint
+          else
+            text "Connect this computer?" role="heading" aria-level=1 font-size="1.5rem" font-weight=600
+            text "Check that this is the machine you just ran the command on." class=Hint
+            text "Pairing code" class=FieldName
+            input value=pairingCode input=editPairingCode aria-label="Pairing code" autocomplete="off" class=SettingsField testId="pair-code"
+            if pairingLoading
+              progress aria-label="Looking up computer" testId="pair-loading"
+            if pairingFailed
+              text "That code did not work. It may have expired; codes last ten minutes. Run the install command again on the computer to get a fresh link." role="alert" class=Hint testId="pair-invalid"
+            if pairingOurs
+              SettingsCard(testId="pair-details")
+                text `Code: ${pairing.code}` font-family="Geist Mono" font-size="0.875rem"
+                text `Name: ${pairing.name}` font-family="Geist Mono" font-size="0.875rem"
+                text `Host: ${pairing.hostname}` class=Hint overflow-wrap="anywhere"
+                text `Home: ${pairing.home}` class=SmallHint overflow-wrap="anywhere"
+              text (pairing.readOnly ? "A Dood connected to it will be able to read any file your account can read on this computer. It will not be able to run commands or change anything." : "A Dood connected to it will be able to run any command and read and change any file your account can on this computer, without asking first. Only connect a machine you are comfortable handing over.") role="note" padding=16 border="1px solid var(--border)" border-radius=16 class=Hint
+              text "Whose computer is it?" class=FieldName
+              select value=pairingWorkspace change=choosePairingWorkspace aria-label="Whose computer is it?" testId="pair-workspace"
+                option "Mine — only you decide which Doods use it, in any workspace" value=""
+                for w in workspaceList.filter(w => w.kind == "team") key=w.id
+                  option `${w.name} — anyone in the team can connect its Doods` value=w.id
+              text "Which Doods can use it?" class=FieldName
+              for d in pairingOffered key=d.id
+                row gap=8 align-items="center"
+                  input type="checkbox" checked=pairingSelected.includes(d.id) change=choosePairingDood(d.id) disabled=pairingBusy aria-label=nameOf(d) testId=`pair-dood-${d.id}`
+                  text nameOf(d) font-size="0.875rem"
+              text "You can change this later under Computers, and a Dood that is not connected can ask you for it." class=SmallHint
+              if pairingError != ""
+                text pairingError color="danger" role="alert" testId="pair-error"
+              button press=pairComputer disabled=pairingBusy class=PrimaryButton testId="pair-confirm"
+                text (pairingBusy ? "Connecting…" : "Connect this computer")
+
+fn computerAgo(now: number, at: number): string = now - at < 60000 ? "just now" : now - at < 3600000 ? `${round((now - at) / 60000)} min ago` : now - at < 172800000 ? `${round((now - at) / 3600000)} h ago` : `${round((now - at) / 86400000)} days ago`

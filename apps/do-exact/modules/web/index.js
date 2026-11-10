@@ -1,11 +1,12 @@
 // Add a tag's implementation here; its DOM and lifetime belong in its own file.
+import * as connectorsPicture from './connectors-picture.js';
 import * as creature from './creature.js';
 import * as portrait from './portrait.js';
 import * as gift from './gift.js';
 import * as wardrobe from './wardrobe.js';
 import * as sky from './sky.js';
 import { start, ended } from './shared.js';
-const views = { 'do-creature': creature, 'do-portrait': portrait, 'do-gift': gift, 'do-wardrobe': wardrobe, 'do-sky': sky };
+const views = { 'do-slack-picture': connectorsPicture, 'do-creature': creature, 'do-portrait': portrait, 'do-gift': gift, 'do-wardrobe': wardrobe, 'do-sky': sky };
 export const abi = 1;
 export const roster = Object.fromEntries(Object.keys(views).map(tag => [tag, { snapshot: false }]));
 export function create(tag, element, json, event) {

@@ -1,0 +1,31 @@
+test "computers explain both installation modes, browser visibility and invalid pairing"
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "computers-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "new-dood"
+  clock data
+  clock settle
+  clock data
+  tap "pages-dood"
+  tap "go-computers-dood"
+  clock settle
+  clock data
+  expect tree has "computer-install"
+  expect tree has "computer-read-command"
+  expect tree has "computer-show-browser"
+  tap "computer-show-browser"
+  clock data
+  expect state computerShowBrowser == false
+  tap "computer-show-browser"
+  clock data
+  expect state computerShowBrowser == true
+  tap "computer-command-copy"
+  tap "computer-pair-page"
+  clock settle
+  clock data
+  type "pair-code" "INVALID-CODE"
+  clock data
+  expect tree has "pair-invalid"
