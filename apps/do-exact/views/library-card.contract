@@ -15,8 +15,8 @@ component LibraryFileCard
     libraryPinnedIds: string[]
   derive pinned = libraryPinnedIds.includes(fileId)
   view
-    row align-items="center" gap=2 max-width="100%" padding=4 border-radius=12 background-color="popover" box-shadow="0 0 0 1px var(--hairline), 0 1px 2px rgb(0 0 0 / 0.05)" testId=`library-card-${fileId}`
-      button press=openLibraryPanel(fileId) class=MenuItem min-width=0 flex=1 aria-label=`Open ${name}` testId=`library-card-open-${fileId}`
+    row align-items="center" flex-wrap="wrap" gap=2 max-width="100%" padding=4 border-radius=12 background-color="popover" box-shadow="0 0 0 1px var(--hairline), 0 1px 2px rgb(0 0 0 / 0.05)" testId=`library-card-${fileId}`
+      button press=openLibraryPanel(fileId) class=MenuItem min-width=0 flex="1 1 8rem" aria-label=`Open ${name}` testId=`library-card-open-${fileId}`
         image "symbol:document" aria-hidden=true
         text name overflow-wrap="break-word" font-size="0.875rem"
       button press=libraryTogglePinFile(fileId) class=IconButton aria-pressed=pinned aria-label=(pinned ? `Unpin ${name}` : `Pin ${name}`) testId=`library-card-pin-${fileId}`
@@ -36,6 +36,9 @@ component LibraryPictureViewer
   props
     pictures: LibraryPicture[]
     tag: string
+    // Whether it has a button of its own that opens it; a caller that opens it itself (the chat's
+    // pictures, by `showModal("library-pictures")`) says false.
+    trigger: bool
   state at = 0
   action pictureKey(k: string)
     if k == "ArrowLeft"
@@ -56,8 +59,9 @@ component LibraryPictureViewer
       next()
   view
     column
-      button press=open class=MenuItem testId=`pictures-open-${tag}`
-        text "View pictures"
+      if trigger
+        button press=open class=MenuItem testId=`pictures-open-${tag}`
+          text "View pictures"
       dialog id="library-pictures" aria-label="Pictures" key=keys max-width="95vw" background-color="canvas" color="ink" padding=16 testId=`pictures-${tag}`
         column gap=12
           row gap=8 align-items="center"

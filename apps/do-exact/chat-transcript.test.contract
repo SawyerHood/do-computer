@@ -54,6 +54,9 @@ test "a file the Dood sends is the library's card, which opens it beside the cha
   clock settle
   clock data
   expect tree has "library-document-panel"
+  tap "library-panel-close"
+  clock settle
+  expect tree missing "library-document-panel"
 
 test "a visual the Dood draws is the page itself, in a frame of its own"
   tap "sign-toggle"

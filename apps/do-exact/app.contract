@@ -598,9 +598,8 @@ component App
         ShareControls()
         if onRoute == "dood" or onRoute == "chat"
           LibraryDocumentPanel()
-          // --- chat transcript --- a picture opened from the chat, large; its trigger is the chat's.
-          column height=0 overflow="hidden" aria-hidden=true
-            LibraryPictureViewer(pictures=[chatPicture], tag="chat")
+          // --- chat transcript --- a picture opened from the chat, large; the chat opens it.
+          LibraryPictureViewer(pictures=[chatPicture], tag="chat", trigger=false)
         // --- dood --- the creature's windows, and the first run's scene over everything
         CreatureWindows()
         if welcomeOn
