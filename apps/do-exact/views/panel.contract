@@ -92,7 +92,7 @@ component DoodPanel
           if face.hatched
             button press=openWardrobe aria-label=`${name}'s wardrobe` title="Wardrobe" class=IconButton position="absolute" top=10 right=10 testId="panel-wardrobe"
               image "symbol:icon.t-shirt" color="ink.muted" font-size="1rem"
-          CreatureCare(dood=dood, name=(dood.name == "" ? "it" : dood.name))
+          CreatureCare(dood=dood, name=(dood.name == "" ? "it" : dood.name), size=112)
             Hatchling(dood=dood, size=112, feed=careFeed, crumb=crumbOf(care.treat), testId="panel-face")
           text name role="heading" aria-level=2 margin-top=12 font-size="1.125rem" font-weight=500 testId="panel-name"
           // The line in the transcript is the one announced; this repeats it beside the creature.

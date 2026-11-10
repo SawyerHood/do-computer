@@ -40,8 +40,10 @@ component DoodFace
     case some(f) => f,
     case none => Face(id="", seed=seed, state=state, variant="", outfit="{}", hatched=true, hatching=false)
   }
+  // Drawn 12% past its box on each side, as AgentAvatar's canvas is: the creature keeps room
+  // around itself for hops and rings, and is as large in its box as the React app's.
   view
-    do-creature seed=seed colour=color state=(live.hatched ? live.state : "egg") variant=live.variant outfit=live.outfit side=`${size}` width=size height=size flex-shrink=0
+    do-creature seed=seed colour=color state=(live.hatched ? live.state : "egg") variant=live.variant outfit=live.outfit side=`${round(size * 1.24)}` width=round(size * 1.24) height=round(size * 1.24) margin=-round(size * 0.12) flex-shrink=0
       role="img" aria-label=name
 
 // A Dood's creature at a size to watch it at (chat-view.tsx Hatchling): in its egg, hatching
@@ -68,8 +70,8 @@ component Hatchling
     if not out
       skipHatch(dood.id)
   view
-    do-creature seed=dood.seed colour=dood.color state=(live.hatched or live.hatching ? live.state : "egg") variant=live.variant outfit=live.outfit
+    do-creature seed=dood.seed colour=dood.color state=(live.hatched ? live.state : "egg") variant=live.variant outfit=live.outfit
       hatching=(live.hatching ? "true" : "false") pettable=(out ? "true" : "false") feed=feed crumb=crumb
-      side=`${size}` width=size height=size flex-shrink=0 press=pressed message=heard
+      side=`${round(size * 1.24)}` width=round(size * 1.24) height=round(size * 1.24) margin=-round(size * 0.12) flex-shrink=0 press=pressed message=heard
       role=(out ? "img" : "button") aria-label=(out ? `${dood.name == "" ? "New Dood" : dood.name}: pet it` : "Skip the hatching")
       testId=testId

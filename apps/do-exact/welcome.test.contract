@@ -1,0 +1,91 @@
+// The first run against Do Computer's own server (server.ts), empty for each run, with the echo
+// model: someone with no Dood watches an egg come down, names it, picks its colour and what it
+// thinks with, sees it hatch, and meets it in its chat. Every test starts signed out with empty
+// storage and makes an account of its own (`welcome-<n>@example.com`).
+
+test "a first Dood comes down as an egg, is named, coloured and given a model, hatches and flies to its chat"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada Lovelace"
+  type "sign-email" "welcome-1@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  clock +500
+  expect tree has "welcome"
+  expect tree has "welcome-sky"
+  expect state welcomeStep == "fall"
+  clock +12000
+  clock settle
+  expect state welcomeStep == "hello"
+  clock +3000
+  expect text "welcome-line" == "Oof. That was a long way down. Hello? Is somebody out there?"
+  expect text "welcome-tag" == "The egg"
+  tap "welcome-hello"
+  clock +4000
+  expect state welcomeStep == "name"
+  expect text "welcome-line" == "Nice to meet you, Ada. I don’t have a name yet. What will you call me?"
+  expect disabled "welcome-named"
+  expect state welcomeCrack == 0.34
+  type "welcome-name" "Pip"
+  expect enabled "welcome-named"
+  tap "welcome-color-moss"
+  expect state welcomeColor == "moss"
+  tap "welcome-named"
+  clock data
+  clock +4000
+  clock data
+  expect state welcomeStep == "model"
+  expect text "welcome-line" == "Pip. I like that. What should I think with?"
+  expect text "welcome-tag" == "Pip, in the egg"
+  expect text "welcome-model-own" == "Echo (no model key configured)"
+  expect text "welcome-think" == "Use Echo (no model key configured)"
+  tap "welcome-think"
+  clock data
+  clock +12000
+  expect state welcomeStep == "out"
+  expect state welcomeOut == true
+  expect text "welcome-line" == "There you are, Ada! Shall we get started?"
+  expect text "welcome-start" == "Start chatting with Pip"
+  tap "welcome-start"
+  clock data
+  clock +6000
+  clock data
+  expect state welcomeOn == false
+  expect tree missing "welcome"
+  expect state onRoute == "dood"
+  expect state doods.doods.length == 1
+  expect state doods.doods.0 .name == "Pip"
+  expect state doods.doods.0 .hatched == true
+  expect state doods.doods.0 .color == "#5f8a4e"
+  expect text "hello-title" == "Hi Ada, I’m Pip."
+  tap "starter-Make me a little game"
+  clock data
+  clock +3000 real
+  expect state chat.messages.0 .blocks.0 .text == "Make me a little game with you in it that I can play right here in the chat."
+
+test "the fall can be skipped, the dice suggest names, and the egg is there again after a reload"
+  size 390x844
+  tap "sign-toggle"
+  type "sign-name" "Grace"
+  type "sign-email" "welcome-2@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  clock +500
+  expect tree has "welcome-skip"
+  tap "welcome-skip"
+  clock +3000
+  expect state welcomeStep == "hello"
+  expect tree missing "welcome-skip"
+  tap "welcome-hello"
+  clock +4000
+  tap "welcome-dice"
+  expect state welcomeName == "Pip"
+  tap "welcome-dice"
+  expect state welcomeName == "Mochi"
+  reload
+  clock data
+  clock +500
+  expect tree has "welcome"
+  expect state welcomeStep == "fall"

@@ -82,15 +82,14 @@ component WardrobeWindow
         column flex-shrink=0 align-items="center" text-align="center" background-color="panel"
           width=(wide ? "19rem" : "auto") padding=(wide ? "48px 20px 20px" : "36px 56px 20px")
           border-right=(wide ? "1px solid var(--hairline)" : "none") border-bottom=(wide ? "none" : "1px solid var(--hairline)") box-sizing="border-box"
-          button commandfor="wardrobe" command="close" aria-label="Close" class=IconButton position="absolute" top=10 right=10 testId="wardrobe-close"
-            image "symbol:icon.x" color="ink.muted" font-size="1rem"
           if own
-            CreatureCare(dood=dressedDood, name=(dressedDood.name == "" ? "it" : dressedDood.name))
+            CreatureCare(dood=dressedDood, name=(dressedDood.name == "" ? "it" : dressedDood.name), size=(wide ? 192 : 144))
               Hatchling(dood=dressedDood, size=(wide ? 192 : 144), feed=careFeed, crumb=crumbOf(care.treat), testId="wardrobe-face")
           else
             for d in [dressedDood] key=d.id
               Hatchling(dood=d, size=(wide ? 192 : 144), feed="", crumb="", testId="wardrobe-face")
-          text name role="heading" aria-level=2 margin-top=16 font-size="1.125rem" font-weight=600 testId="wardrobe-name"
+          // Its name has the focus as it opens, and not the first button in it, which would be the treats.
+          text name role="heading" aria-level=2 tabindex=-1 autofocus=true outline="none" margin-top=16 font-size="1.125rem" font-weight=600 testId="wardrobe-name"
           text `${care.owned} of ${care.total} found${others > 0 ? " by your Doods" : ""}` margin-top=4 font-size="0.875rem" color="ink.muted" testId="wardrobe-found"
           if wide
             column aria-label=`What ${name} has on` role="list" margin-top=20 width="100%" gap=6
@@ -161,6 +160,9 @@ component WardrobeWindow
               row role="listitem" align-items="center" gap=6
                 column width=8 height=8 background-color=r.color aria-hidden=true
                 text r.name
+      button commandfor="wardrobe" command="close" aria-label="Close" position="absolute" top=16 right=16 z-index=1 min-width=30 min-height=30 border-radius=8
+        display="flex" align-items="center" justify-content="center" background-color="secondary" color="ink" border="none" padding=0 testId="wardrobe-close"
+        image "symbol:icon.x" font-size="0.875rem"
 
 // Which of the workspace's Doods have a thing on, in its tile's corner.
 component WornBy

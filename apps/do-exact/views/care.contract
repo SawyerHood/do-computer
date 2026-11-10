@@ -69,6 +69,9 @@ members App
   // Treats given here, counted: each one is a treat at its mouth (do-creature `feed`).
   state treatCount = 0
   state eating = false
+  // The treat on its way: moved from the pile to its mouth, and how many bites are gone.
+  state treatMoved = false
+  state treatBites = 0
   // The box window: shut, opening (it rattles while the server is asked), burst, shown; a fresh
   // box for each round.
   state boxStage = "shut"
@@ -78,9 +81,11 @@ members App
   derive boxProblem = pending(boxOpened) ? "" : boxFound.error
   derive careFeed = `${openAgentId}:${treatCount}`
 
-  // It eats one treat at a time: the next waits until this one is gone (care.tsx `busy`).
-  task chewing key=treatCount
-    after(1140, swallowed)
+  // It eats one treat at a time, in three bites: the next waits until this one is gone (care.tsx).
+  task carrying when eating and not treatMoved key=treatCount
+    after(20, treatAtMouth)
+  task chewing when eating key=treatCount
+    every(300, chew)
   // A box that is due is asked for when it is, so that it turns up while the page is open.
   task boxDue when careOf.loaded and careOf.nextBoxAt > 0
     every(15000, boxMaybeDue)
@@ -88,10 +93,17 @@ members App
   action giveTreat
     if careOf.loaded and not eating
       eating = true
+      treatMoved = false
+      treatBites = 0
       treatCount = treatCount + 1
       send fed = feedCreature(careOf.agentId)
-  action swallowed
-    eating = false
+  action treatAtMouth
+    treatMoved = true
+  action chew
+    if treatBites >= 3
+      eating = false
+    else
+      treatBites = treatBites + 1
   action boxMaybeDue
     if time.epochAtZero + performanceNow() > careOf.nextBoxAt + 500 and not pending(creature)
       refresh creature
@@ -128,6 +140,8 @@ fn boxLeftIn(ms: number): string = ms < 3600000 ? plural(max(1, round(ms / 60000
 fn plural(n: number, word: string): string = `${n} ${n == 1 ? word : `${word}s`}`
 fn boxComing(c: Creature, now: number): string = c.everything ? "The wardrobe has everything there is" : `The next box turns up in about ${boxLeft(c, now)}`
 fn boxLabel(c: Creature, name: string, now: number): string = c.boxes > 1 ? `Open one of ${name}'s ${c.boxes} boxes` : c.boxes == 1 ? `Open ${name}'s box` : boxComing(c, now)
+// How much of a treat is left after each bite.
+fn treatLeft(bites: number): number = bites == 0 ? 1 : bites == 1 ? 0.8 : bites == 2 ? 0.55 : 0.3
 fn slotName(slot: string): string = slot == "hat" ? "Hat" : slot == "glasses" ? "Glasses" : slot == "face" ? "Face" : "Neck"
 
 // One of the little pictures, in squares, at the width it is given.
@@ -147,10 +161,15 @@ component CreatureCare
     dood: Dood
     // Its name, as it is said ("it" where it has none).
     name: string
+    // The creature's side, in px: where its mouth is, which the treat is carried to.
+    size: number
   slot
   inject
     care: Creature
     eating: bool
+    treatMoved: bool
+    treatBites: number
+    treatCount: number
     now: number
     giveTreat: action
     openBoxWindow: action
@@ -185,6 +204,13 @@ component CreatureCare
           else if care.boxes == 1
             column position="absolute" top=2 right=2 animation="box-twinkle 1.1s steps(3, end) infinite"
               Pixels(art=artOf("spark"), width=10)
+        // The treat, drawn where it was taken from and sent to its mouth, a bite smaller each time.
+        if eating and treatBites < 3
+          for n in [treatCount] key=n
+            column position="absolute" left=(size / 2 - 20) top=(size * 0.7 - 20) width=40 height=40 pointer-events="none" aria-hidden=true
+              translate=(treatMoved ? "0px 0px" : `${-(size / 2 + 18)}px ${size * 0.3 - 14}px`) scale=treatLeft(treatBites)
+              transition="translate 200ms ease-out, scale 100ms" filter="drop-shadow(0 3px 0 rgb(0 0 0 / 0.25))"
+              Pixels(art=artOf(care.treat), width=40)
 
 keyframes box-hop
   50% translate="0px -5px"
@@ -210,10 +236,14 @@ component BoxWindow
     anotherBox: action
   view
     dialog id="box-window" closedby="any" aria-label=(boxStage == "shown" ? boxFound.name : `${name} found a box`) class=Window
-      max-width="28rem" width="calc(100% - 2rem)" padding=24 align-items="center" text-align="center" testId="box-window"
+      max-width="28rem" width="calc(100% - 2rem)" padding=24 align-items="center" text-align="center" overflow="hidden" testId="box-window"
+      button commandfor="box-window" command="close" aria-label="Close" position="absolute" top=16 right=16 z-index=1 min-width=30 min-height=30 border-radius=8
+        display="flex" align-items="center" justify-content="center" background-color="secondary" color="ink" border="none" padding=0 testId="box-close"
+        image "symbol:icon.x" font-size="0.875rem"
       column position="relative" width=256 height=256 max-width="100%" margin="8px auto 32px"
         if boxStage == "burst" or boxStage == "shown"
-          column position="absolute" inset="-18%" border-radius=999 opacity=0.34 background-color=boxFound.color animation="box-glow 0.5s steps(5, end)"
+          column position="absolute" inset="-18%" border-radius=999 background-image=`radial-gradient(closest-side, ${boxFound.color}57, transparent 72%)` animation="box-glow 0.5s steps(5, end)"
+          column position="absolute" inset="-12%" border-radius=999 background-image="radial-gradient(closest-side, #ffffff, transparent 70%)" animation="box-flash 0.4s steps(6, end) forwards"
         for round in [boxRound] key=round
           do-gift seed=dood.seed colour=dood.color outfit=care.outfit side="256" item=boxFound.item
             shake=(boxStage == "opening" ? "true" : "false") open=(boxStage != "shut" and boxFound.item != "" ? "true" : "false")
@@ -244,6 +274,9 @@ component BoxWindow
 
 keyframes box-glow
   from opacity=0 scale=0.4
+keyframes box-flash
+  from opacity=0.95 scale=0.5
+  to opacity=0 scale=1.5
 
 // A window over the page (the wardrobe, a box): the React app's dialog.
 style Window

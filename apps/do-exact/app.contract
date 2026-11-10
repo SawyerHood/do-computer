@@ -91,6 +91,9 @@ component App
     care = careOf
     careFeed
     eating
+    treatMoved
+    treatBites
+    treatCount
     giveTreat
     openBoxWindow
     boxStage

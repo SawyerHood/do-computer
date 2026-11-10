@@ -232,6 +232,7 @@ component DoodHeader
     panelOpen: bool
     togglePanel: action
     back: action
+    openWardrobe: action
   derive dood = doodOf(doodList, page.agentId)
   derive menu = `pages-${page.key}`
   view
@@ -247,7 +248,7 @@ component DoodHeader
               padding=2 border-radius=999 background-color="transparent" border="none" testId=`panel-toggle-${route}`
               DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=28)
           else
-            column padding=2
+            button press=openWardrobe disabled=(not dood.hatched) aria-label=`${nameOf(dood)}'s wardrobe` padding=2 border-radius=999 background-color="transparent" border="none" testId=`pill-wardrobe-${route}`
               DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=28)
           button popovertarget=menu aria-label=`${nameOf(dood)}: pages and settings` class=PillButton min-width=0 testId=`pages-${route}`
             text nameOf(dood) role="heading" aria-level=1 font-size="0.875rem" font-weight=500
