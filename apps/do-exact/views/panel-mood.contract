@@ -4,7 +4,7 @@
 // left quiet for a while); every other Dood's as the list of them says. `liveFaces` is what
 // DoodFace and Hatchling (creature.contract) draw.
 use Dood from "./shapes.contract"
-use Chat, Message from "./chat.contract"
+use Chat from "./chat-shapes.contract"
 use Face from "./creature.contract"
 
 // What a creature acts out: a state and, for working, which kind of work.
@@ -57,20 +57,8 @@ members App
   action dozeOff
     moodDozed = quietKey
 
-// Which kind of work a tool is (protocol/activity.ts `toolKind`).
-fn toolKind(name: string): string = name == "bash" ? "command" : ["read", "write", "edit", "send_file", "library", "skill", "visual", "visual_preview", "look", "share", "pin"].includes(name) ? "file" : ["web_search", "tool_search", "load_tools", "history"].includes(name) ? "search" : ["memory", "set_identity", "schedule", "log", "settings"].includes(name) ? "memory" : name.includes("__") ? "search" : "command"
-// What the agent is doing, for its creature to act out (protocol/activity.ts `chatMood`), from
-// the chat as the view has it.
-fn chatMood(chat: Chat): Mood = match chat.messages.at(-1) {
-  case some(m) => chat.busy ? busyMood(m) : Mood(state=(m.role == "assistant" and m.status == "error" ? "error" : "idle"), variant=""),
-  case none => Mood(state=(chat.busy ? "thinking" : "idle"), variant="")
-}
-fn busyMood(m: Message): Mood = m.role != "assistant" ? Mood(state="thinking", variant="") : match m.blocks.filter(b => b.kind == "tool" and (b.status == "pending" or b.status == "running")).at(-1) {
-  case some(b) => Mood(state="working", variant=toolKind(b.name)),
-  case none => match m.blocks.at(-1) {
-    case some(t) => t.kind == "text" and m.status == "streaming" ? Mood(state="speaking", variant="") : t.kind == "tool" ? Mood(state="working", variant=toolKind(t.name)) : Mood(state="thinking", variant=""),
-    case none => Mood(state="thinking", variant="")
-  }
-}
+// What the agent is doing, for its creature to act out: the protocol's own `chatMood`, which
+// data/chat.ts reads off the whole chat, its last `send` and its tool calls among it.
+fn chatMood(chat: Chat): Mood = Mood(state=chat.moodState, variant=chat.moodVariant)
 // A Dood's creature as it is now: the open one as its chat says, the rest as the list says.
 fn liveFace(d: Dood, openId: string, mood: Mood, hatchingFor: string, hatchedHere: string): Face = Face(id=d.id, seed=d.seed, state=(d.id == openId ? mood.state : d.asking ? "waiting" : d.working ? "working" : "idle"), variant=(d.id == openId ? mood.variant : ""), outfit=d.outfit, hatched=(d.hatched or hatchedHere.includes(`|${d.id}|`)), hatching=(hatchingFor == d.id and not hatchedHere.includes(`|${d.id}|`)))

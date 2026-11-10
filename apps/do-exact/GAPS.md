@@ -53,6 +53,75 @@ and its deploy anchors locations at `/`. A build served under `/x/` loads its fi
 sets a cookie that picks the Exact app and sends the browser to the page's own address, which the
 server then answers with the Exact app (apps/web/src/server/exact-app.ts) until `/x/off`.
 
+## Chat transcript
+
+**Visuals run in Exact's `iframe`, which speaks only in strings.** The React app's frame
+(`components/chat/visual.tsx`) and this one have the same sandbox, `allow-scripts allow-popups
+allow-forms allow-modals` without `allow-same-origin`, and load the same address, the library's
+session-free view (`/d/<agent>/<view>/<path>`), with its colours in the fragment. What Exact's
+frame cannot do: `postMessage(text, id)` posts a string, and a visual's page (and an MCP app's)
+reads objects, so nothing can be told to the page after it loads: not a change between light and
+dark (it follows the device's own, which the app follows too), not being shown large
+(fullscreen), and no answer to what it asks (opening a link, putting words in the composer,
+saving a file), so those requests are left unanswered. What the page says arrives as its JSON's
+text (`message=`), read in `chat-frames.contract` by searching the text: its height, which the
+frame follows, and a script's failure, which offers "Tell …" as the React app does. The React app
+also checks that a request came from the person's own press in the frame (`lib/pressed.ts`), keeps
+the height a page took per width so it opens at it next time (`lib/visual-heights.ts`), loads a
+frame far up the chat only when it is scrolled near (`loading="lazy"`), and offers sharing the page
+from its corner; none of these are here. "Open beside the chat" is the library page's link.
+
+**MCP apps are not shown.** A connector's page for one of its tools (`mcp-app.tsx`) is served
+under `/api`, which needs the session, and is driven by a JSON-RPC host
+(`lib/mcp-app-host.ts`: initialize, tool calls with the person's consent, resource reads) over
+object messages. Exact's frame can send neither a bearer header nor an object, so the chat says
+whose page it is and that the web app shows it. A web native view that builds its own frame
+would do it.
+
+**Pictures that need the session are not shown.** An `image` here cannot send the bearer token (served by the deployment itself, the app has the cookie, but the tests and `./x` run it from its own origin).
+A file the Dood sends is shown, and downloaded, from the session-free view address; but the
+pictures kept of each step on a screen or in a browser (`shots/<id>`), and the live view of a
+screen while the Dood uses it (`uses.tsx`, `lib/use-live-view.ts`), are behind the session. A
+use is a line, "Juniper used MacBook's screen · 4 steps", that unfolds to its steps in words; while
+it goes, it is the step under way. Pausing and stopping a use from its window are not here.
+
+**What changed on the Dood is counted for the chat on the shell's socket.** The React app
+refetches what an agent event names (`refreshAgent` in `lib/collections.ts`). Here the shell's
+`followDood` counts each kind (`data/chat-asks.ts`), and the chat's resources, the approvals of
+permissions.contract, the composer's jobs, the threads and the library's listing, pins and sites
+on a chat page are asked again `with` their count. A socket of the chat's own for these would be a
+third to the same Dood. (The library page still follows its own, `followLibrary`.)
+
+**The transcript keeps to its end itself.** A `list`'s `scrollFollowEnd` follows rows as they
+arrive, but rich message text (markdown.contract's `do-markdown`) takes its height a moment after
+its row is laid out, which the list does not see. So the chat keeps to the end too: after each
+change it scrolls to the last row, while it is `following`, which only the reader's wheel, drag or
+keys turn off (a list that moves by itself as rows are measured is not the reader). The React app's
+MessageScroller watches the content's size for the same reason.
+
+**A picture opens in the library's viewer, one at a time.** A picture in a message, a file's
+preview and a figure in Markdown (`image:`) open in `LibraryPictureViewer`, mounted once at the
+root (its dialog has a fixed id), with that picture alone; the React app's transcript does not
+open pictures large at all, and its composer's viewer steps through every attached one.
+
+**Hover reveals nothing.** Exact's `:hover` paints a box itself and cannot show a child, so a
+file card's download and a visual's corner button are always shown, as the React app shows them
+under a finger.
+
+**The working line does not shine.** The React app sweeps a highlight across "Thinking…"
+(`animate-shine`); here it is still, beside the Dood's working face. "Delivered" leaves after
+three seconds without fading.
+
+**Who else is here, and typing.** A team's presence and "Ada is typing…" come over the person's
+own socket in the React app (`useHere`, `noteTyping`), which cannot carry this app's session
+(The shell, above). A call held in the chat (`CallInChat`) and the starters a Dood offers when it
+is first met (`meetingWith`, kept in the first run's browser storage) are not here either.
+
+**Earlier messages** ("Show earlier messages") are loaded a page at a time from
+`/chats/:id/history`, after the chat was started fresh from the Dood's Memory settings
+(`chat-transcript.test.contract` does so). `tools/chat-earlier.sh` drives the same against a
+server it fills over the API.
+
 ## Type and colour
 
 **Fonts are TTF, from Geist's own release.** Exact's `font` takes TTF or OTF and refuses WOFF2
@@ -96,10 +165,6 @@ own picture there on Exact's clock (modules/web/README.md). The page's picture i
 after four quiet minutes and wakes it on any pointer move, key, wheel or press on the window.
 Exact hands a view no window-wide pointer, so here the quiet is broken by what the app itself
 sees change: the draft, the chat's messages and work, the end of a run, another Dood opened.
-
-**What a chat's last `send` was is not in the view's chat.** `chatMood`'s rule that a Dood that
-has said its last word and only finishes up is idle reads the `send` tool, which data/chat.ts
-leaves out of the blocks it hands the view; here such a Dood shows the work it is finishing.
 
 **A pat reaches the creature petted, not every drawing of it.** The React app's `petMascot`
 leans every moving picture of the agent (panel, pill, sidebar) into a hand on any one of them.

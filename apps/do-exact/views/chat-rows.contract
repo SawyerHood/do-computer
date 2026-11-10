@@ -1,0 +1,535 @@
+// The rows of a chat's transcript, as the React app draws them
+// (apps/web/src/components/chat/transcript.tsx and the parts it uses): a person's message in a
+// bubble on the right, the Dood's as what it wrote and what it delivered, a notice as a line
+// with its mark, a failed reply in plain words, and the line that says what the Dood is doing.
+use Dood from "./shapes.contract"
+use UserBubble, Card, OutlineButton, QuietButton, EventLine from "./styles.contract"
+use doodOf, nameOf, stateOf from "./shell.contract"
+use DoodFace from "./creature.contract"
+use Message, Block, chatHref from "./chat-shapes.contract"
+use VisualFrame, McpAppFrame from "./chat-frames.contract"
+use MessageText from "./markdown.contract"
+use LibraryFileCard from "./library-card.contract"
+use SiteCopy from "./sites.contract"
+
+// A message's words are drawn by views/markdown.contract's `MessageText`, with the library as its
+// link targets (`chatLibraryLinks`); what it says of a link or a picture is `markdownSaid`.
+
+// One row: a message, as transcript.tsx `MessageView`.
+component MessageRow
+  props
+    message: Message
+    agentId: string
+    // The Dood's name, "" for one that has none yet: each part says it its own way.
+    doodName: string
+    // In a sub-agent's chat, who gave it its task: this side is theirs.
+    asker: string
+    // A failed reply offers to try again: the last one, while nothing is running.
+    canRetry: bool
+  view
+    column width="100%" align-items="center"
+      column width="100%" max-width="45rem" padding="12px 16px" box-sizing="border-box" testId=`row-${message.id}`
+        if message.role == "user"
+          UserMessage(message=message, asker=asker)
+        else if message.role == "notice"
+          for b in message.blocks key=b.id
+            NoticeRow(block=b, agentId=agentId, time=message.time)
+        else
+          AssistantMessage(message=message, agentId=agentId, doodName=doodName, canRetry=canRetry)
+
+// What a person said: one's own in the bubble on the right; someone else's (in a team, another
+// Dood, Slack) with their face, name and time; in a sub-agent's chat, what it was asked.
+component UserMessage
+  props
+    message: Message
+    asker: string
+  inject
+    doodList: Dood[]
+    deliveredNow: string
+    showPicture: action
+  derive own = message.from == ""
+  derive peer = doodOf(doodList, message.authorId)
+  derive delivery = message.delivery != "" ? message.delivery : (message.id == deliveredNow ? "delivered" : "")
+  view
+    if asker != "" and own
+      row justify-content="flex-end"
+        column max-width="80%" padding="8px 16px" border-radius=18 background-color="secondary" border="1px solid var(--border)" gap=2
+          text (message.answered ? "You answered" : `${asker} asked`) font-size="0.75rem" color="ink.muted" testId=`asked-${message.id}`
+          for b in message.blocks.filter(x => x.kind == "text") key=b.id
+            text b.text font-size="0.9375rem" white-space="pre-wrap" overflow-wrap="break-word" max-width="100%" testId=`message-${message.id}`
+    else
+      row justify-content="flex-end" align-items="flex-end" gap=8
+        if not own
+          if message.from == "agent"
+            DoodFace(seed=peer.seed, color=peer.color, state="idle", name=message.author, size=28)
+          else
+            column width="1.75rem" height="1.75rem" border-radius=999 background-color="ink.muted" align-items="center" justify-content="center" flex-shrink=0
+              if message.from == "slack"
+                image "symbol:icon.slack-logo" color="canvas" font-size="0.875rem" aria-hidden=true
+              else
+                text message.author.slice(0, 1).toUpperCase() color="canvas" font-size="0.6875rem" font-weight=600
+        column max-width="80%" align-items="flex-end" gap=4 min-width=0
+          if not own
+            row gap=6 align-items="center" padding="0 4px" font-size="0.75rem" color="ink.muted"
+              text message.author font-weight=500 color="ink" testId=`author-${message.id}`
+              if message.time != ""
+                text message.time
+              if message.from == "slack"
+                image "symbol:icon.slack-logo" font-size="0.75rem" aria-hidden=true
+                text "in Slack"
+          if message.spoken
+            row gap=4 align-items="center" padding="0 4px" font-size="0.75rem" color="ink.muted"
+              image "symbol:icon.microphone" aria-hidden=true
+              text "Said on a call"
+          for b in message.blocks key=b.id
+            if b.kind == "image"
+              button press=showPicture(b.src, "Attached") aria-label="Open the picture large" padding=0 border="none" background-color="transparent"
+                image b.src alt="Attached" max-height=256 border-radius=16
+            else if own
+              text b.text class=UserBubble overflow-wrap="break-word" white-space="pre-wrap" max-width="100%" min-width=0 box-sizing="border-box" testId=`message-${message.id}`
+            else
+              text b.text padding="8px 16px" border-radius=18 background-color="secondary" font-size="0.9375rem" overflow-wrap="break-word" white-space="pre-wrap" max-width="100%" min-width=0 box-sizing="border-box" testId=`message-${message.id}`
+          if message.files.length > 0
+            row flex-wrap="wrap" justify-content="flex-end" gap=6 role="list" aria-label="Sent files"
+              for f in message.files key=f
+                row role="listitem" align-items="center" gap=6 max-width="16rem" padding="4px 10px" border-radius=999 border="1px solid var(--border)" font-size="0.75rem" color="ink.muted"
+                  image "symbol:icon.paperclip" aria-hidden=true font-size="0.875rem"
+                  text f overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+          if own and delivery != ""
+            Delivery(delivered=(delivery == "delivered"), id=message.id)
+
+// Whether a message of one's own has reached the Dood, as a message app says it: "Sending" with
+// a turning ring while it waits, "Delivered" with a check once the Dood has it, for a moment.
+component Delivery
+  props
+    delivered: bool
+    id: string
+  view
+    row gap=6 align-items="center" padding="0 4px" font-size="0.75rem" color="ink.muted" min-height=20
+      role="img" aria-label=(delivered ? "Delivered" : "Sending") title=(delivered ? "" : "Sent. It is read after the step under way.") testId=(delivered ? "delivered" : "sending")
+      text (delivered ? "Delivered" : "Sending")
+      if delivered
+        image "symbol:icon.check-circle" font-size="0.875rem" aria-hidden=true
+      else
+        progress aria-label="Sending" width=12 height=12
+
+// The Dood's message: what it wrote and delivered, then whether it did not go, failed or stopped.
+component AssistantMessage
+  props
+    message: Message
+    agentId: string
+    doodName: string
+    canRetry: bool
+  view
+    column gap=8 align-items="flex-start" width="100%"
+      for b in message.blocks key=b.id
+        PartView(block=b, agentId=agentId, doodName=doodName, messageId=message.id, streaming=(message.status == "streaming"))
+      if message.notSent != ""
+        // Its words were on screen as they were written; it says it did not go, and why.
+        row gap=6 align-items="flex-start" padding="0 4px" font-size="0.875rem" color="danger" role="alert" testId=`not-sent-${message.id}`
+          image "symbol:icon.warning-circle" aria-hidden=true margin-top=2
+          text `Not sent: ${message.notSent}` min-width=0 overflow-wrap="break-word"
+      if message.status == "error"
+        ReplyError(message=message, agentId=agentId, canRetry=canRetry)
+      if message.stopped
+        text "Stopped" font-size="0.875rem" color="ink.muted" padding="0 4px" testId=`stopped-${message.id}`
+
+// One part of the Dood's message (transcript.tsx `AssistantPart`).
+component PartView
+  props
+    block: Block
+    agentId: string
+    doodName: string
+    messageId: string
+    // Its message is still being written: Markdown keeps an unclosed code block plain.
+    streaming: bool
+  inject
+    filesBase: string
+    chatLibraryLinks: string
+    markdownSaid: action
+    showPicture: action
+  view
+    if block.kind == "text"
+      column padding="0 4px" max-width="100%" min-width=0 align-self="stretch" box-sizing="border-box" font-size="1rem" line-height=1.6 testId=`message-${messageId}`
+        MessageText(text=block.text, streaming=streaming, files=chatLibraryLinks, message=markdownSaid)
+    else if block.kind == "image"
+      button press=showPicture(block.src, "A picture") aria-label="Open the picture large" padding=0 border="none" background-color="transparent"
+        image block.src alt="A picture" max-height=256 border-radius=16
+    else if block.kind == "schedule"
+      row gap=8 align-items="center" padding="0 4px" font-size="0.875rem" color="ink.muted"
+        image "symbol:icon.clock" aria-hidden=true
+        text block.text
+    else if block.kind == "kept"
+      row gap=8 align-items="center" padding="0 4px" font-size="0.875rem" color=(block.outcome == "refused" ? "asking" : "ink.muted") role=(block.going ? "status" : "none") testId=`kept-${block.id}`
+        image (block.outcome == "refused" ? "symbol:icon.warning-circle" : block.status == "pay" ? "symbol:icon.credit-card" : "symbol:icon.key") aria-hidden=true flex-shrink=0
+        text block.text overflow-wrap="break-word"
+    else if block.kind == "file"
+      FileCard(block=block, agentId=agentId, base=filesBase)
+    else if block.kind == "visual"
+      VisualFrame(block=block, agentId=agentId, doodName=doodName, base=filesBase)
+    else if block.kind == "mcpApp"
+      McpAppFrame(block=block)
+    else if block.kind == "site"
+      SiteCard(block=block)
+    else if block.kind == "pin"
+      PinCard(block=block, agentId=agentId, doodName=doodName)
+    else if block.kind == "subagent"
+      SubagentChip(block=block, agentId=agentId)
+    else if block.kind == "command"
+      CommandChip(block=block)
+    else if block.kind == "agentMessage"
+      AgentChip(block=block)
+    else if block.kind == "use"
+      UseLine(block=block, doodName=doodName)
+
+// A reply that failed, as one plain sentence; what the provider answered is behind "Details".
+component ReplyError
+  props
+    message: Message
+    agentId: string
+    canRetry: bool
+  inject
+    retry: action
+  state details = false
+  derive hasDetails = message.errorDetail != "" or message.errorFacts.length > 0
+  view
+    row gap=8 align-items="flex-start" padding="0 4px" font-size="0.875rem" role="alert" width="100%" box-sizing="border-box" testId=`reply-error-${message.id}`
+      image "symbol:icon.warning-circle" color="danger" aria-hidden=true margin-top=2 flex-shrink=0
+      column flex=1 min-width=0
+        text message.errorTitle font-weight=500 testId=`error-title-${message.id}`
+        if message.errorHint != ""
+          text message.errorHint color="ink.muted" testId=`error-hint-${message.id}`
+        if (canRetry and message.retryable) or hasDetails or message.errorKind == "signIn"
+          row gap=6 align-items="center" margin-top=8 flex-wrap="wrap"
+            // The two ways out of a sign-in that is gone, each a click away.
+            if message.errorKind == "signIn"
+              link href=path("settings", agentId) class=OutlineButton
+                text "Sign in again"
+              link href=path("settings", agentId) class=OutlineButton
+                text "Pick another model"
+            if canRetry and message.retryable
+              button press=retry class=OutlineButton testId="try-again"
+                image "symbol:icon.arrow-clockwise" aria-hidden=true
+                text "Try again"
+            if hasDetails
+              button press=toggleDetails aria-expanded=details class=QuietButton color="ink.muted" testId=`details-${message.id}`
+                image (details ? "symbol:icon.caret-down" : "symbol:icon.caret-right") aria-hidden=true font-size="0.75rem"
+                text "Details"
+        if details
+          if message.errorFacts.length > 0
+            row gap=6 flex-wrap="wrap" margin-top=8
+              for f in message.errorFacts key=f
+                text f font-family="Geist Mono" font-size="0.6875rem" color="ink.muted" background-color="muted" padding="0 6px" border-radius=4
+          if message.errorDetail != ""
+            text message.errorDetail font-family="Geist Mono" font-size="0.75rem" color="ink.muted" white-space="pre-wrap" overflow-wrap="break-word"
+              margin-top=8 padding="10px 12px" border-radius=8 border="1px solid var(--border)" background-color="surface" max-height=224 overflow="auto" testId=`error-detail-${message.id}`
+  action toggleDetails
+    details = not details
+
+// A notice: a line the chat was told of, with its mark, and what it said folded under it; or a
+// marker across the transcript where its context started over.
+component NoticeRow
+  props
+    block: Block
+    agentId: string
+    time: string
+  inject
+    doodList: Dood[]
+  derive peer = doodOf(doodList, block.agentId)
+  derive sep = block.status == "compaction" or block.status == "branch" or block.status == "reset"
+  view
+    if sep
+      row gap=8 align-items="center" font-size="0.875rem" color="ink.muted" testId=`notice-${block.status}`
+        column flex=1 height=1 background-color="border"
+        image "symbol:icon.arrows-clockwise" aria-hidden=true
+        text block.text flex-shrink=0
+        column flex=1 height=1 background-color="border"
+    else if block.status == "call"
+      CallRecord(block=block, time=time)
+    else
+      column class=EventLine testId=`notice-${block.status}`
+        row gap=8 align-items="center" flex-wrap="wrap"
+          if block.status == "subagent"
+            DoodFace(seed=`${agentId}/sub/${block.chatId}`, color=doodOf(doodList, agentId).color, state=(block.outcome == "failed" ? "error" : "idle"), name=`Sub-agent ${block.name}`, size=20)
+          else if block.status == "agent" and block.agentId != ""
+            DoodFace(seed=peer.seed, color=peer.color, state="idle", name=block.name, size=20)
+          else
+            image noticeIcon(block) aria-hidden=true flex-shrink=0 color=(block.status == "command" and block.outcome == "failed" ? "danger" : "ink.muted")
+          text min-width=0 overflow-wrap="break-word" testId=`notice-text-${block.status}`
+            text block.text
+            text (block.text != "" and block.name != "" ? " " : "")
+            text block.name font-weight=500 color="ink" font-family=(block.mono ? "Geist Mono" : "Geist")
+            text (block.after != "" and not block.after.startsWith(",") and not block.after.startsWith(":") ? " " : "")
+            text block.after
+          if block.chatId != ""
+            link href=chatHref(block.agentId != "" ? block.agentId : agentId, block.chatId) color="ink.muted" text-decoration="underline" testId=`notice-link-${block.status}`
+              text block.linkLabel
+        if block.more != ""
+          Fold(label=block.moreLabel, body=block.more, startOpen=block.open, mono=(block.status == "command"))
+
+fn noticeIcon(b: Block): string = b.status == "computer" ? "symbol:icon.desktop" : b.status == "secret" ? "symbol:icon.key" : b.status == "approval" ? "symbol:icon.shield-check" : b.status == "connector" ? "symbol:icon.plugs-connected" : b.status == "automation" ? "symbol:icon.clock" : b.status == "asked" ? "symbol:icon.key" : b.status == "slack" ? "symbol:icon.slack-logo" : b.status == "command" ? (b.outcome == "stopped" ? "symbol:icon.stop-circle" : b.outcome == "failed" ? "symbol:icon.warning-circle" : "symbol:icon.check-circle") : "symbol:icon.check-circle"
+
+// Something folded under a line, behind its label: Markdown, or what a command printed.
+component Fold
+  props
+    label: string
+    body: string
+    startOpen: bool
+    mono: bool
+  inject
+    chatLibraryLinks: string
+    markdownSaid: action
+  state flipped = false
+  derive open = startOpen != flipped
+  view
+    column margin-top=4 align-items="flex-start" width="100%"
+      button press=flip aria-expanded=open class=QuietButton color="ink.muted" padding="0 8px 0 0" testId=`fold-${label}`
+        image (open ? "symbol:icon.caret-down" : "symbol:icon.caret-right") aria-hidden=true font-size="0.75rem"
+        text label
+      if open
+        if mono
+          text body font-family="Geist Mono" font-size="0.75rem" line-height=1.6 color="ink" white-space="pre-wrap" overflow-wrap="break-word"
+            margin-top=6 padding="8px 12px" border-radius=12 background-color="surface" max-height=384 overflow="auto" width="100%" box-sizing="border-box"
+        else
+          column margin-top=6 padding="8px 12px" border-radius=12 background-color="surface" width="100%" box-sizing="border-box" font-size="0.875rem" line-height=1.55
+            MessageText(text=body, streaming=false, files=chatLibraryLinks, message=markdownSaid)
+  action flip
+    flipped = not flipped
+
+// A call that was held in the chat: how long, what came of it, and what was said.
+component CallRecord
+  props
+    block: Block
+    time: string
+  inject
+    doodList: Dood[]
+  state open = false
+  view
+    column border-radius=16 overflow="hidden" class=Card role="region" aria-label="A call" testId="call-record"
+      row gap=10 align-items="center" padding="10px 16px" font-size="0.875rem"
+        image "symbol:icon.phone" color="ink.muted" aria-hidden=true
+        text "Call" font-weight=500
+        text (time == "" ? block.text : `${block.text} · ${time}`) margin-left="auto" font-size="0.8125rem" color="ink.muted"
+      if block.lines.length > 0
+        column gap=4 padding="10px 16px 4px" border-top="1px solid var(--border)" font-size="0.875rem"
+          for l in block.lines key=l
+            row gap=10
+              image "symbol:icon.check" color="ink.muted" aria-hidden=true margin-top=3 font-size="0.875rem"
+              text l min-width=0 overflow-wrap="break-word"
+      if open
+        text block.more padding="10px 16px 4px" border-top="1px solid var(--border)" font-size="0.875rem" white-space="pre-wrap"
+      row padding="8px 12px 12px"
+        if block.more == ""
+          text "Nothing was said." font-size="0.8125rem" color="ink.muted" padding="0 4px"
+        else
+          button press=toggle aria-expanded=open class=OutlineButton
+            text (open ? "Hide what was said" : "Show what was said")
+  action toggle
+    open = not open
+
+// A file the Dood delivered, as the file: the picture itself where it is one (opening large),
+// then the library's card for it (library-card.contract), which opens it beside the chat, pins,
+// shares and downloads it. `text` is its path in the library, `path` that path as an address.
+component FileCard
+  props
+    block: Block
+    agentId: string
+    base: string
+  inject
+    showPicture: action
+  view
+    column gap=8 max-width="100%" testId=`file-${block.name}`
+      if block.outcome == "picture" and base != ""
+        button press=showPicture(`${base}${block.path}`, block.name) aria-label=`Open ${block.name} large` padding=0 border="none" background-color="transparent" align-self="flex-start" testId=`file-picture-${block.name}`
+          image `${base}${block.path}` alt=block.name max-height=320 border-radius=16 border="1px solid var(--border)"
+      LibraryFileCard(fileId=block.fileId, name=block.name, path=block.text, url=(base == "" ? "" : `${base}${block.path}`))
+
+// A site the Dood shared, where it shared it: its title, who can open it now, its address, and
+// the ways to copy and open it; or that it is not shared any more, and the way to share it
+// again (sites.contract's sharing, which also changes who can open it).
+component SiteCard
+  props
+    block: Block
+  inject
+    librarySiteWords: string[]
+    shareLibraryPath: action
+  derive shared = librarySiteWords.includes(`id:${block.fileId}`) or librarySiteWords.includes(`path:${block.path}`)
+  derive open = librarySiteWords.includes(`public:${block.fileId}`) or librarySiteWords.includes(`public:${block.path}`)
+  view
+    row flex-wrap="wrap" align-items="center" gap=12 padding="10px 10px 10px 12px" border-radius=16 class=Card font-size="0.875rem" max-width="100%"
+      role="group" aria-label=`Site: ${block.name}` testId=`site-${block.name}`
+      row gap=12 align-items="center" min-width=0
+        column width=36 height=36 border-radius=8 background-color="wash" align-items="center" justify-content="center" flex-shrink=0
+          image "symbol:icon.globe" color="ink.muted" font-size="1.25rem" aria-hidden=true
+        column min-width=0
+          row gap=8 align-items="center"
+            text block.name font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+            if shared
+              text (open ? "Public" : "Workspace") font-size="0.75rem" color="ink.muted" padding="0 8px" border-radius=999 border="1px solid var(--border)" testId=`site-who-${block.name}`
+            else
+              text "Not shared any more" font-size="0.75rem" color="ink.muted" testId=`site-gone-${block.name}`
+          text (shared ? block.detail.replaceAll("https://", "").replaceAll("http://", "") : block.path) font-family="Geist Mono" font-size="0.75rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+      row gap=6 flex-shrink=0
+        if shared
+          SiteCopy(url=block.detail, tag=block.name)
+          link href=block.detail target="_blank" class=OutlineButton
+            text "Open"
+            image "symbol:icon.arrow-square-out" aria-hidden=true font-size="0.875rem"
+        button press=shareLibraryPath(block.path) class=OutlineButton testId=`site-share-${block.name}`
+          text (shared ? "Who can open it" : "Share again")
+
+// Something the Dood pinned, where it pinned it: what it is, the way to open it beside the chat
+// and to take the pin off; or that it is no longer pinned, and the way to pin it again
+// (pins.contract's pins, which the Dood's panel shows too).
+component PinCard
+  props
+    block: Block
+    agentId: string
+    doodName: string
+  inject
+    libraryPinnedIds: string[]
+    libraryTogglePinFile: action
+    openLibraryPanel: action
+  derive pinned = libraryPinnedIds.includes(block.fileId)
+  view
+    row flex-wrap="wrap" align-items="center" gap=12 padding="10px 10px 10px 12px" border-radius=16 class=Card font-size="0.875rem" max-width="100%"
+      role="group" aria-label=`Pinned: ${block.name}` testId=`pin-${block.name}`
+      row gap=12 align-items="center" min-width=0
+        column width=36 height=36 border-radius=8 background-color="wash" align-items="center" justify-content="center" flex-shrink=0
+          image "symbol:icon.push-pin" color="ink.muted" font-size="1.25rem" aria-hidden=true
+        column min-width=0
+          text (pinned ? `${doodName != "" ? doodName : "Your Dood"} pinned ${block.name}` : `${block.name} is no longer pinned`) font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`pin-words-${block.name}`
+          text block.path font-family="Geist Mono" font-size="0.75rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+      row gap=6 flex-shrink=0
+        if pinned
+          button press=openLibraryPanel(block.fileId) class=OutlineButton testId=`pin-open-card-${block.name}`
+            text "Open"
+          button press=libraryTogglePinFile(block.fileId) class=OutlineButton testId=`unpin-${block.name}`
+            text "Unpin"
+        else
+          button press=libraryTogglePinFile(block.fileId) class=OutlineButton testId=`pin-again-${block.name}`
+            text "Pin it again"
+
+// Where the Dood started a sub-agent: a way into its chat, its creature, and how it is getting on.
+component SubagentChip
+  props
+    block: Block
+    agentId: string
+  inject
+    doodList: Dood[]
+    subagentStatuses: string[]
+  // The sub-agents' statuses are `id=status` words, so a chip looks its own up without a search.
+  derive status = subagentStatuses.includes(`${block.chatId}=working`) ? "working" : subagentStatuses.includes(`${block.chatId}=waiting`) ? "waiting" : subagentStatuses.includes(`${block.chatId}=stopped`) ? "stopped" : subagentStatuses.includes(`${block.chatId}=failed`) ? "failed" : ""
+  view
+    link href=chatHref(agentId, block.chatId) display="flex" align-items="center" gap=10 height=40 max-width="100%" padding="0 12px 0 10px"
+      border-radius=12 class=Card font-size="0.875rem" text-decoration="none" testId=`subagent-${block.name}`
+      DoodFace(seed=`${agentId}/sub/${block.chatId}`, color=doodOf(doodList, agentId).color, state=(status == "working" ? "working" : status == "waiting" ? "asking" : status == "failed" ? "error" : "idle"), name=`Sub-agent ${block.name}`, size=24)
+      text block.name font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap" min-width=0
+      StatusMark(status=status)
+
+// How a sub-agent is getting on, as a mark: turning while it works, amber while it waits.
+component StatusMark
+  props
+    status: string
+  view
+    if status == "working"
+      progress aria-label="Working" width=16 height=16
+    else if status == "waiting"
+      column width=8 height=8 margin="0 4px" border-radius=4 background-color="asking" role="img" aria-label="Waiting for your OK"
+    else if status == "stopped"
+      image "symbol:icon.stop-circle" color="ink.muted" aria-label="Stopped"
+    else if status == "failed"
+      image "symbol:icon.warning-circle" color="danger" aria-label="Did not finish"
+    else
+      image "symbol:icon.check-circle" color="ink.muted" aria-label="Reported back"
+
+// A command the Dood left running in the background: where it runs, how it is getting on, and,
+// once it ended, how. What it printed is with the word of its end.
+component CommandChip
+  props
+    block: Block
+  view
+    row align-items="center" gap=8 max-width="100%" padding="6px 10px 6px 8px" border-radius=16 class=Card font-size="0.875rem" testId="command-chip"
+      column width=24 height=24 border-radius=7 background-color="secondary" align-items="center" justify-content="center" flex-shrink=0
+        image "symbol:icon.terminal" color="ink.muted" font-size="0.875rem" aria-hidden=true
+      row flex-wrap="wrap" align-items="baseline" gap="0 8px" min-width=0
+        text block.text font-family="Geist Mono" font-size="0.8125rem" font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap" max-width="100%"
+        text (block.status == "" ? "ran in the background" : `${block.name} · ${block.going ? (block.outcome == "moved" ? "still going after a minute, now in the background" : "in the background") : block.after}`) font-size="0.75rem" color="ink.muted" testId="command-chip-words"
+      if block.going
+        progress aria-label="Running" width=14 height=14
+      else if block.status == "" or block.status == "done"
+        image "symbol:icon.check-circle" color="ink.muted" aria-label="Finished" flex-shrink=0
+      else if block.status == "stopped"
+        image "symbol:icon.stop-circle" color="ink.muted" aria-label="Stopped" flex-shrink=0
+      else
+        image "symbol:icon.warning-circle" color="danger" aria-label="Failed" flex-shrink=0
+
+// The Dood asking another Dood something: a way into their conversation.
+component AgentChip
+  props
+    block: Block
+  inject
+    doodList: Dood[]
+  derive peer = doodOf(doodList, block.agentId)
+  view
+    link href=chatHref(block.agentId, block.chatId) display="flex" align-items="center" gap=8 max-width="100%" padding="6px 10px 6px 8px"
+      border-radius=16 class=Card font-size="0.875rem" text-decoration="none" testId=`agent-chip-${block.name}`
+      DoodFace(seed=peer.seed, color=peer.color, state="idle", name=block.name, size=24)
+      text "Asked" font-size="0.75rem" color="ink.muted"
+      text (peer.name != "" ? peer.name : block.name) font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+      image "symbol:icon.caret-right" color="ink.muted" font-size="0.875rem" aria-hidden=true
+
+// A screen or a browser the Dood used: while it is at it, what it is doing; after, word of it,
+// which unfolds into each step.
+component UseLine
+  props
+    block: Block
+    doodName: string
+  state open = false
+  view
+    column class=EventLine testId=`use-${block.id}`
+      row gap=8 align-items="flex-start"
+        if block.going
+          progress aria-label="Working" width=16 height=16 margin-top=2
+        else
+          image "symbol:icon.check-circle" aria-hidden=true margin-top=3
+        text
+          text `${doodName != "" ? doodName : "It"} ${block.going ? "is using" : "used"} `
+          text block.name font-weight=500 color="ink"
+          text (block.going ? ` · ${block.detail}` : block.after)
+      if block.lines.length > 0
+        button press=toggle aria-expanded=open class=QuietButton color="ink.muted" padding="0 8px 0 0" margin-top=4
+          image (open ? "symbol:icon.caret-down" : "symbol:icon.caret-right") aria-hidden=true font-size="0.75rem"
+          text "What it did"
+        if open
+          column gap=2 margin-top=4 padding="8px 12px" border-radius=12 background-color="surface" font-size="0.8125rem"
+            for l in block.lines key=l
+              text l min-width=0 overflow-wrap="break-word"
+  action toggle
+    open = not open
+
+// What the Dood is doing, under the transcript, while nothing else on screen says so.
+component Working
+  props
+    dood: Dood
+    activity: string
+  view
+    column width="100%" align-items="center"
+      row width="100%" max-width="45rem" padding="12px 20px 24px" box-sizing="border-box" gap=8 align-items="center" role="status" aria-live="polite"
+        DoodFace(seed=dood.seed, color=dood.color, state="working", name=nameOf(dood), size=20)
+        text `${activity}…` font-size="0.875rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId="activity"
+
+// What a chat holds while it is on its way: the shapes of messages, where they will be.
+component TranscriptPlaceholder
+  view
+    column width="100%" max-width="45rem" margin="0 auto" padding="0 16px 24px" box-sizing="border-box" gap=20 aria-label="Loading" testId="chat-loading"
+      column height=40 width="44%" align-self="flex-end" border-radius=16 background-color="muted"
+      column width="62%" gap=10 padding="16px 14px" border-radius=16 background-color="secondary"
+        column height=10 width="92%" border-radius=5 background-color="muted"
+        column height=10 width="100%" border-radius=5 background-color="muted"
+        column height=10 width="78%" border-radius=5 background-color="muted"
+        column height=10 width="40%" border-radius=5 background-color="muted"
+      column height=40 width="30%" align-self="flex-end" border-radius=16 background-color="muted"
+      column width="48%" gap=10 padding="16px 14px" border-radius=16 background-color="secondary"
+        column height=10 width="100%" border-radius=5 background-color="muted"
+        column height=10 width="64%" border-radius=5 background-color="muted"

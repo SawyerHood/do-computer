@@ -47,7 +47,7 @@ test "files are picked, removed and named in the message"
   tap "send"
   clock data
   clock +3000 real
-  expect state chat.messages.0 .blocks.0 .text == "Attached: composer-note-2.txt"
+  expect state chat.messages.0 .files.0 == "composer-note-2.txt"
   expect state composerAttachments.length == 0
 
 test "a picture is previewed, opens large, and is removed without sending"
@@ -159,5 +159,6 @@ test "a lightweight computer refuses a background command without a phantom runn
   tap "send"
   clock data
   clock +5000 real
-  expect state chat.messages.1.blocks.0.status == "error"
+  // The refused call is not a job: no chip in the transcript, nothing running over the composer.
+  expect tree missing "command-chip"
   expect state composerRunning.length == 0

@@ -153,12 +153,17 @@ export const doodSettingsSources: Pick<Sources,
     };
   },
   loadApprovals: async ([owner, agentId], store): Promise<Approvals> => {
-    if (agentId === '' || !current(owner, store)) return { owner: NOBODY, agentId: '', subjects: [] };
+    if (agentId === '' || !current(owner, store)) return { owner: NOBODY, agentId: '', subjects: [], pending: [] };
     const state = await get<ApprovalsState>(store, `/api/agents/${seg(agentId)}/approvals`);
     return {
       owner,
       agentId,
       subjects: state.subjects.map((s) => ({ id: s.id, kind: s.kind, label: s.label, hint: s.hint ?? '', rule: state.rules[s.id] ?? 'allow' })),
+      // What it waits for someone to allow, which every chat of it shows over the composer.
+      pending: state.pending.map((request) => ({
+        id: request.id, chatId: request.chatId, chatTitle: request.chatTitle, chatKind: request.chatKind, task: request.task ?? '',
+        title: request.title, detail: request.detail, onceOnly: request.onceOnly === true, wants: request.wants?.label ?? '',
+      })),
     };
   },
 

@@ -3,6 +3,7 @@
 // its wardrobe; and the sections about this chat that fold under their headings. Here too is
 // its hatch, watched once (chat-view.tsx `useHatch`). What its creature is doing everywhere it is
 // drawn is panel-mood.contract's.
+use PinsShelf from "./pins.contract"
 use Reply, Dood from "./shapes.contract"
 use nameOf from "./shell.contract"
 use Face, Hatchling from "./creature.contract"
@@ -98,7 +99,8 @@ component DoodPanel
           // The line in the transcript is the one announced; this repeats it beside the creature.
           text doing font-size="0.875rem" color="ink.muted" testId="panel-status"
           // --- call --- (a call with the Dood is placed here, under its name: CallButton)
-        // --- pinned --- (what is pinned to the Dood: PinnedShelf)
+        // --- pinned --- what is pinned to the Dood (pins.contract)
+        PinsShelf()
         // --- screen --- (the screen it last used here: UseNow)
         // --- running --- PanelSection(id="running", title="Running in the background", …)
         // --- subagents --- PanelSection(id="subagents", title="Sub-agents at work", …)

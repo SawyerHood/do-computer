@@ -4,6 +4,7 @@
 // otherwise. data/settings-dood.ts answers it.
 use Session, Reply, Page from "./shapes.contract"
 use DoodSettings, SettingsSection, ErrorLine, Hint from "./settings-kit.contract"
+use ApprovalAsk from "./chat-shapes.contract"
 
 // Something a rule can be set for, with the rule it has: "allow", "ask" or "deny".
 shape Subject
@@ -18,6 +19,8 @@ shape Approvals
   owner: string
   agentId: string
   subjects: Subject[]
+  // What it waits for someone to allow: the chat shows these over its composer (chat-asks.contract).
+  pending: ApprovalAsk[]
 
 shape RuleGroup
   kind: string
@@ -38,7 +41,8 @@ fn ruleGroups(): RuleGroup[] = [
 
 members App
   // --- permissions ---
-  resource approvals = loadApprovals(session.owner, onRoute == "permissions" ? openAgentId : "") as shape Approvals else empty()
+  // The chat's pages show what it waits for someone to allow, so they ask for it too.
+  resource approvals = loadApprovals(session.owner, onRoute == "permissions" or onRoute == "dood" or onRoute == "chat" ? openAgentId : "") with pulse.asks.approvals as shape Approvals else empty()
   mutation ruled as shape Reply refreshes approvals
   // What was just chosen, shown at once until the server has answered either way.
   state ruleFor = ""

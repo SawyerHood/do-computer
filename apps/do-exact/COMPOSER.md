@@ -26,7 +26,9 @@ Reference read: `chat/composer.tsx`, `attached-files.tsx`, `commands.tsx`, `thin
 - Done: a running-command menu, output tail (32 KiB/40 lines), computer/time and Stop.
   Transcript chips/notices belong to the transcript area, not this composer.
 - Done: lists of archived side chats, peer-Dood conversations, Slack and sub-agents; routes,
-  main/parent links, read-only feet, status and Stop, external Slack link. There are no
+  main/parent links, status and Stop, external Slack link. The read-only chats' bars and feet
+  are the transcript's (views/chat.contract `ChatBar`, `ChatFoot`, `SlackFoot`), which stop
+  with `composerStop`; `ThreadFoot` is gone. There are no
   new/rename/delete UI controls in the current reference to port.
 - Not in this React composer: slash menu, mention menu, computer-kind picker. Text beginning
   with `/` or `@` is normal text. `/tool` is only the test echo model's directive syntax.

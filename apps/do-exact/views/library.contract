@@ -17,6 +17,9 @@ members App
   action libraryHeal
     if libraryPulse.lost
       refresh libraryPulse
+  // Pins and shared sites are shown on the chat's pages too (chat-rows.contract), where the Dood's
+  // own socket says when they changed (`pulse.asks`). The chat reads its own copy of the listing.
+  derive libraryWanted = onRoute == "library" or libraryPanelId != "" or panelOpen or onRoute == "dood" or onRoute == "chat"
   resource library = loadLibrary(session.owner, onRoute == "library" or libraryPanelId != "" or panelOpen ? openAgentId : "") with libraryPulse.changes as shape Library else empty()
   derive libraryFiles = library.owner == session.owner and library.agentId == openAgentId ? library.files : []
   derive librarySelected = libraryFileOf(libraryFiles, onRoute == "library" ? libraryLocation.file : libraryPanelId, onRoute == "library" ? libraryLocation.path : "")

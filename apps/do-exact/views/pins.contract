@@ -21,9 +21,11 @@ shape LibraryPins
 
 members App
   // --- library pins ---
-  resource libraryPins = loadLibraryPins(session.owner, onRoute == "library" or libraryPanelId != "" or panelOpen ? openAgentId : "") with libraryPulse.changes, libraryFiles as shape LibraryPins else empty()
+  resource libraryPins = loadLibraryPins(session.owner, libraryWanted ? openAgentId : "") with libraryPulse.changes, pulse.asks.pins, libraryFiles as shape LibraryPins else empty()
   mutation libraryPinnedReply as shape Reply refreshes libraryPins
   derive libraryPinList = libraryPins.owner == session.owner and libraryPins.agentId == openAgentId ? libraryPins.pins : []
+  // The files pinned, by id now and as pinned, so a card in a long chat looks itself up without a search.
+  derive libraryPinnedIds = libraryPinList.map(p => p.currentId).concat(libraryPinList.map(p => p.fileId))
   derive libraryPinned = libraryPinList.map(p => p.currentId == librarySelected.id).includes(true)
   derive libraryPinError = pending(libraryPinnedReply) ? "" : match libraryPinnedReply { case some(r) => r.error, case none => "" }
   action libraryPin
@@ -90,13 +92,3 @@ component LibraryDocumentPanel
           text "That file is no longer in the library. It may be under Recently deleted." padding=24 font-size="0.875rem" color="ink.muted" testId="library-panel-missing"
         else
           LibraryViewer(file=librarySelected, compact=true)
-
-// Until chat adopts PinsShelf as a child, this occupies its existing Dood panel's lower half.
-component LibraryPinsDock
-  inject
-    wide: bool
-    panelOpen: bool
-  view
-    if wide and panelOpen
-      scroll height="calc(100% - 260px)" position="absolute" right=0 top=260 bottom=0 width="20rem" background-color="canvas" testId="library-pin-dock"
-        PinsShelf()
