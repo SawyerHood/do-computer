@@ -22,6 +22,8 @@ export const TICKET_PARAM = "ticket"
 export const SOCKET_TICKET_SECONDS = 5 * 60
 /** The most tickets one request is given. */
 export const MOST_TICKETS = 8
+/** What a ticket looks like, `generateRandomString(32)`'s: anything else is turned away unread. */
+export const TICKET_SHAPE = /^[A-Za-z0-9_-]{32}$/
 
 const PREFIX = "socket-ticket:"
 

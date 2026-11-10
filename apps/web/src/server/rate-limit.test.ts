@@ -46,6 +46,8 @@ describe("rate limit", () => {
     expect(
       limitedAs(ask("/api/auth/get-session", { method: "GET", from: "203.0.113.7" })),
     ).toBeUndefined()
+    // Tickets for a client app's sockets, which only someone signed in is given.
+    expect(limitedAs(ask("/api/auth/socket/tickets", { from: "203.0.113.7" }))).toBeUndefined()
     // A daemon waiting to be confirmed asks every few seconds.
     expect(limitedAs(ask("/api/computers/pair/poll", { from: "203.0.113.7" }))).toBeUndefined()
     expect(

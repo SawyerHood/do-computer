@@ -9,7 +9,7 @@ import { desktopHandoff } from "./desktop-handoff.ts"
 import { LOCAL_OWNER_METHOD, localOwner } from "./local-owner.ts"
 import { LOCAL_OWNER_EMAIL, type Platform } from "./platform.ts"
 import { migrateAppDatabase, readMeta, writeMeta } from "./schema.ts"
-import { socketTickets, TICKET_PARAM } from "./socket-tickets.ts"
+import { socketTickets, TICKET_PARAM, TICKET_SHAPE } from "./socket-tickets.ts"
 import { isInvited } from "./teams.ts"
 import { isWaiting, waitlistSince } from "./waitlist.ts"
 
@@ -263,7 +263,8 @@ export async function socketUser(request: Request): Promise<SessionUser | undefi
   if (ticket === null) return fromApp(request) ? getUser(request) : undefined
   const origin = request.headers.get("origin") ?? ""
   if (!fromApp(request) && !getPlatform().config.clientOrigins.includes(origin)) return undefined
-  if (ticket === "" || ticket.length > 256) return undefined
+  // Before the database is asked: anyone can knock with something.
+  if (!TICKET_SHAPE.test(ticket)) return undefined
   const { user } = await (await getAuth()).api.redeemSocketTicket({ body: { ticket } })
   return user === null || (await isWaiting(user)) ? undefined : user
 }
