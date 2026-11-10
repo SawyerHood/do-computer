@@ -41,7 +41,11 @@
     "do-markdown",
     "do-code",
     "do-mermaid",
-    "do-dictation"
+    "do-dictation",
+    "do-push",
+    "do-library-download",
+    "do-library-format",
+    "do-library-frame"
   ],
   "env": [
     "API_BASE_URL",

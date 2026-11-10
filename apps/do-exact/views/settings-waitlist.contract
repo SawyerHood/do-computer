@@ -1,0 +1,73 @@
+// The waiting list (`/settings/waitlist`), for whoever looks after a deployment that has one, as
+// the React app's WaitlistSettings (apps/web/src/components/settings/waitlist.tsx): who has made
+// an account and waits to be let in, and letting them in. data/settings-waitlist.ts answers it.
+use Session, Reply, Page from "./shapes.contract"
+use dayOf from "./shell.contract"
+use DoodFace from "./creature.contract"
+use AccountSettings, SettingsList, ErrorLine, Hint, SmallHint, OutlineButton from "./settings-kit.contract"
+
+shape WaitingPerson
+  id: string
+  name: string
+  email: string
+  joinedAt: number
+  // The Dood they made, "" for none, and its look.
+  dood: string
+  seed: string
+  color: string
+
+shape Waitlist
+  owner: string
+  total: number
+  people: WaitingPerson[]
+
+members App
+  // --- settings: waiting list ---
+  resource waitlist = loadWaitlist(session.owner, onRoute == "waitlist") as shape Waitlist else empty()
+  state lettingIn = ""
+  mutation letInDone as shape Reply refreshes waitlist
+  derive letInError = pending(letInDone) ? "" : match letInDone { case some(r) => r.error, case none => "" }
+  action letInNow(userId: string)
+    lettingIn = userId
+    send letInDone = letIn(userId)
+
+component WaitlistScreen
+  props
+    page: Page
+  inject
+    admin: bool
+    hasWaitlist: bool
+    settingsReturn: string
+    session: Session
+    utcOffset: number
+    waitlist: Waitlist
+    waitlistFailed: bool
+    lettingIn: string
+    letInBusy: bool
+    letInError: string
+    letInNow: action
+  derive ours = waitlist.owner == session.owner
+  view
+    AccountSettings(page=page, route="waitlist", title="Waiting list", lead="Anyone can make an account and hatch a Dood. The app itself is for you, the people you invite to a team, and whoever you let in here.", listing=false, admin=admin, waitlist=hasWaitlist, close=settingsReturn)
+      column gap=12 padding-top=24 border-top="1px solid var(--hairline)"
+        text (not ours ? (waitlistFailed ? "The list could not be read." : "Reading the list…") : waitlist.total == 0 ? "Nobody is waiting." : waitlist.total == 1 ? "1 person is waiting." : `${waitlist.total} people are waiting.`)
+          font-size="0.875rem" font-weight=500 testId="waitlist-total"
+        if ours and waitlist.people.length > 0
+          SettingsList(label="Waiting", testId="waitlist-people")
+            for p, i in waitlist.people key=p.id
+              row role="listitem" align-items="center" gap=12 padding="8px 12px" border-top=(i == 0 ? "none" : "1px solid var(--border)") testId=`waitlist-${i}`
+                if p.dood == ""
+                  column width="2.25rem" height="2.25rem" flex-shrink=0
+                else
+                  DoodFace(seed=p.seed, color=p.color, state="idle", name=p.dood, size=36)
+                column flex=1 min-width=0
+                  row gap=4 min-width=0
+                    text p.name font-size="0.875rem" font-weight=500 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+                    if p.dood != ""
+                      text `with ${p.dood}` font-size="0.875rem" color="ink.muted" white-space="nowrap"
+                  text `${p.email} · since ${dayOf(p.joinedAt, utcOffset)}` font-size="0.75rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+                button press=letInNow(p.id) disabled=(letInBusy and lettingIn == p.id) class=OutlineButton testId=`waitlist-let-in-${i}`
+                  text (letInBusy and lettingIn == p.id ? "Letting in…" : "Let in")
+        if ours and waitlist.total > waitlist.people.length
+          text `Showing the ${waitlist.people.length} who have waited longest.` class=SmallHint
+        ErrorLine(text=letInError, testId="waitlist-error")

@@ -11,6 +11,15 @@ import { doodSources } from './data/dood.ts';
 import { sessionSources } from './data/session.ts';
 import { shellSources } from './data/shell.ts';
 import { transportSources } from './data/transport.ts';
+import { doodSettingsSources } from './data/settings-dood.ts';
+import { accountSettingsSources } from './data/settings-account.ts';
+import { modelSettingsSources } from './data/settings-models.ts';
+import { passwordSources } from './data/settings-passwords.ts';
+import { notificationSources } from './data/settings-notifications.ts';
+import { waitlistSources } from './data/settings-waitlist.ts';
+import { librarySources } from './data/library.ts';
+import { libraryPinSources } from './data/pins.ts';
+import { librarySiteSources } from './data/sites.ts';
 
 // The deployment's address, a setting (app.json "env") that only this file may read: the
 // environment's value, else the server server.ts starts. `./x` sets it per checkout. Its sockets'
@@ -30,6 +39,16 @@ const sources: Sources = {
   ...composerSources,
   ...composerJobSources,
   ...threadsSources,
+  // --- settings ---
+  ...doodSettingsSources,
+  ...accountSettingsSources,
+  ...modelSettingsSources,
+  ...passwordSources,
+  ...notificationSources,
+  ...waitlistSources,
+  ...librarySources,
+  ...libraryPinSources,
+  ...librarySiteSources,
   ...careSources,
   ...doodSources,
   // A new area spreads its sources here.

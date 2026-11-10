@@ -1,0 +1,74 @@
+use LibraryPin from "./pins.contract"
+use MenuItem, IconButton from "./styles.contract"
+
+// Chat passes the file's stable id; opening follows a move or rename.
+component LibraryFileCard
+  props
+    fileId: string
+    name: string
+    path: string
+    url: string
+  inject
+    openLibraryPanel: action
+    shareLibraryPath: action
+    libraryTogglePinFile: action
+    libraryPinList: LibraryPin[]
+  derive pinned = libraryPinList.map(p => p.currentId == fileId).includes(true)
+  view
+    row align-items="center" gap=2 max-width="100%" padding=4 border-radius=12 background-color="popover" box-shadow="0 0 0 1px var(--hairline), 0 1px 2px rgb(0 0 0 / 0.05)" testId=`library-card-${fileId}`
+      button press=openLibraryPanel(fileId) class=MenuItem min-width=0 flex=1 aria-label=`Open ${name}` testId=`library-card-open-${fileId}`
+        image "symbol:document" aria-hidden=true
+        text name overflow-wrap="break-word" font-size="0.875rem"
+      button press=libraryTogglePinFile(fileId) class=IconButton aria-pressed=pinned aria-label=(pinned ? `Unpin ${name}` : `Pin ${name}`) testId=`library-card-pin-${fileId}`
+        image "symbol:pin"
+      if path != ""
+        button press=shareLibraryPath(path) class=IconButton aria-label=`Share ${name}` testId=`library-card-share-${fileId}`
+          image "symbol:share"
+      do-library-download address=url filename=name width=88 height=32 role="button" aria-label=`Download ${name}` testId=`library-card-download-${fileId}`
+
+shape LibraryPicture
+  id: string
+  name: string
+  url: string
+
+// The caller owns the collection; the dialog keeps only where the reader is in it.
+component LibraryPictureViewer
+  props
+    pictures: LibraryPicture[]
+    tag: string
+  state at = 0
+  action pictureKey(k: string)
+    if k == "ArrowLeft"
+      previous()
+    else if k == "ArrowRight"
+      next()
+  derive picture = match pictures.at(at) { case some(p) => p, case none => LibraryPicture(id="", name="", url="") }
+  action open
+    showModal("library-pictures")
+  action previous
+    at = pictures.length > 0 ? (at + pictures.length - 1) % pictures.length : 0
+  action next
+    at = pictures.length > 0 ? (at + 1) % pictures.length : 0
+  action keys(key: string)
+    if key == "ArrowLeft"
+      previous()
+    else if key == "ArrowRight"
+      next()
+  view
+    column
+      button press=open class=MenuItem testId=`pictures-open-${tag}`
+        text "View pictures"
+      dialog id="library-pictures" aria-label="Pictures" key=keys max-width="95vw" background-color="canvas" color="ink" padding=16 testId=`pictures-${tag}`
+        column gap=12
+          row gap=8 align-items="center"
+            text picture.name flex=1 min-width=0 overflow-wrap="break-word"
+            if pictures.length > 1
+              text `${at + 1} of ${pictures.length}` font-size="0.8125rem" color="ink.muted"
+              button press=previous class=IconButton aria-label="Previous picture" testId=`pictures-previous-${tag}`
+                image "symbol:back"
+              button press=next class=IconButton aria-label="Next picture" testId=`pictures-next-${tag}`
+                image "symbol:forward"
+            do-library-download address=picture.url filename=picture.name width=100 height=32 role="button" aria-label="Download picture"
+            button commandfor="library-pictures" command="close" class=IconButton aria-label="Close pictures" testId=`pictures-close-${tag}`
+              image "symbol:close"
+          image picture.url alt=picture.name max-width="85vw" max-height="75vh" object-fit="contain"

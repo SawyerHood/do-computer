@@ -26,6 +26,7 @@ members App
   derive quietKey = `${openAgentId}:${draft}:${chat.messages.length}:${chat.busy}:${moodEnd}`
   derive openMood = openBase.state != "idle" and openBase.state != "error" ? openBase : moodEnd != "" ? Mood(state=moodEnd, variant="") : openDood.asking ? Mood(state="waiting", variant="") : draft != "" and draft != moodHeard ? Mood(state="listening", variant="") : moodDozed == quietKey ? Mood(state="asleep", variant="") : Mood(state="idle", variant="")
   derive liveFaces = doodList.map(d => liveFace(d, openAgentId, openMood, hatchingFor, hatchedHere))
+  derive liveSeeds = liveFaces.map(f => f.seed)
 
   task listening key=draft
     after(2500, heardDraft)

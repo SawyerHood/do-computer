@@ -271,3 +271,17 @@ React reference capture and the screenshot list. Its prepare step copies the com
 tree, including lazy chunks; copying only the top-level JS files is not enough for rich tags.
 The older creature-only gallery can keep its small mirror because dispatch to rich content
 is lazy, and its three tests are regression-tested separately.
+## Library access hatches
+
+`do-library-download` owns a browser download button. `address` is the short-lived library view
+URL (never a bearer), `filename` the downloaded name. It fetches the bytes into a Blob so that
+cross-origin URLs download instead of navigating. `message` reports `downloaded` or `error:…`.
+
+`do-library-format` is an invisible selection hatch for the Contract textarea `library-editor`.
+`marks` is a formatting name and serial (`Bold:1`), `draft` the current text. It emits the new
+text as `message`; Contract still owns editing, autosave, revision checks and errors.
+
+`do-library-frame` speaks to the Contract iframe `library-page`: initial/load/theme-change
+MCP host-context messages, and `dc-library-open` messages only from that frame's window. Its
+`colour` is the Dood's accent. Contract validates a requested path against the current listing.
+The sandbox stays authored in Contract; this hatch never gives it same-origin permission.

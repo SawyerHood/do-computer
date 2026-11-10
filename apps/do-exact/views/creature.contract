@@ -35,9 +35,11 @@ component DoodFace
     size: number
   inject
     liveFaces: Face[]
-  // The live face of the Dood that grows from this seed, as AgentFace reads its mood by its id.
-  derive live = match first(liveFaces.filter(f => f.seed == seed)) {
-    case some(f) => f,
+    liveSeeds: string[]
+  // The live face of the Dood that grows from this seed, as AgentFace reads its mood by its id:
+  // found by its place among the seeds, a person's Doods being few.
+  derive live = match liveFaces.at(liveSeeds.indexOf(seed)) {
+    case some(f) => liveSeeds.indexOf(seed) >= 0 ? f : Face(id="", seed=seed, state=state, variant="", outfit="{}", hatched=true, hatching=false),
     case none => Face(id="", seed=seed, state=state, variant="", outfit="{}", hatched=true, hatching=false)
   }
   // Drawn 12% past its box on each side, as AgentAvatar's canvas is: the creature keeps room

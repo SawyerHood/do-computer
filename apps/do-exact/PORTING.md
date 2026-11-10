@@ -108,6 +108,10 @@ views/panel*.contract     members: the creature's live state (panel-mood), its h
 views/care*.contract      members: the creature, treats, the box. CreatureCare, BoxWindow
 views/wardrobe.contract   members: dressing. WardrobeWindow, CreatureWindows (drawn at the root)
 views/welcome.contract    members: the first run. WelcomeScene over everything, FirstHello in a chat
+views/settings-kit.contract  the settings' frame (DoodSettings, AccountSettings,
+                          WorkspaceSettingsFrame: the settings window's card, its list of sections
+                          beside the open one) and pieces (SettingsSection, SettingsCard,
+                          SettingsRow, SettingsList, SettingsItem, SettingsEmpty, Confirm, styles)
 views/<area>.contract     each other page: a placeholder screen in DoodScreen or WorkspaceScreen
 views/transport.contract  members: tickets kept ready for the sockets, and their pings (no screen)
 data/api.ts               the session, ask/get/post/put/patch/del, reply, ownerOf/current, follow
@@ -160,7 +164,11 @@ parallel merges.
   with them; the type is Geist; icons are `symbol:icon.<name>` from `app.tamber` (add one to
   `tools/phosphor-icons.mjs`, run it, list it in `icons`). Shared looks are styles in
   `views/styles.contract`. A page that is not the chat is drawn in `DoodScreen` or
-  `WorkspaceScreen`, which give it the header, its title and a lead line.
+  `WorkspaceScreen`, which give it the header, its title and a lead line. A page that is a
+  section of the React app's settings window is drawn in `DoodSettings` (a Dood's),
+  `AccountSettings` (the person's own) or `WorkspaceSettingsFrame` (a workspace's), from
+  `views/settings-kit.contract`, whose list of sections names its route (`doodEntries` and the
+  others there).
 
 ### Adding an area: the library, say
 
@@ -357,8 +365,9 @@ controls and text need a browser probe while an official `./x agent` drive owns 
 - **Tests.** Every feature gets tests in `<area>.test.contract` that drive it against the real
   server. Someone signed in with no Dood gets the first run's scene over everything, 400 ms after
   the list says so: a test that taps `new-dood` (or `first-dood`) at once, as the six lines do
-  followed by that tap, has its Dood before the scene comes, and never sees it. Each starts signed out with empty storage, on a server the whole run shares, so it
-  signs up first with the same six lines and an address no other test uses.
+  followed by that tap, has its Dood before the scene comes, and never sees it. Each starts
+  signed out with empty storage, on a server the whole run shares, so it signs up first with
+  the same six lines and an address no other test uses.
 - **Looks.** The React app's look wins where it and Exact's platform look differ on the web:
   its colours, type and shapes, from `app.tamber` and `views/styles.contract`. Wide windows
   get the sidebar beside the content; narrow ones a stack. Compare against the React app's
