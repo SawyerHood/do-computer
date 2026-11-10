@@ -93,7 +93,7 @@ fn dayOf(at: number, offset: number): string = match formatDate(at, offset, "med
 fn ago(at: number, now: number, offset: number): string =
   now - at < 60000 ? "now" : now - at < 3600000 ? `${floor((now - at) / 60000)}m` : now - at < 86400000 ? `${floor((now - at) / 3600000)}h` : now - at < 604800000 ? weekdayOf(at, offset) : dayOf(at, offset)
 
-fn pageName(route: string): string = route == "dood" ? "Chat" : route == "library" ? "Library" : route == "automations" ? "Automations" : route == "skills" ? "Skills" : route == "connectors" ? "Connectors" : route == "computers" ? "Computers" : route == "permissions" ? "Permissions" : route == "profile" ? "Profile" : route == "settings" ? "Settings" : route == "people" ? "People" : route == "workspaceSettings" ? "Workspace settings" : route == "workspace" ? "Workspace" : ""
+fn pageName(route: string): string = route == "dood" ? "Chat" : route == "library" ? "Library" : route == "automations" ? "Automations" : route == "skills" ? "Skills" : route == "connectors" ? "Connectors" : route == "computers" ? "Computers" : route == "permissions" ? "Permissions" : route == "profile" ? "Profile" : route == "settings" ? "Settings" : route == "memory" ? "Memory" : route == "model" ? "Model and computers" : route == "usage" ? "Usage" : route == "people" ? "People" : route == "workspaceSettings" ? "Workspace settings" : route == "workspace" ? "Workspace" : ""
 
 // The sidebar: every workspace's Doods, under its name where there is more than one, and the
 // account at the foot. It is the stack's first route, which a wide window shows beside the page.

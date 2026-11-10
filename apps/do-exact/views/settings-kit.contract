@@ -97,7 +97,6 @@ style GhostButton
   background-color="transparent" color="ink.muted" border="none"
   :hover
     background-color="wash"
-    color="ink"
   :disabled
     opacity=0.5
 
@@ -112,14 +111,10 @@ style DangerButton
 style SettingsField
   min-height="2.25rem" padding="0 10px" border-radius=8 border="1px solid var(--input)" font-size="0.875rem"
   background-color="transparent" color="ink" font-family="Geist" min-width=0
-  :focus-visible
-    border-color="ink.muted"
 
 style SettingsTextArea
   padding="8px 10px" border-radius=8 border="1px solid var(--input)" font-size="0.875rem" line-height=1.5
   background-color="transparent" color="ink" font-family="Geist" min-width=0
-  :focus-visible
-    border-color="ink.muted"
 
 style FieldName
   font-size="0.875rem" font-weight=500 color="ink"

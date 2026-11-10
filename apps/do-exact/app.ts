@@ -5,6 +5,7 @@ import { setApi } from './data/api.ts';
 import { chatSources } from './data/chat.ts';
 import { sessionSources } from './data/session.ts';
 import { shellSources } from './data/shell.ts';
+import { doodSettingsSources } from './data/settings-dood.ts';
 
 // The deployment's address, a setting (app.json "env") that only this file may read: the
 // environment's value, else the server server.ts starts. `./x` sets it per checkout.
@@ -17,6 +18,8 @@ const sources: Sources = {
   ...sessionSources,
   ...shellSources,
   ...chatSources,
+  // --- settings ---
+  ...doodSettingsSources,
   // A new area spreads its sources here.
 };
 
