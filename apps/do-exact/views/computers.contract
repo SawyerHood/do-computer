@@ -1,8 +1,12 @@
-use Page, Reply, Session, Dood, Workspace from "./shapes.contract"
+use Page, Session, Dood, Workspace from "./shapes.contract"
 use doodOf, nameOf from "./shell.contract"
 use WorkspaceSettingsFrame, SettingsCard, SettingsRow, SettingsEmpty, OutlineButton, SettingsField, Hint, SmallHint, FieldName, Confirm from "./settings-kit.contract"
 use PrimaryButton, Screen from "./styles.contract"
 
+shape ComputerReply
+  owner: string
+  ok: bool
+  error: string
 shape ComputerFolder
   agentId: string
   path: string
@@ -49,7 +53,13 @@ shape Computers
   canChange: bool
 shape PairingCode
   code: string
+shape PairingReply
+  owner: string
+  code: string
+  ok: bool
+  error: string
 shape Pairing
+  error: string
   owner: string
   code: string
   name: string
@@ -61,12 +71,12 @@ members App
   resource computers = loadComputers(session.owner, onRoute == "computers" ? computerWorkspaceId : "") as shape Computers else empty()
   resource pairingAddress = pairingCodeFromAddress(onRoute == "pair" ? top(nav).url : "") as shape PairingCode else empty()
   state pairingTypedCode = ""
-  derive pairingCode = pairingTypedCode != "" ? pairingTypedCode.trim() : pairingAddress.code
+  derive pairingCode = (pairingTypedCode != "" ? pairingTypedCode.trim() : pairingAddress.code).toUpperCase()
   resource pairing = readPairing(session.owner, onRoute == "pair" ? pairingCode : "") as shape Pairing else empty()
-  mutation computerChanged as shape Reply refreshes computers
-  mutation computerAdded as shape Reply refreshes computers then afterComputerAdd
-  mutation computerBrowserSaved as shape Reply refreshes computers
-  mutation computerPaired as shape Reply refreshes computers then afterComputerPair
+  mutation computerChanged as shape ComputerReply refreshes computers
+  mutation computerAdded as shape ComputerReply refreshes computers then afterComputerAdd
+  mutation computerBrowserSaved as shape ComputerReply refreshes computers
+  mutation computerPaired as shape PairingReply refreshes computers then afterComputerPair
   state computerAddOpen = false
   state computerKind = ""
   state computerName = ""
@@ -81,22 +91,30 @@ members App
   derive computerInstall = computersOurs ? computers.install : ""
   derive computerShowBrowser = computersOurs and computers.showBrowser
   derive computerCanChange = computersOurs and computers.canChange
-  derive computerChosenKind = computerKind != "" ? computerKind : computers.preferred
+  derive computerChosenKind = computerKind != "" and computerKinds.filter(k => k.id == computerKind).length > 0 ? computerKind : computers.preferred
   derive computersLoading = pending(computers)
   derive computersFailed = failed(computers)
   derive computersBusy = pending(computerChanged) or pending(computerAdded) or pending(computerBrowserSaved)
-  derive computersError = pending(computerChanged) ? "" : match computerChanged { case some(r) => r.error, case none => "" }
-  derive computerAddError = pending(computerAdded) ? "" : match computerAdded { case some(r) => r.error, case none => "" }
-  derive computerBrowserError = pending(computerBrowserSaved) ? "" : match computerBrowserSaved { case some(r) => r.error, case none => "" }
+  derive computersError = pending(computerChanged) ? "" : match computerChanged { case some(r) => (r.owner == session.owner ? r.error : ""), case none => "" }
+  derive computerAddError = pending(computerAdded) ? "" : match computerAdded { case some(r) => (r.owner == session.owner ? r.error : ""), case none => "" }
+  derive computerBrowserError = pending(computerBrowserSaved) ? "" : match computerBrowserSaved { case some(r) => (r.owner == session.owner ? r.error : ""), case none => "" }
   derive pairingLoading = pending(pairing)
-  derive pairingFailed = failed(pairing)
+  derive pairingFailed = failed(pairing) or (pairing.owner == session.owner and pairing.code == pairingCode and pairing.error != "")
   derive pairingBusy = pending(computerPaired)
-  derive pairingError = pending(computerPaired) ? "" : match computerPaired { case some(r) => r.error, case none => "" }
-  derive pairingOurs = pairing.owner == session.owner and pairing.code == pairingCode and pairingCode != ""
+  derive pairingError = pending(computerPaired) ? "" : match computerPaired { case some(r) => (r.owner == session.owner and r.code == pairingCode ? r.error : ""), case none => "" }
+  derive pairingOurs = pairing.owner == session.owner and pairing.code == pairingCode and pairingCode != "" and pairing.error == ""
   derive pairingOffered = doodList.filter(d => pairingWorkspace == "" or d.workspaceId == pairingWorkspace)
   derive pairingSelected = pairingChosenExplicit ? pairingChosen.filter(id => pairingOffered.filter(d => d.id == id).length > 0) : (doodList.length == 1 ? doodList.map(d => d.id) : [])
   task computerPoll mount
     every(5000, retryComputers)
+  task pairingAddressChanged key=`${session.owner}:${pairingAddress.code}`
+    after(1, resetPairingForm)
+  action resetPairingForm
+    pairingTypedCode = ""
+    pairingWorkspace = ""
+    pairingChosen = []
+    pairingChosenExplicit = false
+    pairingDone = false
   task pairingChanged key=`${session.owner}:${pairingCode}`
     after(1, resetPairing)
   action resetPairing
@@ -117,9 +135,13 @@ members App
     if not computersBusy and computerChosenKind != ""
       send computerAdded = addComputer(session.owner, computerChosenKind, computerName, computerWorkspaceId)
   action afterComputerAdd
-    if computerAddError == ""
-      computerAddOpen = false
-      computerName = ""
+    match computerAdded
+      case some(r)
+        if r.ok and r.owner == session.owner
+          computerAddOpen = false
+          computerName = ""
+      case none
+        computerAddOpen = false
   action setComputerBrowser(v: bool)
     if not computersBusy
       send computerBrowserSaved = showComputerBrowser(session.owner, computerWorkspaceId, v)
@@ -131,12 +153,18 @@ members App
   action choosePairingDood(id: string, checked: bool)
     pairingChosenExplicit = true
     pairingChosen = checked ? pairingSelected.concat([id]) : pairingSelected.filter(x => x != id)
+  action retryPairing
+    refresh pairing
   action pairComputer
     if pairingOurs and not pairingBusy
       send computerPaired = confirmPairing(session.owner, pairingCode, pairingWorkspace, pairingSelected)
   action afterComputerPair
-    if pairingError == ""
-      pairingDone = true
+    match computerPaired
+      case some(r)
+        if r.ok and r.owner == session.owner and r.code == pairingCode
+          pairingDone = true
+      case none
+        pairingDone = false
 
 component ComputersScreen
   props
@@ -246,7 +274,7 @@ component ComputerCommand
   view
     column gap=6
       text label class=Hint
-      text command white-space="pre-wrap" overflow-wrap="anywhere" font-family="Geist Mono" font-size="0.75rem" testId=testId
+      text command white-space="pre-wrap" hyphens="auto" font-family="Geist Mono" font-size="0.75rem" testId=testId
       button press=copy class=OutlineButton align-self="start" testId=`${testId}-copy`
         text (copied ? "Copied" : "Copy command")
 
@@ -294,15 +322,13 @@ component ComputerCard
     SettingsCard(testId=`computer-${computer.id}`)
       row align-items="start" flex-wrap="wrap" gap=12
         column flex=1 min-width=0 gap=4
-          text computer.name role="heading" aria-level=3 font-family="Geist Mono" font-size="0.9375rem" font-weight=600 overflow-wrap="anywhere"
+          text computer.name role="heading" aria-level=3 font-family="Geist Mono" font-size="0.9375rem" font-weight=600 hyphens="auto"
           text computer.description class=SmallHint
         if not computer.machine
           text (computer.online ? "Online" : "Offline") class=SmallHint padding="3px 8px" background-color="wash" border-radius=6
       if not computer.machine
         SettingsRow(label="Screen", hint=computer.screen, testId=`computer-screen-${computer.id}`)
-          text "Last reported by the runner; offline diagnostics may be stale." class=SmallHint
         SettingsRow(label="Browser", hint=computer.browser, testId=`computer-browser-${computer.id}`)
-          text "Last reported by the runner; offline diagnostics may be stale." class=SmallHint
       SettingsRow(label="Belongs to", hint="", testId=`computer-owner-row-${computer.id}`)
         if not computer.machine and computer.pairedBy == session.userId and workspaceList.filter(w => w.kind == "team").length > 0
           select value=computer.workspaceId change=move disabled=busy aria-label=`Who ${computer.name} belongs to` testId=`computer-owner-${computer.id}`
@@ -328,7 +354,7 @@ component ComputerCard
         text `${everyone} can work on it, each in a folder of its own.` class=Hint
       else if computer.online
         if computer.stale
-          text ((updateSent and not busy and computersError == "") ? "Its daemon is being replaced. It will be back in a moment." : "Its daemon is out of date and does not update itself. Update it from here, or run the install command there again.") class=Hint
+          text (((updateSent or computer.daemon == "updating") and not busy and computersError == "") ? "Its daemon is being replaced. It will be back in a moment." : "Its daemon is out of date and does not update itself. Update it from here, or run the install command there again.") class=Hint
         else
           text (computer.agentIds.length == 0 ? "No Dood can work on it until one is connected. A Dood can also ask." : "Its Doods can work on it now.") class=Hint
       else
@@ -358,7 +384,7 @@ component ComputerConnections
       for id in computer.agentIds key=id
         row flex-wrap="wrap" gap=8 align-items="center"
           text nameOf(doodOf(doodList, id)) font-size="0.875rem"
-          text (match first(computer.folders.filter(f => f.agentId == id)) { case some(f) => f.path, case none => "" }) class=SmallHint overflow-wrap="anywhere"
+          text (match first(computer.folders.filter(f => f.agentId == id)) { case some(f) => f.path, case none => "" }) class=SmallHint hyphens="auto"
           if chosen
             button press=change(computer.id, "disconnect", id, false) disabled=busy class=OutlineButton aria-label=`Disconnect ${nameOf(doodOf(doodList, id))} from ${computer.name}` testId=`computer-disconnect-${computer.id}-${id}`
               text "Disconnect"
@@ -384,6 +410,7 @@ component PairComputerScreen
     choosePairingWorkspace: action
     choosePairingDood: action
     pairComputer: action
+    retryPairing: action
   view
     column navigationKey=page.key navigationScroll="pair-scroll" position="absolute" inset=0 class=Screen
       scroll id="pair-scroll" flex=1 min-height=0
@@ -394,7 +421,7 @@ component PairComputerScreen
             text "Connected" role="heading" aria-level=1 font-size="1.5rem" font-weight=600 testId="pair-connected"
             text `${pairing.name} is connected. The daemon in your terminal will connect in a moment; you can close this page. ${pairingSelected.length == 0 ? "No Dood can use it yet: connect one under Computers, or let a Dood ask." : "Your chosen Doods can work on it."}` class=Hint
           else
-            text "Connect this computer?" role="heading" aria-level=1 font-size="1.5rem" font-weight=600
+            text "Connect this computer?" role="heading" aria-level=1 font-size="1.5rem" font-weight=600 hyphens="auto"
             text "Check that this is the machine you just ran the command on." class=Hint
             text "Pairing code" class=FieldName
             input value=pairingCode input=editPairingCode aria-label="Pairing code" autocomplete="off" class=SettingsField testId="pair-code"
@@ -402,12 +429,16 @@ component PairComputerScreen
               progress aria-label="Looking up computer" testId="pair-loading"
             if pairingFailed
               text "That code did not work. It may have expired; codes last ten minutes. Run the install command again on the computer to get a fresh link." role="alert" class=Hint testId="pair-invalid"
+              if pairing.error != ""
+                text pairing.error class=SmallHint role="alert"
+              button press=retryPairing class=OutlineButton testId="pair-retry"
+                text "Try again"
             if pairingOurs
               SettingsCard(testId="pair-details")
                 text `Code: ${pairing.code}` font-family="Geist Mono" font-size="0.875rem"
                 text `Name: ${pairing.name}` font-family="Geist Mono" font-size="0.875rem"
-                text `Host: ${pairing.hostname}` class=Hint overflow-wrap="anywhere"
-                text `Home: ${pairing.home}` class=SmallHint overflow-wrap="anywhere"
+                text `Host: ${pairing.hostname}` class=Hint hyphens="auto"
+                text `Home: ${pairing.home}` class=SmallHint hyphens="auto"
               text (pairing.readOnly ? "A Dood connected to it will be able to read any file your account can read on this computer. It will not be able to run commands or change anything." : "A Dood connected to it will be able to run any command and read and change any file your account can on this computer, without asking first. Only connect a machine you are comfortable handing over.") role="note" padding=16 border="1px solid var(--border)" border-radius=16 class=Hint
               text "Whose computer is it?" class=FieldName
               select value=pairingWorkspace change=choosePairingWorkspace aria-label="Whose computer is it?" testId="pair-workspace"
@@ -425,4 +456,4 @@ component PairComputerScreen
               button press=pairComputer disabled=pairingBusy class=PrimaryButton testId="pair-confirm"
                 text (pairingBusy ? "Connecting…" : "Connect this computer")
 
-fn computerAgo(now: number, at: number): string = now - at < 60000 ? "just now" : now - at < 3600000 ? `${round((now - at) / 60000)} min ago` : now - at < 172800000 ? `${round((now - at) / 3600000)} h ago` : `${round((now - at) / 86400000)} days ago`
+fn computerAgo(now: number, at: number): string = now - at < 60000 ? "just now" : now - at < 3600000 ? `${round((now - at) / 60000)} min ago` : now - at < 172800000 ? `${round((now - at) / 3600000)} h ago` : `${round((now - at) / 86400000)} d ago`

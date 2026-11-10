@@ -46,3 +46,16 @@ test "automations are empty until requested in chat"
   tap "Delete"
   clock data
   expect state automationItems.length == 0
+  back
+  clock settle
+  fail fetch "/api/agents/"
+  tap "pages-dood"
+  tap "go-automations-dood"
+  clock settle
+  clock data
+  expect tree has "automations-failed"
+  pass fetch "/api/agents/"
+  tap "automations-retry"
+  clock settle
+  clock data
+  expect tree missing "automations-failed"

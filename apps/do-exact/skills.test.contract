@@ -32,3 +32,16 @@ test "a saved skill can be read, disabled, enabled and deleted"
   tap "skill-install"
   clock data
   expect tree has "skill-install-error"
+  back
+  clock settle
+  fail fetch "/api/agents/"
+  tap "pages-dood"
+  tap "go-skills-dood"
+  clock settle
+  clock data
+  expect tree has "skills-failed"
+  pass fetch "/api/agents/"
+  tap "skills-retry"
+  clock settle
+  clock data
+  expect tree missing "skills-failed"

@@ -28,11 +28,21 @@ what Exact cannot do yet.
   reply arriving as it is written over the chat's event stream. Text is drawn as Markdown;
   thinking, tool calls and notices each have a plain row. Sending a message. Its panel beside
   the chat, from its face in the pill.
-- A Dood's other pages, from the pill's menu: library, automations, skills, connectors,
-  computers, permissions, profile, settings; and a workspace's page, people and settings. Each
-  is a titled placeholder for now.
-- Tests (`chat.test.contract`, `shell.test.contract`, `sign-in.test.contract`) that drive all
-  of that against Do Computer's own server on the web host, and `./x verify` clean.
+- Skills: install from a URL, read all the files, enable/disable and delete, in the shared
+  settings frame. Automations: schedule/check/run metadata, pause/resume, run now, delete and
+  links to the last run; creating and editing happens in chat, as in React.
+- Connectors: MCP URL/token/client credentials, tool lists, reconnect, switches and removal;
+  the apps gateway and its OAuth sign-in; Slack setup, connection/removal and a 1024 px bot
+  picture download. Credentials are password fields, not persisted form state or returned data.
+- Computers: the workspace's machines and paired computers, adapter diagnostics, access,
+  ownership transfer, Dood grants, requests, daemon update/removal, add-machine kinds and the
+  install/read-only commands. `/pair?code=…` verifies the daemon's code, owner and Dood selection.
+- The other pages remain placeholders here: library, permissions, profile and settings,
+  and a workspace's people/settings. Other Exact area branches fill those in.
+- Tests (`chat`, `shell`, `sign-in`, `skills`, `connectors`, `computers` and `automations`
+  `.test.contract` files) that drive all
+  of that against Do Computer's own server on the web host. `./x verify` also checks sizes,
+  themes, largest text, reload and relaunch.
 
 ## Run it
 
@@ -68,13 +78,19 @@ above pin `EXACT_PORT`.
   app's `fetch` has no cookie jar on a native host, and a browser sends none across origins.
 - **`DC_CLIENT_ORIGINS`.** Origins of client apps served from somewhere else. They get CORS
   headers (without credentials) and may sign in. See `apps/web/src/server/client-origins.ts`.
+- **A connector OAuth return for bearer clients.** A validated `client_return` registers the
+  Exact origin's `/a/:id/connectors` as the place to return. The gateway sends the browser back there, and Exact finishes once with its bearer session (`dc_client=1`).
+  Only success/error comes back, never connector credentials. Both an allowed development
+  origin and the server's own origin are accepted; unrelated origins and non-connector paths
+  are refused. The existing React-cookie and desktop callback paths are unchanged.
 
 ## What is not
 
 In the order it would be built:
 
-1. **The pages' bodies.** Every page but the chat is a placeholder (PORTING.md says how to fill
-   one in). The creature is drawn, but not petted, dressed or hatched in the shell yet.
+1. **The other pages' bodies.** Library, permissions, profile and account/team settings are
+   placeholders on this branch; skills, connectors, computers and automations have real bodies.
+   PORTING.md says how areas are joined. The creature is not petted, dressed or hatched here.
 2. **The rest of a chat.** Approvals, queued messages and Stop, earlier history, attachments and
    pictures, side chats and sub-agents, code blocks with highlighting, tables.
 3. **The rest of the shell.** Naming and hatching with the egg, starting a team and answering
@@ -110,3 +126,32 @@ In the order it would be built:
 - An import of a file outside the app's folder is refused unless it is mounted, and a mount
   works well: `./protocol/chat.ts` is `packages/protocol/src/chat.ts`, so the app applies chat
   events with the same `reduceChat` as every other client.
+
+## Tools-area checks (2026-11-10)
+
+`skills.test.contract`, `connectors.test.contract`, `computers.test.contract` and
+`automations.test.contract` use the real echo server. They cover tool-created skills and
+schedules, read/toggle/delete, pause/resume/run/history, validation, browser preference,
+invalid pairing and recovery from failed HTTP loads. The OAuth bridge has seven server tests
+in `apps/web/src/server/connectors-client.test.ts`. A supplemental real-browser run also
+checked multi-Dood pairing with a lowercase code, grants, request denial/approval, ownership
+transfer, daemon-update command receipt (a protocol fixture, not installation on a real
+computer), MCP token/tools/toggle/OAuth, Slack PNG export and paired-computer revocation.
+Typechecking `apps/web` passed. The shared settings kit was copied unchanged from
+`exact-settings` at `941da6f`.
+
+For the tools worker on bee, slot 6's API port 3917 was occupied by an unrelated Do Code
+server. Checks used `API_BASE_URL=http://127.0.0.1:3927 ./x …` and the assigned Exact port 8772;
+no process on 3917 was changed. This is a local test override, not a new deployment address.
+The supplemental browser check and reference photographs are kept under `.exact/` in that
+worktree (not committed): `.exact/integration.mjs` and `.exact/shots/tools/`. It starts local
+MCP/OAuth and daemon-protocol fixtures, but drives the real Do Computer API and Exact page.
+External Slack/apps credentials and real cloud-machine provisioning are not used.
+
+The final verifier passed all 11 tests and ordinary phone/wide, light/dark and reload checks;
+three findings remain only at its largest text size, in the shared heading/pill (GAPS.md).
+Forty comparison screenshots (five sections × two sizes × two schemes × two apps) were read:
+the settings layout, typography, cards and dark colours are recognisable against React.
+Exact keeps a route rather than the dimmed-chat overlay, a fixed sidebar rather than React's
+rail, a default rather than per-Dood accent, and slightly roomier computer rows. On a phone
+Slack's picture explanation/download wraps rather than squeezing its text into a narrow column.

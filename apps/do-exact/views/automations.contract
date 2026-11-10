@@ -1,7 +1,13 @@
-use Page, Reply from "./shapes.contract"
+use Page from "./shapes.contract"
+use OutlineButton, GhostButton from "./settings-kit.contract"
 use DoodScreen from "./shell.contract"
 use PrimaryButton, PageLead from "./styles.contract"
 
+shape AutomationReply
+  owner: string
+  agentId: string
+  ok: bool
+  error: string
 shape Automation
   id: string
   title: string
@@ -23,12 +29,12 @@ shape Automations
 
 members App
   resource automations = loadAutomations(session.owner, onRoute == "automations" ? openAgentId : "") with pulse.changes as shape Automations else empty()
-  mutation automationChanged as shape Reply refreshes automations
+  mutation automationChanged as shape AutomationReply refreshes automations
   derive automationItems = automations.owner == session.owner and automations.agentId == openAgentId ? automations.items : []
   derive automationsLoading = pending(automations)
   derive automationsFailed = failed(automations)
   derive automationsBusy = pending(automationChanged)
-  derive automationsError = pending(automationChanged) ? "" : match automationChanged { case some(r) => r.error, case none => "" }
+  derive automationsError = pending(automationChanged) ? "" : match automationChanged { case some(r) => (r.owner == session.owner and r.agentId == openAgentId ? r.error : ""), case none => "" }
   action changeAutomation(id: string, operation: string, enabled: bool)
     if not pending(automationChanged)
       send automationChanged = changeAutomation(session.owner, openAgentId, id, operation, enabled)
@@ -58,16 +64,16 @@ component AutomationsScreen
         if not automationsLoading and automationItems.length == 0 and not automationsFailed
           text "Nothing scheduled yet." padding=24 border="1px dashed var(--hairline)" border-radius=16 text-align="center" class=PageLead testId="automations-empty"
         for s in automationItems key=s.id
-          column padding=20 gap=12 border-radius=16 background-color="surface" border="1px solid var(--hairline)" testId=`automation-${s.id}`
+          column padding=20 gap=12 border-radius=16 background-color="popover" border="1px solid var(--border)" testId=`automation-${s.id}`
             row gap=12 align-items="start"
               column flex=1 min-width=0 gap=4
-                text s.title role="heading" aria-level=2 font-weight=600 overflow-wrap="anywhere"
+                text s.title role="heading" aria-level=2 font-weight=600 hyphens="auto"
                 text (s.next == "" ? s.schedule : `${s.schedule} · ${s.next}`) class=PageLead font-family="Geist Mono"
-              text s.status padding="3px 8px" border-radius=6 background-color="wash" font-size="0.75rem" testId=`automation-status-${s.id}`
+              text s.status padding="3px 8px" border-radius=6 background-color=(s.status == "Active" ? "tools.good" : "wash") color=(s.status == "Active" ? "tools.good.ink" : "ink.muted") font-size="0.75rem" testId=`automation-status-${s.id}`
             text s.prompt white-space="pre-wrap" font-size="0.875rem"
             if s.check != ""
               text s.check class=PageLead
-              text s.command white-space="pre-wrap" overflow-wrap="anywhere" padding=10 background-color="wash" font-family="Geist Mono" font-size="0.8125rem"
+              text s.command white-space="pre-wrap" hyphens="auto" padding=10 background-color="wash" font-family="Geist Mono" font-size="0.8125rem"
             if s.last != ""
               text s.last class=PageLead
             if s.chatId != ""
@@ -77,11 +83,11 @@ component AutomationsScreen
               text s.tally class=PageLead
             row gap=8 flex-wrap="wrap"
               if s.status != "Done"
-                button press=changeAutomation(s.id, "toggle", not s.enabled) disabled=automationsBusy testId=`automation-toggle-${s.id}`
+                button press=changeAutomation(s.id, "toggle", not s.enabled) disabled=automationsBusy class=OutlineButton testId=`automation-toggle-${s.id}`
                   text (s.enabled ? "Pause" : "Resume")
-              button press=changeAutomation(s.id, "run", s.enabled) disabled=(automationsBusy or s.running) testId=`automation-run-${s.id}`
+              button press=changeAutomation(s.id, "run", s.enabled) disabled=(automationsBusy or s.running) class=OutlineButton testId=`automation-run-${s.id}`
                 text (s.running ? "Running…" : "Run now")
-              button press=changeAutomation(s.id, "remove", s.enabled) disabled=automationsBusy testId=`automation-delete-${s.id}`
+              button press=changeAutomation(s.id, "remove", s.enabled) disabled=automationsBusy class=GhostButton margin-left="auto" testId=`automation-delete-${s.id}`
                 text "Delete"
         if automationItems.length > 0 and not automationsFailed
           button press=retryAutomations align-self="start" testId="automations-retry"
@@ -89,4 +95,4 @@ component AutomationsScreen
         if automationsError != ""
           text automationsError color="danger" role="alert" testId="automations-error"
         link href=path("dood", page.agentId) testId="automations-chat"
-          text "Ask in chat to create or edit an automation" font-size="0.875rem"
+          text "Ask in chat to create or edit an automation" color="ink.muted" font-size="0.875rem"

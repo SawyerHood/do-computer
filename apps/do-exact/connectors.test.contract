@@ -28,7 +28,23 @@ test "connector form, client credentials and Slack setup are reachable and valid
   tap "connector-cancel"
   tap "slack-open"
   expect tree has "slack-setup"
+  reload
+  clock data
+  expect tree has "slack-setup"
   expect tree has "slack-create"
   expect disabled "slack-connect"
   tap "slack-back"
   expect tree has "apps-offer"
+  back
+  clock settle
+  fail fetch "/api/agents/"
+  tap "pages-dood"
+  tap "go-connectors-dood"
+  clock settle
+  clock data
+  expect tree has "connectors-failed"
+  pass fetch "/api/agents/"
+  tap "connectors-retry"
+  clock settle
+  clock data
+  expect tree missing "connectors-failed"

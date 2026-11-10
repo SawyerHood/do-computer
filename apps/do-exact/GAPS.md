@@ -109,3 +109,55 @@ or after the command. The gallery is checked sequentially with `./x test web --s
 `./x agent web … "check both"` instead; the machine-wide lock and port policy are unchanged.
 The root app's own verify is not affected: it has a server, and runs clean. No Exact patch was
 made.
+
+## Skills, connectors, computers and automations
+
+**Settings are framed routes, not an overlay on a live chat.** The skills and connectors use
+`settings-kit.contract` unchanged from `exact-settings`; computers use its workspace frame.
+Their contents, section navigation and phone back links follow React's settings dialog, but
+there is no dimmed chat behind it. Filled buttons still use the app's default accent rather
+than each Dood's accent (see Type and colour above).
+
+**Connector sign-in is an explicit same-window step.** React starts a popup automatically
+(`components/settings/connectors.tsx`). After adding or reconnecting here, “Continue sign-in”
+navigates in the same window; the gateway returns to Exact, which completes with its bearer
+session and removes code/state from the address. Allowed client origins and the server's own
+origin are validated in `server/connectors.ts`. This avoids a fake popup result and works
+without a server-origin browser cookie. Native OAuth-session/popup presentation is not wired.
+
+**Slack's picture exporter is web-native.** `modules/web/connectors-picture.js` uses the same
+bundled mascot/wardrobe engine to make the 1024 px PNG, with the same flat-SVG fallback when
+WebGL is unavailable. As with the other mascot native views, it has no Linux/Apple native
+implementation. Those hosts show an explanation rather than a working-looking Download
+button. Slack itself and the apps gateway need the deployment's external credentials; setup,
+failures and MCP OAuth are tested locally, not a real Slack workspace or Composio account.
+
+**“This computer” is still a desktop feature.** React's `components/shell/this-computer.tsx`
+needs Electron's daemon bridge. Like React in a plain browser, this client instead shows the
+install and read-only commands, pairing, remote update and diagnostics. It cannot start,
+stop or configure the local desktop daemon. Adapter states are reported diagnostics, not
+new screen/browser-permission grants.
+
+**Computer requests are answered in Computers, not above the composer yet.** The real
+request/approve/deny endpoints are wired and the workspace's Computers page polls every five
+seconds. React also shows the request at the bottom of its chat (`computer-requests.tsx`);
+that composer integration belongs to the chat area and remains to be joined. Likewise a
+Dood's default/connected-computer controls in “Model and computers” belong to `exact-settings`;
+this branch handles the workspace's computer ownership and grants.
+
+**Schedules are asked for again while their page is open.** The list refreshes every three
+seconds and after each mutation, instead of React's live query. It shows checks, last outcome,
+counts and a link to the run chat. Creating/changing a schedule is done in chat, as in React;
+there is no invented form. Shared cloud-machine add/access paths require a deployment offering
+such a kind: the local echo deployment offers only its per-Dood built-in machine. Their UI
+and API wiring are present, but provisioning a paid cloud machine was not exercised.
+
+**At the very largest text size, the shared heading and pill still need room.** The final
+`./x verify` run passed all 11 tests, normal phone/wide light/dark checks, reload checks and
+runtime wiring, with no forced word-break findings. At its 53 px body-font probe it still
+finds three shared-frame problems: `heading-automations` and `pages-automations` in
+`shell.contract`, and `heading-connectors` in `settings-kit.contract`. The headings need
+hyphenation/room and the pill label needs a bound or wrapping. They were not hidden with
+`verify.accept`, and the kit was kept byte-for-byte as supplied by `exact-settings` at
+`941da6f`. These should be fixed in those owning areas when joined. The report is
+`.exact/verify/web-findings.txt` in the tools worktree.

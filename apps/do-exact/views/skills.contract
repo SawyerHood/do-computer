@@ -1,6 +1,11 @@
-use Page, Reply from "./shapes.contract"
-use DoodSettings, SettingsCard from "./settings-kit.contract"
+use Page from "./shapes.contract"
+use DoodSettings, SettingsCard, OutlineButton, GhostButton from "./settings-kit.contract"
 use Field, PrimaryButton, PageLead from "./styles.contract"
+shape SkillReply
+  owner: string
+  agentId: string
+  ok: bool
+  error: string
 shape Skill
   name: string
   description: string
@@ -16,6 +21,7 @@ shape SkillFile
   content: string
 shape SkillRead
   owner: string
+  agentId: string
   name: string
   files: SkillFile[]
 members App
@@ -23,17 +29,17 @@ members App
   state skillOpen = ""
   resource skills = loadSkills(session.owner, onRoute == "skills" ? openAgentId : "") with pulse.changes as shape Skills else empty()
   resource skillRead = readSkill(session.owner, onRoute == "skills" ? openAgentId : "", skillOpen) as shape SkillRead else empty()
-  mutation skillChanged as shape Reply refreshes skills, skillRead
-  mutation skillInstalled as shape Reply refreshes skills then afterSkillInstall
-  derive skillItems = skills.owner == session.owner and skills.agentId == openAgentId ? skills.items.map(s => Skill(s, files=(skillRead.owner == session.owner and skillRead.name == s.name and s.name == skillOpen ? skillRead.files : []))) : []
-  derive skillFiles = skillRead.owner == session.owner and skillRead.name == skillOpen ? skillRead.files : []
+  mutation skillChanged as shape SkillReply refreshes skills, skillRead
+  mutation skillInstalled as shape SkillReply refreshes skills then afterSkillInstall
+  derive skillItems = skills.owner == session.owner and skills.agentId == openAgentId ? skills.items.map(s => Skill(s, files=(skillRead.owner == session.owner and skillRead.agentId == openAgentId and skillRead.name == s.name and s.name == skillOpen ? skillRead.files : []))) : []
+  derive skillFiles = skillRead.owner == session.owner and skillRead.agentId == openAgentId and skillRead.name == skillOpen ? skillRead.files : []
   derive skillsLoading = pending(skills)
   derive skillsFailed = failed(skills)
   derive skillReading = pending(skillRead)
   derive skillReadFailed = failed(skillRead)
   derive skillsBusy = pending(skillChanged) or pending(skillInstalled)
-  derive skillsError = pending(skillChanged) ? "" : match skillChanged { case some(r) => r.error, case none => "" }
-  derive skillInstallError = pending(skillInstalled) ? "" : match skillInstalled { case some(r) => r.error, case none => "" }
+  derive skillsError = pending(skillChanged) ? "" : match skillChanged { case some(r) => (r.owner == session.owner and r.agentId == openAgentId ? r.error : ""), case none => "" }
+  derive skillInstallError = pending(skillInstalled) ? "" : match skillInstalled { case some(r) => (r.owner == session.owner and r.agentId == openAgentId ? r.error : ""), case none => "" }
   action editSkillUrl(v: string)
     skillUrl = v
   action openSkill(name: string)
@@ -89,19 +95,19 @@ component SkillsScreen
         button press=retrySkills testId="skills-retry"
           text "Try again"
       for s in skillItems key=s.name
-        column gap=12 padding=20 border-radius=16 background-color="surface" border="1px solid var(--hairline)" opacity=(s.enabled ? 1 : 0.7) testId=`skill-${s.name}`
+        column gap=12 padding=20 border-radius=16 background-color="popover" border="1px solid var(--border)" opacity=(s.enabled ? 1 : 0.7) testId=`skill-${s.name}`
           row gap=12 align-items="start" flex-wrap="wrap"
-            column flex=1 min-width=0 gap=4
-              text s.name role="heading" aria-level=2 font-family="Geist Mono" font-size="0.9375rem" font-weight=600 overflow-wrap="anywhere"
-              text s.source font-size="0.75rem" color="ink.muted" overflow-wrap="anywhere"
+            column flex="1 1 12rem" min-width=0 gap=4
+              text s.name role="heading" aria-level=2 font-family="Geist Mono" font-size="0.9375rem" font-weight=600 hyphens="auto"
+              text s.source font-size="0.75rem" color="ink.muted" hyphens="auto"
             row gap=6 align-items="center"
               input type="checkbox" role="switch" checked=s.enabled change=changeSkill(s.name, false) disabled=skillsBusy aria-label=`Use ${s.name}` testId=`skill-toggle-${s.name}`
               text "In use" class=PageLead
           text s.description font-size="0.875rem"
           row gap=8
-            button press=openSkill(s.name) testId=`skill-read-${s.name}`
+            button press=openSkill(s.name) class=OutlineButton testId=`skill-read-${s.name}`
               text (skillOpen == s.name ? "Hide" : "Read")
-            button press=changeSkill(s.name, true, false) disabled=skillsBusy testId=`skill-delete-${s.name}`
+            button press=changeSkill(s.name, true, false) disabled=skillsBusy class=GhostButton margin-left="auto" testId=`skill-delete-${s.name}`
               text "Delete"
           if skillOpen == s.name
             if skillReading
@@ -122,4 +128,4 @@ component SkillContents
       for f in files key=f.path
         column gap=4
           text f.path font-family="Geist Mono" font-size="0.75rem" color="ink.muted"
-          text f.content white-space="pre-wrap" overflow-wrap="anywhere" font-family="Geist Mono" font-size="0.8125rem" testId=`skill-content-${f.path}`
+          text f.content white-space="pre-wrap" hyphens="auto" font-family="Geist Mono" font-size="0.8125rem" testId=`skill-content-${f.path}`

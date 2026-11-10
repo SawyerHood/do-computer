@@ -27,10 +27,19 @@ export function connectorClientReturn(request: Request): string | undefined {
   try {
     const url = new URL(value)
     const allowed = [origin(request), ...getPlatform().config.clientOrigins]
-    if (url.username || url.password || url.search || url.hash ||
-      !allowed.includes(url.origin) || !/^\/a\/[^/]+\/connectors$/.test(url.pathname)) return undefined
+    if (
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      !allowed.includes(url.origin) ||
+      !/^\/a\/[^/]+\/connectors$/.test(url.pathname)
+    )
+      return undefined
     return url.toString()
-  } catch { return undefined }
+  } catch {
+    return undefined
+  }
 }
 
 /**
@@ -122,7 +131,8 @@ export async function connectorCallback(request: Request): Promise<Response> {
   const url = new URL(request.url)
   const client = url.searchParams.get("dc_client") === "1"
   const back = (agentId: string | undefined, outcome: Record<string, string>) => {
-    if (client) return json({ ok: outcome.connected !== undefined, error: outcome.connector_error ?? "" })
+    if (client)
+      return json({ ok: outcome.connected !== undefined, error: outcome.connector_error ?? "" })
     const target = new URL(agentId ? `/a/${agentId}/connectors` : "/", origin(request))
     for (const [key, value] of Object.entries(outcome)) target.searchParams.set(key, value)
     return Response.redirect(target.toString(), 302)
@@ -161,7 +171,10 @@ export async function connectorCallback(request: Request): Promise<Response> {
     return Response.redirect(app.toString(), 302)
   }
   const user = await getUser(request)
-  if (user === undefined) return client ? fail(401, "Sign in again to finish connecting") : Response.redirect(`${origin(request)}/login`, 302)
+  if (user === undefined)
+    return client
+      ? fail(401, "Sign in again to finish connecting")
+      : Response.redirect(`${origin(request)}/login`, 302)
 
   if (!fresh || row.user_id !== user.id) {
     return back(undefined, {

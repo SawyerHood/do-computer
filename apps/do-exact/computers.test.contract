@@ -23,6 +23,19 @@ test "computers explain both installation modes, browser visibility and invalid 
   clock data
   expect state computerShowBrowser == true
   tap "computer-command-copy"
+  back
+  clock settle
+  fail fetch "/api/computers"
+  tap "pages-dood"
+  tap "go-computers-dood"
+  clock settle
+  clock data
+  expect tree has "computers-failed"
+  pass fetch "/api/computers"
+  tap "computers-retry"
+  clock settle
+  clock data
+  expect tree missing "computers-failed"
   tap "computer-pair-page"
   clock settle
   clock data

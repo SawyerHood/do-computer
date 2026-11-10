@@ -101,6 +101,7 @@ component App
     choosePairingWorkspace
     choosePairingDood
     pairComputer
+    retryPairing
     connectorItems
     connectorNotice
     connectorsLoading

@@ -35,6 +35,11 @@ theme
   // Words on a Dood's or a workspace's own colour.
   ink.on-color = #ffffff  scheme=fixed
 
+  // A connected service or active automation, matching the React status badges.
+  tools.good = light-dark(oklch(0.696 0.17 162 / 0.15), oklch(0.696 0.17 162 / 0.15))
+  tools.good.ink = light-dark(oklch(0.508 0.118 166), oklch(0.845 0.143 165))
+  tools.warn = light-dark(oklch(0.828 0.189 84 / 0.15), oklch(0.828 0.189 84 / 0.15))
+
   // The platform's roles, so its own controls are in the same colours.
   AccentColor = primary
   -exact-label = ink

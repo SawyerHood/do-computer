@@ -10,7 +10,7 @@
 // Hrefs here are written out, not `path(…)`, so that a checkout that has not got every settings
 // route yet still builds. Keep component names and props stable: other areas copy this file.
 use Session, Workspace, Dood, Page from "./shapes.contract"
-use Screen, IconButton, PrimaryButton from "./styles.contract"
+use Screen, IconButton from "./styles.contract"
 use DoodHeader, doodOf, nameOf from "./shell.contract"
 use DoodFace from "./creature.contract"
 
@@ -38,13 +38,14 @@ fn doodEntries(agentId: string): SettingsEntry[] = [
 ]
 
 // What is the person's own, and what the deployment offers, for those who look after it (`OWN`, `SERVER`).
-fn accountEntries(admin: bool): SettingsEntry[] = [
+fn accountEntries(admin: bool, waitlist: bool): SettingsEntry[] = [
   SettingsEntry(route="general", href="/settings/general", label="General", icon="symbol:icon.gear", group=""),
   SettingsEntry(route="notifications", href="/settings/notifications", label="Notifications", icon="symbol:icon.bell", group=""),
   SettingsEntry(route="doodsList", href="/settings/doods", label="Doods", icon="symbol:icon.smiley", group=""),
   SettingsEntry(route="workspacesList", href="/settings/workspaces", label="Workspaces", icon="symbol:icon.squares-four", group="")
 ].concat(admin ? [
-  SettingsEntry(route="serverModels", href="/settings/server", label="Global models", icon="symbol:icon.hard-drives", group="Server"),
+  SettingsEntry(route="serverModels", href="/settings/server", label="Global models", icon="symbol:icon.hard-drives", group="Server")
+] : []).concat(admin and waitlist ? [
   SettingsEntry(route="waitlist", href="/settings/waitlist", label="Waiting list", icon="symbol:icon.hourglass", group="Server")
 ] : [])
 
@@ -112,8 +113,10 @@ style SettingsField
   min-height="2.25rem" padding="0 10px" border-radius=8 border="1px solid var(--input)" font-size="0.875rem"
   background-color="transparent" color="ink" font-family="Geist" min-width=0
 
+// It grows with what is typed, from four lines' height, as the React app's Textarea.
 style SettingsTextArea
   padding="8px 10px" border-radius=8 border="1px solid var(--input)" font-size="0.875rem" line-height=1.5
+  field-sizing="content" min-height="4rem"
   background-color="transparent" color="ink" font-family="Geist" min-width=0
 
 style FieldName
@@ -159,7 +162,8 @@ component SettingsFrame
     // Whose settings: the Dood's or workspace's name, or "Settings", and a few words under it.
     name: string
     kind: string
-    // The mark beside the name: a Dood's face where `seed` is not "", else a tile of `color` with `letter`.
+    // The mark beside the name: a Dood's face where `seed` is not "", else a tile of `color` (a
+  // hex) with `letter`, or with no colour a person's round face.
     seed: string
     color: string
     letter: string
@@ -168,27 +172,22 @@ component SettingsFrame
     // The list this one was chosen from ("Doods", "Workspaces"), "" for none.
     up: string
     upLabel: string
-    // A Dood's settings keep its pill over them; the others have a bar of their own.
+    // Where the cross goes: the page the settings were opened over.
+    close: string
+    // A Dood's settings keep its pill over them on a wide window.
     dood: bool
   slot
   inject
     wide: bool
-    back: action
   view
     column navigationKey=page.key navigationScroll=`scroll-${page.key}` position="absolute" inset=0 display="flex" flex-direction="column"
       class=Screen testId=`screen-${route}`
-      if dood
-        DoodHeader(page=page, route=route)
-      else
-        header appearance="none" display="flex" align-items="center" gap=6 padding="6px 10px" min-height=52 flex-shrink=0
-          if not wide
-            button press=back aria-label="Back" class=IconButton min-width="2.25rem" min-height="2.25rem" border-radius=999
-              box-shadow="0 0 0 1px var(--hairline)" testId=`back-${route}`
-              image "symbol:icon.sidebar"
-          text name role="heading" aria-level=1 font-size="0.9375rem" font-weight=600 padding="0 4px" testId=`title-${route}`
       if wide
+        // A Dood's settings keep its pill over them, as its other pages; the others need no bar.
+        if dood
+          DoodHeader(page=page, route=route)
         // The dialog's card, in the page's middle.
-        column flex=1 min-height=0 align-items="center" padding="4px 24px 24px"
+        column flex=1 min-height=0 align-items="center" padding=(dood ? "4px 24px 24px" : "24px")
           // The list of sections is laid over the card's start, so the section's scroll is the
           // route's own (the build warns of a scroll beside another box in a row).
           column position="relative" width="100%" max-width="56rem" flex=1 max-height="42rem" min-height=0 border-radius=16 overflow="hidden"
@@ -200,22 +199,29 @@ component SettingsFrame
                 column padding="28px 36px 36px" gap=24
                   SettingsHeading(route=route, title=title, lead=lead)
                   children
-              link href=(dood ? `/a/${page.agentId}` : (up != "" ? up : "/")) aria-label="Close" class=IconButton position="absolute" top=12 right=12
-                testId=`close-${route}`
+              link href=close aria-label="Close" class=IconButton position="absolute" top=12 right=12 testId=`close-${route}`
                 image "symbol:icon.x" font-size="1rem"
-      else if listing
-        scroll id=`scroll-${page.key}` flex=1 min-height=0 background-color="frame"
-          SettingsNav(route=route, entries=entries, name=name, kind=kind, seed=seed, color=color, letter=letter, up=up, upLabel=upLabel, phone=true)
       else
-        row min-height=44 align-items="center" padding="0 8px" flex-shrink=0 border-bottom="1px solid var(--hairline)"
-          link href=home aria-label=`Back to ${name}` display="flex" align-items="center" gap=4 padding="6px 8px" border-radius=8
-            color="ink.muted" text-decoration="none" font-size="0.875rem" min-width=0 testId=`settings-home-${route}`
-            image "symbol:icon.caret-left" aria-hidden=true
-            text name overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
-        scroll id=`scroll-${page.key}` flex=1 min-height=0
-          column padding="16px 20px 40px" gap=24
-            SettingsHeading(route=route, title=title, lead=lead)
-            children
+        // A phone's: the whole screen, the list or one section at a time, as the React app's
+        // dialog on a narrow screen. Back from a section goes to the list; the cross closes.
+        header appearance="none" display="flex" align-items="center" gap=6 padding="6px 8px" min-height=52 flex-shrink=0
+          background-color=(listing ? "frame" : "canvas") border-bottom="1px solid var(--hairline)"
+          if not listing
+            link href=home aria-label=`Back to ${name}` display="flex" align-items="center" gap=4 padding="6px 8px" border-radius=8 min-width=0
+              color="ink.muted" text-decoration="none" font-size="0.875rem" testId=`settings-home-${route}`
+              image "symbol:icon.caret-left" aria-hidden=true
+              text name overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`title-${route}`
+          column flex=1
+          link href=close aria-label="Close" class=IconButton min-width="2.25rem" min-height="2.25rem" testId=`close-${route}`
+            image "symbol:icon.x" font-size="1rem"
+        if listing
+          scroll id=`scroll-${page.key}` flex=1 min-height=0 background-color="frame"
+            SettingsNav(route=route, entries=entries, name=name, kind=kind, seed=seed, color=color, letter=letter, up=up, upLabel=upLabel, phone=true)
+        else
+          scroll id=`scroll-${page.key}` flex=1 min-height=0
+            column padding="16px 20px 40px" gap=24
+              SettingsHeading(route=route, title=title, lead=lead)
+              children
 
 // A section's title and the line under it.
 component SettingsHeading
@@ -256,8 +262,13 @@ component SettingsNav
         if seed != ""
           DoodFace(seed=seed, color=color, state="idle", name=name, size=32)
         else
-          column width=32 height=32 border-radius=8 background-color=color align-items="center" justify-content="center" flex-shrink=0
-            text letter color="ink.on-color" font-size="0.8125rem" font-weight=600
+          // A person's initials on the muted ink, as the React app's PersonFace; a workspace's on its colour.
+          if color == ""
+            column width="2rem" height="2rem" border-radius=16 background-color="ink.muted" align-items="center" justify-content="center" flex-shrink=0
+              text letter color="canvas" font-size="0.75rem" font-weight=600
+          else
+            column width="2rem" height="2rem" border-radius=8 background-color=color align-items="center" justify-content="center" flex-shrink=0
+              text letter color="ink.on-color" font-size="0.8125rem" font-weight=600
         column flex=1 min-width=0
           text name font-size="0.875rem" font-weight=600 overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`settings-name-${route}`
           text kind font-size="0.75rem" color="ink.muted" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
@@ -295,7 +306,7 @@ component DoodSettings
   view
     SettingsFrame(page=page, route=route, title=title, lead=lead, listing=listing, entries=doodEntries(page.agentId),
       name=nameOf(dood), kind=(w.kind == "team" ? `Dood in ${w.name}` : "Your Dood"), seed=dood.seed, color=dood.color, letter="",
-      home=`/a/${page.agentId}/settings`, up="/settings/doods", upLabel="Doods", dood=true)
+      home=`/a/${page.agentId}/settings`, up="/settings/doods", upLabel="Doods", close=`/a/${page.agentId}`, dood=true)
       children
 
 // One of the person's own settings, or what the deployment offers.
@@ -306,15 +317,18 @@ component AccountSettings
     title: string
     lead: string
     listing: bool
-    // They look after the deployment, so its sections are listed.
+    // They look after the deployment, so its sections are listed; the waiting list where it has one.
     admin: bool
+    waitlist: bool
+    // The page the settings were opened over, where the cross goes back to.
+    close: string
   slot
   inject
     session: Session
   view
-    SettingsFrame(page=page, route=route, title=title, lead=lead, listing=listing, entries=accountEntries(admin),
-      name="Settings", kind=session.name, seed="", color="#5b6672", letter=session.initials,
-      home="/settings", up="", upLabel="", dood=false)
+    SettingsFrame(page=page, route=route, title=title, lead=lead, listing=listing, entries=accountEntries(admin, waitlist),
+      name="Settings", kind=session.name, seed="", color="", letter=session.initials,
+      home="/settings", up="", upLabel="", close=close, dood=false)
       children
 
 // One of a workspace's settings.
@@ -327,12 +341,15 @@ component WorkspaceSettingsFrame
     listing: bool
   slot
   inject
+    session: Session
     workspaceList: Workspace[]
   derive w = workspaceOf(workspaceList, page.workspaceId)
+  // One's own workspace is marked with one's own face, a team's with its tile (WorkspaceMark).
+  derive own = w.kind != "team"
   view
     SettingsFrame(page=page, route=route, title=title, lead=lead, listing=listing, entries=workspaceEntries(w),
-      name=w.name, kind=(w.kind == "team" ? "Team" : "Only you"), seed="", color=w.color, letter=w.name.slice(0, 1).toUpperCase(),
-      home=`/w/${w.id}/settings`, up="/settings/workspaces", upLabel="Workspaces", dood=false)
+      name=w.name, kind=(own ? "Only you" : "Team"), seed="", color=(own ? "" : w.color), letter=(own ? session.initials : w.name.slice(0, 1).toUpperCase()),
+      home=`/w/${w.id}/settings`, up="/settings/workspaces", upLabel="Workspaces", close=`/w/${w.id}`, dood=false)
       children
 
 // --- Pieces ---
