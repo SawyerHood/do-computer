@@ -119,7 +119,7 @@ component Sidebar
     column navigationKey=key navigationSplit="288" navigationScroll="sidebar-list" position="absolute" inset=0
       display="flex" flex-direction="column" class=Frame border-right=(wide ? "1px solid var(--hairline)" : "none") testId="sidebar"
       header appearance="none" display="flex" align-items="center" gap=2 min-height=36 padding="8px 8px 0 16px"
-        text (named ? "Workspaces" : "Doods") role="heading" aria-level=1 flex=1 class=ListHeading
+        text "Doods" role="heading" aria-level=1 flex=1 class=ListHeading
         if not named
           for w in shown key=w.id
             WorkspaceMenuButton(workspace=w)

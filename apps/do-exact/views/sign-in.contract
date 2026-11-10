@@ -50,15 +50,17 @@ component SignIn
     editName: action
     toggleJoining: action
     sign: action
+  inject
+    wide: bool
   view
     column position="absolute" inset=0 align-items="center" justify-content="center" overflow="auto"
       background-color="frame" font-family="Geist" color="ink" padding=16 testId="sign-in"
-      column width="100%" box-sizing="border-box" max-width="26rem" padding=32 gap=24 border-radius=16
+      column width="100%" box-sizing="border-box" max-width="26rem" padding=(wide ? 32 : 24) gap=24 border-radius=16
         background-color="canvas" box-shadow="0 0 0 1px var(--hairline), 0 1px 2px rgb(0 0 0 / 0.04), 0 10px 28px -14px rgb(0 0 0 / 0.12)"
         column gap=6
           image "assets/icon-192.png" width=44 height=44 border-radius=12 margin-bottom=12 alt=""
           text (joining ? "Create your account" : "Welcome back") role="heading" aria-level=1
-            font-size="min(-exact-title2, 36px)" font-weight=600 letter-spacing="-0.02em" testId="sign-title"
+            font-size="min(-exact-title1, 24px)" font-weight=600 letter-spacing="-0.02em" testId="sign-title"
           text (joining ? "Then meet your Dood: it gets its own name and memory, and a computer to work on." : "Sign in to pick up where you and your Dood left off.")
             font-size="0.875rem" color="ink.muted"
         column gap=16

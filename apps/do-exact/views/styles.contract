@@ -87,10 +87,10 @@ style SendButton
 
 // A filled button in the app's colour: the main action on a page.
 style PrimaryButton
-  min-height="2.125rem" padding="6px 14px" border-radius=8 font-size="0.875rem" font-weight=500
+  min-height="2.125rem" padding="0 14px" border-radius=8 font-size="0.875rem" font-weight=500
   background-color="primary" color="primary.ink" border="none"
   :disabled
-    opacity=0.5
+    opacity=0.6
 
 // A field in a form (sign-in): the React app's input, bordered and rounded.
 style Field

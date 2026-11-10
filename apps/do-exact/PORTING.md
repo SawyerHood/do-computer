@@ -38,8 +38,7 @@ build compiles Rust for a minute or two; later ones take seconds.
 ## The loop
 
 - `./x contract build app.contract` compiles every file and type-checks `app.ts`: seconds. Fix
-  every error and warning it prints. Two warnings stand and are explained in `GAPS.md`
-  (`lower-list-beside-fixed` on the sidebar's account, `tamber-unreachable` on Linux).
+  every error and warning it prints; there are none now.
 - `./x test web [file…]` runs the `*.test.contract` files beside `app.contract` against the
   real server, with the echo model (it answers "You said: …"). `server.ts` starts it empty
   **once for the whole run**: every test starts signed out with empty storage, but the accounts
@@ -185,18 +184,20 @@ parallel merges.
 
    ```ts
    import type { Result, Sources } from '../app.contract.d.ts';
+   import type { LibraryListing } from '../protocol/agent.ts';
    import { current, get, NOBODY, seg } from './api.ts';
 
    export const librarySources: Pick<Sources, 'loadLibrary'> = {
      loadLibrary: async ([owner, agentId], store): Promise<Result<'loadLibrary'>> => {
        if (agentId === '' || !current(owner, store)) return { owner: NOBODY, agentId: '', files: [] };
-       const { files } = await get<{ files: { id: string; name: string }[] }>(store, `/api/agents/${seg(agentId)}/library`);
+       const { files } = await get<LibraryListing>(store, `/api/agents/${seg(agentId)}/library`);
        return { owner, agentId, files: files.map((f) => ({ id: f.id, name: f.name })) };
      },
    };
    ```
 
 4. `app.ts`: `...librarySources` in `sources`.
+   (This example compiled and type-checked as written, 2026-11-10.)
 5. `library.test.contract`: the sign-up preamble from `chat.test.contract` with an address of
    its own, then `tap "pages-dood"`, `tap "go-library-dood"`, and what the page should show.
 
