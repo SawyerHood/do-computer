@@ -477,13 +477,20 @@ limits have not been exercised end to end without a provider sign-in.
 lib/call.ts sends a cookie-authenticated keepalive end request on pagehide. This view does
 the same on a same-origin deployment, and emits the authenticated Exact end request too.
 Across origins the native view has no bearer, and unloading may beat Exact's callback; the
-server then writes up the call at its deadline rather than immediately. Normal End is
-acknowledged through the data module and is tested. No server behaviour was changed for it.
+server then writes up the call at its deadline rather than immediately. Signing out stops
+media too; if the session has already been removed, server completion can likewise need the
+deadline. Normal End is acknowledged through the data module and is tested. No server
+behaviour was changed for it.
 
 **The call keeps a compact window card on phones and outside its chat panel.** Like React's
 web CallCard, not the mobile app's separate full-screen call route. It keeps its controls,
 words and a link back while navigating. The card uses the app's dark primary mix rather than
 the Dood's own exact hue, has no animated rings, and does not move left for a document beside
-chat. The panel's creature reacts to listening, thinking, speaking and work; sidebar/pill
-creatures do too. Call records keep a plain speaker-labelled transcript rather than React's
-two-column rows. The old side-chat link is drawn when the server's record names one.
+chat. Like a floating React CallCard it can cover the upper transcript, which an active-call
+`check both` probe reports as covered/overlapping; opening the wide panel removes that card.
+Its active labels use ink so they remain readable in dark mode. The panel's creature reacts
+to listening, thinking, speaking and work; sidebar/pill
+creatures do too. The panel keeps its existing care/wardrobe controls during a call instead of
+hiding them. The live card bounds activity to the last five handoffs rather than every
+pending handoff; the shared caller and main chat still process them all. Call records keep
+a plain speaker-labelled transcript rather than React's two-column rows. The old side-chat link is drawn when the server's record names one.
