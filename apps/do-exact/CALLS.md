@@ -6,6 +6,7 @@ shell/agent-strip.tsx, server/calls-directory.ts and packages/agent's call route
 
 - Offer only where the server allows it, after hatching; one call at a time.
 - Start from the empty composer, Dood panel, and name menu, in the main chat.
+  Drafts, pending uploads/sends and attached files keep Send rather than Call.
 - Ask for the microphone, connect with WebRTC and the oai-events data channel;
   play the remote stream; release microphone, peer, meters and sockets on exit.
 - Starting, connecting, listening, hearing, speaking, working, mute and unmute.
@@ -36,12 +37,15 @@ media adapter. Run `bun modules/web/call-build.mjs --check` after package change
   it needs that explicit server mode; production eligibility must not change for the tests.
 - `node tools/call-browser-run.mjs`: the official ./x drive owns slot 5's server and host;
   a browser joins it to compare React and Exact at 1280×800/390×844, light/dark. It checks
-  panel controls, a floating call and records, then a real local WebRTC loopback with Chrome's
+  panel controls, a floating call and records, long phone names, and draft/pending attachment
+  guards, then a real local WebRTC loopback with Chrome's
   fake microphone, data channel, remote stream attachment, mute, levels and teardown. It also
   sets the real browser microphone permission to denied, then grants it and injects a 503
   at the provider boundary to check the failure card and microphone release. This last test
   overrides only calls metadata to force the non-scripted browser path; no OpenAI call is
   made. CALL_MEDIA_ONLY=1 skips taking the comparison shots.
+- `bun tools/call-data-check.ts`: the actual data bridge keeps a late snapshot's old owner,
+  so Contract hides it after sign-out; stale sessions and unknown RPC verbs are refused.
 - The shared client's call, call-events and call-said unit suites cover limits, idle hangup,
   transcript assembly and voice dialects; the server calls-directory suite covers permission,
   provider precedence and quotas. They are reused without changes.

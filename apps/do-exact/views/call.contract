@@ -86,6 +86,8 @@ members App
 component CallSend
   props
     ready: bool
+    idle: bool
+    name: string
     say: action
     expanded: bool
   inject
@@ -93,8 +95,8 @@ component CallSend
     callView: CallView
     callStart: action
   view
-    if not ready and callAvailable
-      button press=callStart disabled=callView.active class=SendButton grid-column="4" grid-row=(expanded ? "2" : "1") aria-label="Call your Dood" testId="call-composer"
+    if idle and callAvailable
+      button press=callStart disabled=callView.active class=SendButton grid-column="4" grid-row=(expanded ? "2" : "1") aria-label=`Call ${name}` testId="call-composer"
         image "symbol:icon.phone" font-size="1.125rem" aria-hidden=true
     else
       button press=say disabled=(not ready) retainFocus=true aria-label="Send" class=SendButton grid-column="4" grid-row=(expanded ? "2" : "1") testId="send"
@@ -168,8 +170,8 @@ component CallStatus
       if callWords
         column gap=4 background-color=(panel ? "wash" : "transparent") border-radius=12 padding=(panel ? "12px" : "0") text-align="start"
           if lastYou != ""
-            text `You ${lastYou}` font-size="0.8125rem" color=(panel ? "ink.muted" : "ink.on-color")
-          text (lastDood != "" ? lastDood : callView.phase == "starting" or callView.phase == "connecting" ? `Calling ${callView.name}…` : `Go ahead. ${callView.name} is listening.`) font-size="0.875rem" overflow-wrap="anywhere"
+            text `You ${lastYou}` font-size="0.8125rem" color=(panel ? "ink.muted" : "ink.on-color") overflow-wrap="break-word"
+          text (lastDood != "" ? lastDood : callView.phase == "starting" or callView.phase == "connecting" ? `Calling ${callView.name}…` : `Go ahead. ${callView.name} is listening.`) font-size="0.875rem" overflow-wrap="break-word"
       row justify-content="center" gap=8
         CallControl(label=(callView.muted ? "Unmute" : "Mute"), pressed=callView.muted, ending=false, caption=false, panel=panel, act=callControl("mute"), testId=(panel ? "call-mute-panel" : "call-mute-card"))
         CallControl(label="End", pressed=false, ending=true, caption=false, panel=panel, act=callControl("end"), testId=(panel ? "call-end-panel" : "call-end-card"))
@@ -220,12 +222,12 @@ component CallWindow
               do-creature seed=d.seed colour=d.color outfit=d.outfit state=(callView.phase == "speaking" ? "speaking" : "listening") side="48" width=48 height=48 aria-label=d.name
             case none
               column width=48 height=48
-          text callView.name
+          text callView.name flex=1 min-width=0 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
         CallStatus(panel=false)
       do-call address=callOffer.address owner=session.owner response=callAnswer directive=callDirective serial=`${callSerial}` agent=callAgent dood-name=callName chat=callChat message=callMessage width="100%" height=(callView.active and not callInPanel ? 24 : 0) aria-label="Call audio levels" testId="call-media"
       if callView.problem != ""
         row gap=8 align-items="start" role="alert" testId="call-problem"
-          text callView.problem flex=1 min-width=0 font-size="0.875rem" overflow-wrap="anywhere" testId="call-problem-words"
+          text callView.problem flex=1 min-width=0 font-size="0.875rem" overflow-wrap="break-word" testId="call-problem-words"
           button press=callControl("clear") class=OutlineButton testId="call-problem-ok"
             text "OK"
 
@@ -238,18 +240,18 @@ component CallInChat
   view
     if callView.active and callView.agentId == agentId and callView.chatId == chatId
       column class=Card border-radius=16 padding=16 margin="12px 16px" border="1px solid var(--primary)" box-shadow="0 0 0 4px color-mix(in srgb, var(--primary) 14%, transparent)" gap=8 role="region" aria-label="The call" testId="call-live"
-        text `On a call with ${callView.name} · ${callView.clock}` font-size="0.875rem" font-weight=500
+        text `On a call with ${callView.name} · ${callView.clock}` font-size="0.875rem" font-weight=500 overflow-wrap="break-word"
         for l in callView.lines.slice(-8) key=l.id
           row gap=8 font-size="0.875rem"
-            text (l.who == "you" ? "You" : callView.name) color="ink.muted" min-width="3.75rem"
-            text l.text flex=1 min-width=0 overflow-wrap="anywhere"
+            text (l.who == "you" ? "You" : callView.name) color="ink.muted" width="4rem" flex-shrink=0 min-width=0 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+            text l.text flex=1 min-width=0 overflow-wrap="break-word"
         if callView.you != ""
-          text `You: ${callView.you}` font-size="0.875rem"
+          text `You: ${callView.you}` font-size="0.875rem" overflow-wrap="break-word"
         if callView.dood != ""
-          text callView.dood font-size="0.875rem"
+          text callView.dood font-size="0.875rem" overflow-wrap="break-word"
         for w in callView.works.slice(-5) key=w.id
           if not w.done
-            text (w.step != "" ? w.step : `Handed to ${callView.name}`) role="status" font-size="0.8125rem" color="ink.muted"
+            text (w.step != "" ? w.step : `Handed to ${callView.name}`) role="status" font-size="0.8125rem" color="ink.muted" overflow-wrap="break-word"
     else if callView.wrapAgentId == agentId and callView.wrapChatId == chatId and callView.wrapCallId != ""
       text "The call is over. Writing it up…" role="status" font-size="0.875rem" color="ink.muted" padding="12px 16px" testId="call-writing"
 
@@ -266,16 +268,16 @@ component CallHistory
     column border-radius=16 overflow="hidden" class=Card role="region" aria-label="A call" testId="call-record"
       row gap=10 align-items="center" padding="10px 16px" font-size="0.875rem"
         image "symbol:icon.phone" color="ink.muted" aria-hidden=true
-        text `Call with ${name}` font-weight=500
-        text (time == "" ? block.text : `${block.text} · ${time}`) margin-left="auto" font-size="0.8125rem" color="ink.muted"
+        text `Call with ${name}` font-weight=500 flex=1 min-width=0 overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
+        text (time == "" ? block.text : `${block.text} · ${time}`) margin-left="auto" font-size="0.8125rem" color="ink.muted" white-space="nowrap" flex-shrink=0
       if block.lines.length > 0
         column gap=4 padding="10px 16px 4px" border-top="1px solid var(--border)" font-size="0.875rem"
           for l in block.lines key=l
             row gap=10
               image "symbol:icon.check" color="ink.muted" aria-hidden=true margin-top=3 font-size="0.875rem"
-              text l min-width=0 overflow-wrap="anywhere"
+              text l min-width=0 overflow-wrap="break-word"
       if open
-        text block.more padding="10px 16px 4px" border-top="1px solid var(--border)" font-size="0.875rem" white-space="pre-wrap" overflow-wrap="anywhere" testId="call-record-words"
+        text block.more padding="10px 16px 4px" border-top="1px solid var(--border)" font-size="0.875rem" white-space="pre-wrap" overflow-wrap="break-word" testId="call-record-words"
       row padding="8px 12px 12px" gap=8 flex-wrap="wrap"
         if block.more == ""
           text "Nothing was said." font-size="0.8125rem" color="ink.muted" padding="0 4px"

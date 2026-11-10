@@ -84,7 +84,7 @@ members App
   derive transcriptRows = (hasEarlier ? [markerRow("earlier")] : []).concat(earlierRows).concat(ours ? liveRows : []).concat(ours and chat.activity != "" ? [markerRow("working")] : []).concat((callView.active and callView.agentId == openAgentId and callView.chatId == openChatId or callView.wrapAgentId == openAgentId and callView.wrapChatId == openChatId and callView.wrapCallId != "" and not callRecordWritten) ? [markerRow("call")] : [])
   derive lastRowId = match transcriptRows.at(-1) { case some(m) => m.id, case none => "" }
   // What makes the transcript taller: a row more, or the newest one written further.
-  derive chatGrowth = `${transcriptRows.length}:${lastRowId}:${match chat.messages.at(-1) { case some(m) => sum(m.blocks.map(b => b.text.length)), case none => 0 }}`
+  derive chatGrowth = `${transcriptRows.length}:${lastRowId}:${match chat.messages.at(-1) { case some(m) => sum(m.blocks.map(b => b.text.length)), case none => 0 }}:${callView.lines.length}:${callView.you.length}:${callView.dood.length}`
   derive subagentStatuses = threadsListing.chats.filter(c => c.kind == "subagent").map(c => `${c.id}=${c.status}`)
   derive chatTeam = match first(workspaceList.filter(w => w.id == openDood.workspaceId and w.kind == "team")) { case some(w) => w.name, case none => "" }
   derive pendingComputers = computerAsks.owner == session.owner and computerAsks.agentId == openAgentId ? computerAsks.asks : []

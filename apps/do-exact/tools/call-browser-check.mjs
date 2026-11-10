@@ -8,13 +8,13 @@ const api = process.env.CALL_API ?? 'http://127.0.0.1:3916';
 const out = '.exact/shots/calls'; mkdirSync(out, { recursive: true });
 const browser = await chromium.launch({ executablePath: process.env.CHROME, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
 const errors = [];
-async function exact(context, email) {
+async function exact(context, email, name = 'Juniper') {
   const page = await context.newPage(); page.on('pageerror', e => errors.push(e.message));
   await page.goto(origin);
   await page.getByRole('textbox', { name: 'Email', exact: true }).fill(email);
   await page.getByLabel('Password', { exact: true }).fill('correct horse');
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await page.getByRole('link', { name: 'Talk to Juniper' }).click();
+  await page.getByRole('link', { name: `Talk to ${name}` }).click();
   await page.getByRole('textbox', { name: 'Message', exact: true }).waitFor();
   return page;
 }
@@ -33,7 +33,7 @@ try {
     const made = await account(context, `${size.width}-${scheme}`);
     const page = await exact(context, made.email);
     if (size.width > 900) await page.getByRole('button', { name: "Show Juniper's panel", exact: true }).click();
-    await page.getByRole('button', { name: size.width > 900 ? 'Call' : 'Call your Dood', exact: true }).click();
+    await page.getByRole('button', { name: size.width > 900 ? 'Call' : 'Call Juniper', exact: true }).click();
     await page.getByRole('region', { name: 'The call', exact: true }).getByText('Any time.', { exact: true }).waitFor({ timeout: 25000 });
     await page.screenshot({ path: `${out}/exact-${size.width}-${scheme}.png` });
     if (size.width > 900) {
@@ -58,6 +58,41 @@ try {
     await react.screenshot({ path: `${out}/react-${size.width}-${scheme}.png` });
     await react.getByRole('button', { name: size.width > 900 ? 'End' : 'End the call', exact: true }).click();
     await context.close();
+  }
+  if (!process.env.CALL_MEDIA_ONLY) {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const made = await account(context, 'long-name');
+    const name = 'JuniperWithAnUnbrokenNameThatMustNotPushTheCallOutsideThePhone'.slice(0, 40);
+    assert.equal((await context.request.patch(`${api}/api/agents/${made.agentId}`, { data: { name } })).status(), 200);
+    const page = await exact(context, made.email, name);
+    const call = page.getByRole('button', { name: `Call ${name}`, exact: true });
+    await call.waitFor();
+    await page.getByRole('textbox', { name: 'Message', exact: true }).fill('A draft');
+    assert.equal(await call.count(), 0, 'Writing keeps Send instead of Call.');
+    await page.getByRole('textbox', { name: 'Message', exact: true }).fill('');
+    let release, arrived;
+    const gate = new Promise(resolve => { release = resolve; });
+    const upload = new Promise(resolve => { arrived = resolve; });
+    await page.route('**/api/agents/*/library?*', async route => { if (route.request().method() === 'POST') { arrived(); await gate; } await route.continue(); });
+    await page.getByLabel('Choose files to attach', { exact: true }).setInputFiles({ name: 'guard.txt', mimeType: 'text/plain', buffer: Buffer.from('attachment guard') });
+    await Promise.race([upload, new Promise((_, reject) => setTimeout(() => reject(new Error('The attachment request did not arrive.')), 10000))]);
+    assert.equal(await call.count(), 0, 'A pending attachment keeps Send instead of Call.');
+    release();
+    await page.getByRole('button', { name: 'Remove guard.txt', exact: true }).waitFor();
+    assert.equal(await call.count(), 0, 'An attached file keeps Send instead of Call.');
+    await page.getByRole('button', { name: 'Remove guard.txt', exact: true }).click();
+    await call.click();
+    const live = page.getByRole('region', { name: 'The call', exact: true });
+    await live.getByText('Any time.', { exact: true }).waitFor({ timeout: 25000 });
+    assert.equal(await live.evaluate(el => el.scrollWidth <= el.clientWidth + 1), true, 'A long name fits the live call.');
+    await page.screenshot({ path: `${out}/exact-long-name-390.png` });
+    await page.getByRole('button', { name: 'End', exact: true }).click();
+    const record = page.getByRole('region', { name: 'A call', exact: true });
+    await record.getByRole('button', { name: 'Show what was said', exact: true }).click();
+    assert.equal(await record.evaluate(el => el.scrollWidth <= el.clientWidth + 1), true, 'A long name fits the saved call.');
+    await page.screenshot({ path: `${out}/exact-long-record-390.png` });
+    await context.close();
+    console.log('Draft/attachment call-button guards and long-name phone call/record checked.');
   }
   // The real adapter negotiates a real local WebRTC loopback, using Chromium's fake microphone.
   const mediaContext = await browser.newContext({ permissions: ['microphone'] });
@@ -105,7 +140,7 @@ try {
   const { browserContextId } = (await cdp.send('Target.getTargetInfo')).targetInfo;
   await cdp.send('Browser.setPermission', { browserContextId, permission: { name: 'microphone' }, setting: 'denied', origin });
   console.log('Permission before calling:', await page.evaluate(async () => (await navigator.permissions.query({ name: 'microphone' })).state));
-  await page.getByRole('button', { name: 'Call your Dood', exact: true }).click();
+  await page.getByRole('button', { name: 'Call Juniper', exact: true }).click();
   await page.getByText('The microphone is not allowed here. Check the permission for this site, then call again.', { exact: true }).waitFor().catch(async e => { await page.screenshot({ path: `${out}/permission-diagnostics.png` }); console.log(await page.locator('body').innerText()); throw e; });
   await page.screenshot({ path: `${out}/permission-denied.png` });
   await page.getByRole('button', { name: 'OK', exact: true }).click();
@@ -118,12 +153,12 @@ try {
   });
   await granted.addInitScript(() => { const get = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices); window.__callTracks = []; navigator.mediaDevices.getUserMedia = async (...args) => { const stream = await get(...args); window.__callTracks.push(...stream.getTracks()); return stream; }; });
   const providerPage = await exact(granted, providerAccount.email);
-  await providerPage.getByRole('button', { name: 'Call your Dood', exact: true }).click();
+  await providerPage.getByRole('button', { name: 'Call Juniper', exact: true }).click();
   await providerPage.getByText('Voice provider unavailable (test fault).', { exact: true }).waitFor({ timeout: 15000 });
   await providerPage.screenshot({ path: `${out}/provider-refused.png` });
   assert.equal(await providerPage.evaluate(() => window.__callTracks.length > 0 && window.__callTracks.every(t => t.readyState === 'ended')), true, 'Provider failure releases every microphone track.');
   await providerPage.getByRole('button', { name: 'OK', exact: true }).click();
-  assert.equal(await providerPage.getByRole('button', { name: 'Call your Dood', exact: true }).isEnabled(), true);
+  assert.equal(await providerPage.getByRole('button', { name: 'Call Juniper', exact: true }).isEnabled(), true);
   await granted.close();
   assert.deepEqual(errors, []);
   console.log('Scripted real-server calls, panel/card/record, light/dark at both widths, real permission denial, and injected provider refusal checked.');

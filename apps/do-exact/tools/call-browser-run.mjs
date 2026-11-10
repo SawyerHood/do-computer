@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { rmSync } from 'node:fs';
 rmSync('.exact/call-browser.done', { force: true });
 const env = { ...process.env, DC_CALLS: 'on', DC_CALLS_SCRIPT: '1' };
-const drive = spawn('./x', ['agent', 'web', 'clock +240000 real until .exact/call-browser.done'], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+const drive = spawn('./x', ['agent', 'web', '--storage', 'call-browser', 'clock +240000 real until .exact/call-browser.done'], { env, stdio: ['ignore', 'pipe', 'pipe'] });
 let helper, result = 1;
 function output(bytes) {
   process.stdout.write(bytes);

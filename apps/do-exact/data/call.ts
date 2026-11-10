@@ -30,8 +30,9 @@ export const callSources: Pick<Sources, 'loadCallOffer' | 'callRequest' | 'readC
       return { json: JSON.stringify({ id, ok: false, error: error instanceof Error ? error.message : 'The call could not reach the server.', status: error instanceof Refused ? error.status : 0 }) };
     }
   },
-  readCallView: ([owner, json]): Result<'readCallView'> => {
+  readCallView: ([, json]): Result<'readCallView'> => {
     const value = JSON.parse(json) as Result<'readCallView'>;
-    return { ...value, owner, lines: value.lines.map((l, i) => ({ id: `line-${i}`, who: l.who, text: l.text })), works: value.works.map(w => ({ id: w.id, ask: w.ask, done: w.done, step: w.step ?? '' })) };
+    // Keep the event's owner. Relabelling a queued old callback would defeat the view guard.
+    return { ...value, lines: value.lines.map((l, i) => ({ id: `line-${i}`, who: l.who, text: l.text })), works: value.works.map(w => ({ id: w.id, ask: w.ask, done: w.done, step: w.step ?? '' })) };
   },
 };

@@ -296,7 +296,7 @@ component ComposerBox
                   button press=composerStop aria-label="Stop" class=SendButton grid-column="4" grid-row=(expanded ? "2" : "1") testId="stop"
                     image "symbol:icon.stop" width=18 height=18
                 else
-                  CallSend(ready=ready, say=say, expanded=expanded)
+                  CallSend(ready=ready, idle=(draft.trim() == "" and composerAttachments.length == 0 and not composerUploading and not sending and ours), name=name, say=say, expanded=expanded)
               else
                 text (voice == "recording" ? "Listening" : "Turning what you said into text") font-size="0.75rem" color="ink.muted" grid-column="2" grid-row="2" role="status"
                 button press=voiceDo("draft") disabled=(voice != "recording") class=IconButton grid-column="3" grid-row="2" aria-label="Stop dictating" testId="dictation-draft"

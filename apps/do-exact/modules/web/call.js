@@ -4,7 +4,7 @@ import { openLine, microphoneProblem } from './call-media.js';
 import { watch } from './shared.js';
 
 export function create(element, initial, event) {
-  let gone = false, props = {}, serial = '', response = '', count = 0, clock = '', media, pendingMedia;
+  let gone = false, props = {}, owner = initial.owner ?? '', serial = '', response = '', count = 0, clock = '', media, pendingMedia;
   const waiting = new Map();
   const say = word => { if (!gone) event(8, word); };
   const ask = (agentId, verb, body = {}, callId = '') => new Promise((resolve, reject) => {
@@ -55,7 +55,7 @@ export function create(element, initial, event) {
   const publish = () => {
     const { call, problem, wrapUp } = caller.getState();
     clock = callClock(call?.startedAt, Date.now());
-    say('view:' + JSON.stringify({ active: !!call, agentId: call?.agentId ?? '', chatId: call?.chatId ?? '', name: call?.agentName ?? '', phase: call?.phase ?? '', status: call ? callPhaseWords(call) : '', clock, muted: call?.muted ?? false, lines: call?.lines ?? [], you: call?.you ?? '', dood: call?.dood ?? '', works: call?.works ?? [], problem: problem?.text ?? '', wrapAgentId: wrapUp?.agentId ?? '', wrapChatId: wrapUp?.chatId ?? '', wrapCallId: wrapUp?.callId ?? '' }));
+    say('view:' + JSON.stringify({ owner, active: !!call, agentId: call?.agentId ?? '', chatId: call?.chatId ?? '', name: call?.agentName ?? '', phase: call?.phase ?? '', status: call ? callPhaseWords(call) : '', clock, muted: call?.muted ?? false, lines: call?.lines ?? [], you: call?.you ?? '', dood: call?.dood ?? '', works: call?.works ?? [], problem: problem?.text ?? '', wrapAgentId: wrapUp?.agentId ?? '', wrapChatId: wrapUp?.chatId ?? '', wrapCallId: wrapUp?.callId ?? '' }));
   };
   const unsubscribe = caller.subscribe(publish);
   // A little waveform: microphone and remote stream levels, not invented audio.
@@ -99,7 +99,7 @@ export function create(element, initial, event) {
       }
       if (serial === next.serial) return;
       serial = next.serial;
-      if (next.directive === 'start') void caller.start({ id: next.agent, name: next["dood-name"] }, next.chat);
+      if (next.directive === 'start') { owner = next.owner; void caller.start({ id: next.agent, name: next["dood-name"] }, next.chat); }
       if (next.directive === 'mute') caller.setMuted(!caller.getState().call?.muted);
       if (next.directive === 'end') { void caller.end(); pendingMedia?.abort(); media?.close(); }
       if (next.directive === 'clear') caller.clearProblem();

@@ -1,4 +1,5 @@
 test "a Dood without a call sign-in offers no call in the composer, panel or menu"
+  size 1280x800
   tap "sign-toggle"
   type "sign-name" "Ada"
   type "sign-email" "call-offer@example.com"
@@ -7,10 +8,16 @@ test "a Dood without a call sign-in offers no call in the composer, panel or men
   clock data
   tap "new-dood"
   clock data
-  clock +2500
+  type "composer" "Hello."
+  tap "send"
   clock data
+  clock +2500 real
+  clock data
+  expect state openDood.hatched == true
   expect state callAvailable == false
   expect tree missing "call-composer"
+  tap "panel-toggle-dood"
   expect tree missing "call-panel"
   tap "pages-dood"
   expect tree missing "call-menu-dood"
+  tap "pages-dood"
