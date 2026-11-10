@@ -238,6 +238,7 @@ component App
     utcOffset = time.utcOffset
     wide
     stillMotion = viewport.prefersReducedMotion
+    hovers = viewport.hover == "hover"
     hatchError
     hatching = pending(hatched)
     panelOpen
@@ -245,6 +246,7 @@ component App
     signOut
     togglePanel
     sidebarWidth
+    sidebarShut
     sidebarDragging
     sidebarGrab
     sidebarDrag

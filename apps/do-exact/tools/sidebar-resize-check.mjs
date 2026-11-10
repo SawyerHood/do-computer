@@ -2,6 +2,7 @@
 //   ./x agent web 'clock +60000 real until .exact/resize.done' &  node tools/sidebar-resize-check.mjs http://127.0.0.1:<page port>
 import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
 const require = createRequire(new URL('../../web/package.json', import.meta.url));
 const { chromium } = require('@playwright/test');
 const origin = process.argv[2] ?? 'http://127.0.0.1:8766';
@@ -29,13 +30,26 @@ try {
   assert.equal(await drag(900), 448, 'dragged past its widest, it stops there');
   const back = await drag(340);
   assert.ok(Math.abs(back - 340) <= 2, `after an overshoot the next drag follows the pointer (${back})`);
-  assert.equal(await drag(20), 208, 'dragged past its narrowest, it stops there');
+  assert.equal(await drag(150), 208, 'dragged a little past its narrowest, it stops there');
   const out = await drag(400);
   assert.ok(Math.abs(out - 400) <= 2, `and out again (${out})`);
   const chat = await page.getByRole('textbox', { name: 'Message', exact: true }).boundingBox();
   assert.ok(chat.x > out, 'the chat is beside the wider sidebar');
-  await page.screenshot({ path: process.argv[3] ?? '/tmp/dcx-shots/sidebar-400.png' });
+  const shots = process.argv[3] ?? '.exact/shots/sidebar'; mkdirSync(shots, { recursive: true });
+  await page.screenshot({ path: `${shots}/wide-400.png` });
   await page.reload(); await edge.waitFor();
   assert.equal(await width(), out, 'kept over a reload');
+  // Dragged in past half way to its narrowest, it is a column of faces; pulled out, the list.
+  assert.equal(await drag(100), 60, 'shut to its faces');
+  assert.equal(await page.getByRole('button', { name: 'New team', exact: true }).count(), 0, 'no words in the rail');
+  const face = await page.getByRole('link', { name: /^Talk to / }).first().boundingBox();
+  assert.ok(face.x >= 0 && face.x + face.width <= 60, 'a face fits the rail');
+  assert.ok((await page.getByRole('textbox', { name: 'Message', exact: true }).boundingBox()).x < 400, 'the chat takes the room');
+  await page.screenshot({ path: `${shots}/rail.png` });
+  await page.emulateMedia({ colorScheme: 'dark' }); await page.screenshot({ path: `${shots}/rail-dark.png` }); await page.emulateMedia({ colorScheme: 'light' });
+  await page.reload(); await edge.waitFor();
+  assert.equal(await width(), 60, 'shut over a reload');
+  const opened = await drag(300);
+  assert.ok(Math.abs(opened - 300) <= 2, `pulled open again (${opened})`);
   console.log('sidebar resize: ok');
 } finally { await browser.close(); }

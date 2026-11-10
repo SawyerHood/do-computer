@@ -41,11 +41,13 @@ members App
   state tick = 0
   // Whether the open Dood's panel is beside its chat, on a wide window. Kept, as the React app keeps it.
   state panelOpen = false persist
-  // How wide the sidebar is beside the page, as the React app's (lib/columns.ts): dragged or
-  // moved by the arrow keys from 208 to 448, and kept.
+  // The sidebar beside the page, as the React app's (lib/columns.ts, resize-handle.tsx): its edge
+  // is dragged or moved by the arrow keys from 208 to 448, and past half way in to its narrowest
+  // it is shut to a column of faces, 60 wide. Both are kept.
   state sidebarWidth = 288 persist
+  state sidebarShut = true persist
   state sidebarDragging = false
-  // Where the pointer was when the edge was taken, less the width then.
+  // Where the pointer was when the edge was taken, less where the edge was.
   state sidebarGrip = 0
   resource workspaces = loadWorkspaces(session.owner) as shape Workspaces else empty()
   resource pulse = followDood(session.owner, openAgentId) as shape DoodPulse else empty()
@@ -104,22 +106,37 @@ members App
     if e.button == 0
       // No text is selected by the drag: a selection begun here would be dragged by the next one.
       preventDefault()
-      sidebarGrip = e.clientX - sidebarWidth
+      sidebarGrip = e.clientX - (sidebarShut ? 60 : sidebarWidth)
       sidebarDragging = true
   action sidebarDrag(e: PointerEvent)
     if sidebarDragging
-      sidebarWidth = round(min(448, max(208, e.clientX - sidebarGrip)))
+      if e.clientX - sidebarGrip < 134
+        sidebarShut = true
+      else
+        sidebarShut = false
+        sidebarWidth = round(min(448, max(208, e.clientX - sidebarGrip)))
   action sidebarDrop(e: PointerEvent)
     sidebarDragging = false
+  // Pressed twice: shut, it opens; open, it is as wide as it started.
   action sidebarReset
-    sidebarWidth = 288
+    if sidebarShut
+      sidebarShut = false
+    else
+      sidebarWidth = 288
+  // One step out of being shut is being open, at the width it was left; one step in from its
+  // narrowest is being shut.
   action sidebarKey(k: string)
-    if k == "ArrowLeft"
+    if sidebarShut
+      if k == "ArrowRight" or k == "End"
+        sidebarShut = false
+    else if k == "Home" or (k == "ArrowLeft" and sidebarWidth <= 208)
+      sidebarShut = true
+    else if k == "ArrowLeft"
       sidebarWidth = max(208, sidebarWidth - 16)
     else if k == "ArrowRight"
       sidebarWidth = min(448, sidebarWidth + 16)
-    else if k == "Home"
-      sidebarWidth = 288
+    else if k == "End"
+      sidebarWidth = 448
 
 fn doodOf(doods: Dood[], id: string): Dood = match first(doods.filter(d => d.id == id)) {
   case some(d) => d,
@@ -164,6 +181,7 @@ component Sidebar
     hereOthers: HerePlace[]
     hereMembers: TeamMember[]
     sidebarWidth: number
+    sidebarShut: bool
     sidebarDragging: bool
     sidebarGrab: action
     sidebarDrag: action
@@ -172,38 +190,48 @@ component Sidebar
     sidebarReset: action
   derive named = workspaceList.filter(w => w.kind == "team").length > 0
   derive shown = named ? workspaceList : workspaceList.filter(w => w.kind == "personal")
+  // Shut to its faces: only beside the page, never a phone's list.
+  derive rail = wide and sidebarShut
   view
-    column navigationKey=key navigationSplit=`${sidebarWidth}` navigationScroll="sidebar-list" position="absolute" inset=0
+    column navigationKey=key navigationSplit=`${rail ? 60 : sidebarWidth}` navigationScroll="sidebar-list" position="absolute" inset=0
       display="flex" flex-direction="column" class=Frame border-right=(wide ? "1px solid var(--hairline)" : "none") testId="sidebar"
       // The edge that is dragged, over the border (resize-handle.tsx).
       if wide
-        box role="separator" aria-orientation="vertical" aria-label="Resize the sidebar" aria-valuemin=208 aria-valuemax=448 aria-valuenow=sidebarWidth tabindex=0
+        box role="separator" aria-orientation="vertical" aria-label="Resize the sidebar" aria-valuemin=60 aria-valuemax=448 aria-valuenow=(rail ? 60 : sidebarWidth) tabindex=0
           position="absolute" top=0 bottom=0 right=-3 width=7 z-index=5 cursor="col-resize" touch-action="none" user-select="none"
           pointerdown=sidebarGrab pointermove=sidebarDrag pointerup=sidebarDrop dblclick=sidebarReset key=sidebarKey testId="sidebar-resize"
-          background-color=(sidebarDragging ? "hairline" : "transparent")
-          :hover
-            background-color="hairline"
       // In no team, one list under "Doods"; in one, each workspace is under its own name instead.
-      header appearance="none" display="flex" align-items="center" gap=2 min-height=(named ? 8 : 36) padding=(named ? "0" : "8px 8px 0 16px")
+      header appearance="none" display="flex" align-items="center" justify-content=(rail ? "center" : "flex-start") gap=2 min-height=(named ? 6 : 36) padding=(named ? "0" : rail ? "8px 0 0" : "8px 8px 0 16px")
         if not named
-          text "Doods" role="heading" aria-level=1 flex=1 class=ListHeading
+          if not rail
+            text "Doods" role="heading" aria-level=1 flex=1 class=ListHeading
           for w in shown key=w.id
-            WorkspaceMenuButton(workspace=w)
+            if not rail
+              WorkspaceMenuButton(workspace=w)
             button press=hatch(w.id) disabled=hatching aria-label="New Dood" class=IconButton testId="new-dood"
-              image "symbol:icon.plus" color="ink.muted" font-size="1rem"
-      scroll id="sidebar-list" flex=1 min-height=0 padding="2px 8px 12px"
-        if doodList.length == 0 and session.signedIn
+              image "symbol:icon.plus" color="ink.muted" font-size="0.75rem"
+      scroll id="sidebar-list" flex=1 min-height=0 padding=(rail ? "2px 4px 12px" : "2px 8px 12px")
+        if doodList.length == 0 and session.signedIn and not rail
           column padding="24px 8px" gap=12 align-items="flex-start"
             text "No Doods yet." class=RowLine font-size="0.875rem"
             text "A Dood is an agent of your own: it has a name, a memory and computers to work on." class=RowLine
             if hatchError != ""
               text hatchError color="danger" font-size="0.75rem" testId="hatch-error"
         for w in shown key=w.id
-          column gap=2 testId=`workspace-${w.id}`
-            if named
+          column gap=2 margin-top=(shown.map(x => x.id).indexOf(w.id) > 0 ? 8 : 0) testId=`workspace-${w.id}`
+            if named and rail
+              // Only what fits over a face: the workspace's mark, which folds it, in the middle
+              // of a line across the column (agent-list.tsx).
+              row min-height=36 align-items="center" gap=2
+                column flex=1 height=1 background-color="hairline"
+                button press=teamFold(w.id) aria-label=w.name aria-expanded=(not teamFolded.includes(w.id)) title=w.name class=IconButton testId=`workspace-fold-${w.id}`
+                  column width="1.125rem" height="1.125rem" border-radius=5 background-color=(w.kind == "personal" ? session.color : w.color) align-items="center" justify-content="center" flex-shrink=0
+                    text (w.kind == "personal" ? session.initials : w.name.slice(0, 1).toUpperCase()) color="ink.on-color" font-size=(w.kind == "personal" ? "0.5rem" : "0.625rem") font-weight=600
+                column flex=1 height=1 background-color="hairline"
+            else if named
               row min-height=36 align-items="center" gap=6 padding="0 0 0 8px"
                 // The workspace's mark: one's own has one's initials (WorkspaceMark).
-                column width="1.125rem" height="1.125rem" border-radius=5 background-color=w.color align-items="center" justify-content="center" flex-shrink=0
+                column width="1.125rem" height="1.125rem" border-radius=5 background-color=(w.kind == "personal" ? session.color : w.color) align-items="center" justify-content="center" flex-shrink=0
                   text (w.kind == "personal" ? session.initials : w.name.slice(0, 1).toUpperCase()) color="ink.on-color" font-size=(w.kind == "personal" ? "0.5rem" : "0.625rem") font-weight=600
                 button press=teamFold(w.id) aria-label=`${teamFolded.includes(w.id) ? "Expand" : "Collapse"} ${w.name}` aria-expanded=(not teamFolded.includes(w.id)) flex=1 min-width=0 class=IconButton justify-content="flex-start" gap=4 testId=`workspace-fold-${w.id}`
                   text w.name class=ListHeading flex="0 1 auto" min-width=0 text-align="start" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
@@ -215,23 +243,24 @@ component Sidebar
                   text `${peopleIn(hereOthers, hereMembers).length} here` aria-label=`${peopleIn(hereOthers, hereMembers).length} here now: ${namesOf(peopleIn(hereOthers, hereMembers))}` color="ink.muted" font-size="0.75rem" testId=`workspace-here-${w.id}`
                 WorkspaceMenuButton(workspace=w)
                 button press=hatch(w.id) disabled=hatching aria-label=`New Dood in ${w.name}` class=IconButton testId=`new-dood-${w.id}`
-                  image "symbol:icon.plus" color="ink.muted" font-size="1rem"
+                  image "symbol:icon.plus" color="ink.muted" font-size="0.75rem"
             if not named or not teamFolded.includes(w.id)
-              list id=`dood-order-${w.id}` virtualized=true height=`${doodList.filter(x => x.workspaceId == w.id).length * 4}rem` flex-shrink=0 appearance="none" reorderdrop=teamReorder(w.id) aria-label=`${w.name} Doods` testId=`dood-list-${w.id}`
+              list id=`dood-order-${w.id}` virtualized=true height=`${doodList.filter(x => x.workspaceId == w.id).length * (rail ? 54 : 61)}px` flex-shrink=0 appearance="none" reorderdrop=teamReorder(w.id) aria-label=`${w.name} Doods` testId=`dood-list-${w.id}`
                 for d in doodList.filter(x => x.workspaceId == w.id) key=d.id
-                  DoodRow(dood=d, current=(d.id == current), now=now, utcOffset=utcOffset)
+                  DoodRow(dood=d, current=(d.id == current), now=now, utcOffset=utcOffset, rail=rail)
               if doodList.filter(x => x.workspaceId == w.id).length == 0
                 text (w.kind == "team" ? "This team has no Doods yet." : "You have no Doods yet.") class=TeamHint padding="8px 10px"
         if teamOrderError != ""
           text teamOrderError color="danger" role="alert" font-size="0.75rem" padding=8 testId="sidebar-action-error"
-        column margin-top=12 padding-top=8 border-top="1px solid var(--hairline)" gap=4
-          for i in teamInbox key=i.id
-            link href=path("invite", i.id) class=MenuItem testId=`team-inbox-${i.id}`
-              text `${i.name} invited you`
-          button press=teamNew class=MenuItem testId="new-team"
-            image "symbol:icon.plus" width="1rem" height="1rem"
-            text "New team"
-      AccountButton(session=session)
+        if not rail
+          column margin-top=12 padding-top=8 border-top="1px solid var(--hairline)" gap=4
+            for i in teamInbox key=i.id
+              link href=path("invite", i.id) class=MenuItem testId=`team-inbox-${i.id}`
+                text `${i.name} invited you`
+            button press=teamNew class=MenuItem color="ink.muted" testId="new-team"
+              image "symbol:icon.plus" width="1rem" height="1rem"
+              text "New team" font-size="0.8125rem"
+      AccountButton(session=session, rail=rail)
       NoDood()
 
 // A workspace's own menu, from the … beside its name: its settings, its people.
@@ -281,64 +310,106 @@ component DoodRow
     current: bool
     now: number
     utcOffset: number
+    // In the sidebar shut to its faces: the face alone, which carries the row's marks.
+    rail: bool
   inject
-    hereOthers: HerePlace[]
-    hereMembers: TeamMember[]
-  // Who else is with it now, in the team on screen (agent-list.tsx `with_`).
-  derive with = peopleIn(hereOthers.filter(p => p.agentId == dood.id), hereMembers)
+    hovers: bool
+  // The pointer is over the row, or the keys are on its menu.
+  state over = false
+  state onMenu = false
+  action pointed(is: bool)
+    over = is
+  action menuFocused
+    onMenu = true
+  action menuLeft
+    onMenu = false
+  // The row's menu (and its grip) take the time's place while the row is pointed at, as the
+  // React app's does; where nothing can point (a touch screen) they are always there.
+  derive acting = not hovers or over or onMenu
   view
-    // The row's menu (and its grip, in a wide window) are part of the row, at its end, in its
-    // shade: the React app shows its menu there under a pointer, which Exact cannot (GAPS.md, "Hover").
-    row position="relative" align-items="center" border-radius="0.7rem" background-color=(current ? "wash" : "transparent")
+    row position="relative" align-items="center" border-radius="0.7rem" background-color=(current ? "wash" : "transparent") hover=pointed
+      height=(rail ? 52 : 59) margin-bottom=2
       :hover
         background-color="wash"
-      link href=path("dood", dood.id) aria-label=`Talk to ${nameOf(dood)}` aria-current=(current ? "page" : "false") aria-selected=current class=SidebarRow flex=1 min-width=0
-        padding-right=4 testId=`dood-${dood.id}`
+      link href=path("dood", dood.id) aria-label=(rail and dood.unread ? `Talk to ${nameOf(dood)}: something new` : `Talk to ${nameOf(dood)}`) title=(rail ? nameOf(dood) : "") aria-current=(current ? "page" : "false") aria-selected=current class=SidebarRow flex=1 min-width=0
+        padding=(rail ? "6px" : "0 10px 0 8px") align-self="stretch" justify-content=(rail ? "center" : "flex-start") testId=`dood-${dood.id}`
         column position="relative" flex-shrink=0
           DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=40)
           if dood.asking
             column position="absolute" right=-2 bottom=-2 width="0.875rem" height="0.875rem" border-radius=7 background-color="asking"
               align-items="center" justify-content="center" box-shadow="0 0 0 2px var(--frame)" role="img" aria-label="Waiting on someone"
               text "?" color="ink.on-asking" font-size="0.625rem" font-weight=700 aria-hidden=true
-        column flex=1 min-width=0 gap=1
-          row align-items="baseline" gap=8
-            text nameOf(dood) flex=1 min-width=0 class=RowName font-weight=(dood.unread ? 600 : 500)
-              overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`dood-name-${dood.id}`
-            if with.length > 0
-              row aria-label=`With ${nameOf(dood)} now: ${namesOf(with)}` role="img" flex-shrink=0 testId=`dood-here-${dood.id}`
-                HereFaces(people=with, size=16)
-            if dood.working
-              progress aria-label="Working" width=14 height=14 testId=`dood-working-${dood.id}`
-            else if dood.latestAt > 0
-              text ago(dood.latestAt, now, utcOffset) class=RowTime color=(dood.unread ? "notice" : "ink.muted") font-weight=(dood.unread ? 500 : 400)
-          if dood.latest != "" or dood.unread
-            row align-items="center" gap=6
-              CallRow(agentId=dood.id)
-                text dood.latest flex=1 min-width=0 class=RowLine color=(dood.unread ? "ink" : "ink.muted")
-                  overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`dood-latest-${dood.id}`
-              if dood.unread
-                column width=8 height=8 border-radius=4 background-color="notice" flex-shrink=0 role="img" aria-label="Something new" testId=`dood-unread-${dood.id}`
-      column flex-shrink=0 padding-right=4
-        SidebarDoodMenu(dood=dood)
+          else if rail and dood.working
+            column position="absolute" right=-2 bottom=-2 width="0.875rem" height="0.875rem" border-radius=7 background-color="canvas"
+              align-items="center" justify-content="center" box-shadow="0 0 0 2px var(--frame)"
+              progress aria-label="Working" width=10 height=10 testId=`dood-working-${dood.id}`
+          if rail and dood.unread
+            column position="absolute" right=-2 top=-2 width="0.75rem" height="0.75rem" border-radius=6 background-color="notice"
+              box-shadow="0 0 0 2px var(--frame)" role="img" aria-label="Something new" testId=`dood-unread-${dood.id}`
+        if not rail
+          DoodRowWords(dood=dood, now=now, utcOffset=utcOffset, acting=acting)
+      if not rail
+        column position="absolute" top=5 right=4 opacity=(acting ? 1 : 0) focus=menuFocused blur=menuLeft
+          SidebarDoodMenu(dood=dood)
+
+// What a row says beside its face: the name, who is with it, when, and its latest line.
+component DoodRowWords
+  props
+    dood: Dood
+    now: number
+    utcOffset: number
+    // The row's menu is over where the time is.
+    acting: bool
+  inject
+    hereOthers: HerePlace[]
+    hereMembers: TeamMember[]
+    wide: bool
+  // Who else is with it now, in the team on screen (agent-list.tsx `with_`).
+  derive with = peopleIn(hereOthers.filter(p => p.agentId == dood.id), hereMembers)
+  view
+    column flex=1 min-width=0 gap=1
+      row align-items="baseline" gap=8
+        text nameOf(dood) flex=1 min-width=0 class=RowName line-height="1.359375rem" font-weight=(dood.unread ? 600 : 500)
+          overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`dood-name-${dood.id}`
+        if with.length > 0
+          row aria-label=`With ${nameOf(dood)} now: ${namesOf(with)}` role="img" flex-shrink=0 testId=`dood-here-${dood.id}`
+            HereFaces(people=with, size=16)
+        if acting
+          // Room for the menu and, in a wide window, the grip beside it.
+          column width=(wide ? 44 : 22) height=14 flex-shrink=0 aria-hidden=true
+        else if dood.working
+          progress aria-label="Working" width=14 height=14 testId=`dood-working-${dood.id}`
+        else if dood.latestAt > 0
+          text ago(dood.latestAt, now, utcOffset) class=RowTime color=(dood.unread ? "notice" : "ink.muted") font-weight=(dood.unread ? 500 : 400)
+      if dood.latest != "" or dood.unread
+        row align-items="center" gap=6
+          CallRow(agentId=dood.id)
+            text dood.latest flex=1 min-width=0 class=RowLine color=(dood.unread ? "ink" : "ink.muted")
+              overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`dood-latest-${dood.id}`
+          if dood.unread
+            column width=8 height=8 border-radius=4 background-color="notice" flex-shrink=0 role="img" aria-label="Something new" testId=`dood-unread-${dood.id}`
 
 // The person's own menu, at the foot of the sidebar: signing out.
 component AccountButton
   props
     session: Session
+    // In the sidebar shut to its faces: the face alone.
+    rail: bool
   inject
     signOut: action
     openAccountSettings: action
   view
-    column padding="6px 8px"
+    column padding=(rail ? "6px 4px" : "6px 8px")
       button popovertarget="account-menu" aria-label=`${session.name}: settings and signing out`
-        display="flex" align-items="center" gap=10 padding="6px 8px" border-radius=12 background-color="transparent" border="none"
+        display="flex" align-items="center" justify-content=(rail ? "center" : "flex-start") gap=10 padding="6px 8px" border-radius=12 background-color="transparent" border="none"
         color="ink" testId="account"
         :hover
           background-color="wash"
-        column width="1.75rem" height="1.75rem" border-radius=14 background-color="ink.muted" align-items="center" justify-content="center" flex-shrink=0
-          text session.initials color="canvas" font-size="0.625rem" font-weight=600
-        text session.name flex=1 min-width=0 font-size="0.875rem" text-align="start" overflow="hidden" text-overflow="ellipsis" white-space="nowrap"
-        image "symbol:icon.caret-up-down" aria-hidden=true color="ink.muted"
+        column width="1.75rem" height="1.75rem" border-radius=14 background-color=session.color align-items="center" justify-content="center" flex-shrink=0
+          text session.initials color="ink.on-color" font-size="0.625rem" font-weight=600
+        if not rail
+          text session.name flex=1 min-width=0 font-size="0.875rem" text-align="start" overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId="account-name"
+          image "symbol:icon.caret-up-down" aria-hidden=true color="ink.muted"
       column id="account-menu" popover="auto" role="menu" aria-label=session.email class=Menu
         // --- settings: the way into the person's own ---
         button role="menuitem" press=openAccountSettings popovertarget="account-menu" popovertargetaction="hide" class=MenuItem testId="account-settings"

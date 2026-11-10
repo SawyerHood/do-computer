@@ -7,6 +7,8 @@ test "a team is created, renamed, folded, and deleted with confirmations"
   type "sign-password" "correct horse"
   tap "sign-submit"
   clock data
+  // The sidebar starts shut to its faces, as the React app's does.
+  type "sidebar-resize" key "End"
   tap "new-team"
   clock settle
   expect disabled "team-create-submit"
@@ -56,6 +58,8 @@ test "a Dood is brought into a team, renamed, moved back, and deleted from its p
   tap "new-dood"
   clock data
   clock settle
+  // The sidebar starts shut to its faces, as the React app's does.
+  type "sidebar-resize" key "End"
   tap "new-team"
   clock settle
   type "team-name" "Garden"
@@ -113,6 +117,8 @@ test "an invitation can be previewed signed out, accepted by a new account, and 
   type "sign-password" "correct horse"
   tap "sign-submit"
   clock data
+  // The sidebar starts shut to its faces, as the React app's does.
+  type "sidebar-resize" key "End"
   tap "new-team"
   clock settle
   type "team-name" "Workshop"
@@ -170,6 +176,8 @@ test "email and GitHub invitations can be renewed and withdrawn"
   type "sign-password" "correct horse"
   tap "sign-submit"
   clock data
+  // The sidebar starts shut to its faces, as the React app's does.
+  type "sidebar-resize" key "End"
   tap "new-team"
   clock settle
   type "team-name" "Invitations"
@@ -241,6 +249,8 @@ test "dragging a Dood persists its order and Sort by latest gives that up"
   clock data
   clock settle
   expect state doodList.0.name == "Maple"
+  // The sidebar starts shut to its faces, as the React app's does.
+  type "sidebar-resize" key "End"
   tap "Drag Pico to reorder" drag 0 -80 mouse
   clock data
   clock settle
@@ -281,6 +291,8 @@ test "the owner can promote, demote, and hand the team to another member"
   type "sign-password" "correct horse"
   tap "sign-submit"
   clock data
+  // The sidebar starts shut to its faces, as the React app's does.
+  type "sidebar-resize" key "End"
   tap "new-team"
   clock settle
   type "team-name" "Roles"
@@ -351,6 +363,8 @@ test "an owner can remove a member after they join"
   type "sign-password" "correct horse"
   tap "sign-submit"
   clock data
+  // The sidebar starts shut to its faces, as the React app's does.
+  type "sidebar-resize" key "End"
   tap "new-team"
   clock settle
   type "team-name" "Workshop"
@@ -418,6 +432,8 @@ test "Not now leaves a public invitation without spending its link"
   type "sign-password" "correct horse"
   tap "sign-submit"
   clock data
+  // The sidebar starts shut to its faces, as the React app's does.
+  type "sidebar-resize" key "End"
   tap "new-team"
   clock settle
   type "team-name" "Workshop"
@@ -507,6 +523,8 @@ test "a team Dood hatches from its workspace plus, and a quick New team keeps th
   type "sign-password" "correct horse"
   tap "sign-submit"
   clock data
+  // The sidebar starts shut to its faces, as the React app's does.
+  type "sidebar-resize" key "End"
   tap "new-team"
   clock +1000
   expect state welcomeOn == false
@@ -554,6 +572,8 @@ test "in a team, its presence socket says who is here and where, and the panel s
   type "sign-password" "correct horse"
   tap "sign-submit"
   clock data
+  // The sidebar starts shut to its faces, as the React app's does.
+  type "sidebar-resize" key "End"
   tap "new-team"
   clock +1000
   type "team-name" "Here Studio"

@@ -125,6 +125,8 @@ test "a workspace's settings open from its menu in the sidebar"
   type "sign-password" "correct horse"
   tap "sign-submit"
   clock data
+  // The sidebar starts shut to its faces, as the React app's does.
+  type "sidebar-resize" key "End"
   tap "workspace-menu-personal"
   tap "workspace-settings-personal"
   clock settle
@@ -139,6 +141,8 @@ test "the sidebar's edge is dragged wider and narrower between its bounds, moved
   type "sign-password" "correct horse"
   tap "sign-submit"
   clock data
+  expect state sidebarShut == true
+  type "sidebar-resize" key "End"
   expect state sidebarWidth == 288
   expect tree has "sidebar-resize"
   tap "sidebar-resize" drag 60 0 mouse
@@ -154,6 +158,7 @@ test "the sidebar's edge is dragged wider and narrower between its bounds, moved
   tap "sidebar-resize" drag 48 0 mouse
   type "sidebar-resize" key "ArrowLeft"
   expect state sidebarWidth == 432
+  expect state sidebarShut == false
   reload
   clock data
   expect state sidebarWidth == 432
@@ -170,3 +175,44 @@ test "a phone has no edge to drag"
   clock data
   expect tree has "sidebar"
   expect tree missing "sidebar-resize"
+
+test "the sidebar shuts to a column of faces and opens again, by the edge, the keys and a double press, and stays shut over a reload"
+  size 1280x800
+  tap "sign-toggle"
+  type "sign-name" "Ada"
+  type "sign-email" "shell-rail@example.com"
+  type "sign-password" "correct horse"
+  tap "sign-submit"
+  clock data
+  tap "first-dood"
+  clock data
+  clock settle
+  clock data
+  expect tree missing "account-name"
+  tap "sidebar-resize" dblclick
+  expect state sidebarShut == false
+  expect tree has "account-name"
+  // Dragged in past half way to its narrowest, it is shut.
+  tap "sidebar-resize" drag -200 0 mouse
+  expect state sidebarShut == true
+  expect state sidebarWidth == 208
+  expect tree missing "account-name"
+  expect tree missing "new-team"
+  expect tree has "new-dood"
+  expect state onRoute == "dood"
+  reload
+  clock data
+  expect state sidebarShut == true
+  // Pulled out again from there.
+  tap "sidebar-resize" drag 240 0 mouse
+  expect state sidebarShut == false
+  expect state sidebarWidth == 300
+  expect tree has "account-name"
+  type "sidebar-resize" key "Home"
+  expect state sidebarShut == true
+  type "sidebar-resize" key "ArrowRight"
+  expect state sidebarShut == false
+  expect state sidebarWidth == 300
+  type "sidebar-resize" key "Home"
+  tap "sidebar-resize" dblclick
+  expect state sidebarShut == false
