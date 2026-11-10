@@ -451,22 +451,24 @@ component FirstHello
   derive met = welcomeMet == dood.id and dood.name != ""
   view
     if empty
-      column flex=1 align-items="center" justify-content="center" gap=12 padding=(viewport.height > 600 ? "64px 16px" : "24px 16px") text-align="center" testId="first-hello"
-        if not beside
-          // Hidden while the creature from the first run is on its way here.
-          column margin-bottom=24 visibility=(welcomeOn and met ? "hidden" : "visible")
-            Hatchling(dood=dood, size=max(96, min(224, viewport.height - 552)), feed="", crumb="", testId="hello-face")
-        if met
-          text `Hi ${firstName(session.name)}, I’m ${dood.name}.` role="heading" aria-level=1 font-size="1.25rem" font-weight=500 testId="hello-title"
-          text "What should we do first?" font-size="0.875rem" color="ink.muted"
-          row margin-top=8 flex-wrap="wrap" justify-content="center" gap=8
-            for s in starters() key=s.label
-              button press=welcomeStart(s.say) class=WelcomeOutline border-radius=999 min-height="2rem" font-size="0.8125rem" testId=`starter-${s.label}`
-                text s.label
-        else
-          text (dood.name == "" ? "Say hello" : dood.name) role="heading" aria-level=1 font-size="1.25rem" font-weight=500 testId="hello-title"
-          text (dood.name == "" ? "Your Dood is brand new. It has no name yet. Start talking and work out together who it is." : "What would you like to do?")
-            max-width="24rem" font-size="0.875rem" color="ink.muted"
+      // In a scroller of its own, so that at the largest text it scrolls and does not run under the header.
+      scroll flex=1 min-height=0 testId="first-hello"
+        column min-height="100%" align-items="center" justify-content="center" gap=12 padding=(viewport.height > 600 ? "64px 16px" : "24px 16px") text-align="center" box-sizing="border-box"
+          if not beside
+            // Hidden while the creature from the first run is on its way here.
+            column margin-bottom=24 visibility=(welcomeOn and met ? "hidden" : "visible")
+              Hatchling(dood=dood, size=max(96, min(224, viewport.height - 552)), feed="", crumb="", testId="hello-face")
+          if met
+            text `Hi ${firstName(session.name)}, I’m ${dood.name}.` role="heading" aria-level=1 font-size="1.25rem" font-weight=500 testId="hello-title"
+            text "What should we do first?" font-size="0.875rem" color="ink.muted"
+            row margin-top=8 flex-wrap="wrap" justify-content="center" gap=8
+              for s in starters() key=s.label
+                button press=welcomeStart(s.say) class=WelcomeOutline border-radius=999 min-height="2rem" font-size="0.8125rem" testId=`starter-${s.label}`
+                  text s.label
+          else
+            text (dood.name == "" ? "Say hello" : dood.name) role="heading" aria-level=1 font-size="1.25rem" font-weight=500 testId="hello-title"
+            text (dood.name == "" ? "Your Dood is brand new. It has no name yet. Start talking and work out together who it is." : "What would you like to do?")
+              max-width="24rem" font-size="0.875rem" color="ink.muted"
 
 style WelcomeButton
   min-height="2.25rem" padding="0 14px" border-radius=8 font-size="0.875rem" font-weight=500

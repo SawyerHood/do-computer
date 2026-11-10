@@ -94,6 +94,13 @@ component App
     treatMoved
     treatBites
     treatCount
+    treatHeld
+    treatX
+    treatY
+    treatNear
+    holdTreat
+    carryTreat
+    dropTreat
     giveTreat
     openBoxWindow
     boxStage

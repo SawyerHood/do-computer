@@ -3,7 +3,7 @@
 // own (`care-<n>@example.com`). What a box holds is the server's roll, so the tests say what is
 // true of any thing.
 
-test "a treat is eaten one at a time and counted, and the box opens on something to wear"
+test "a treat, pressed or carried to its mouth, is eaten one at a time and counted, and the box opens on something to wear"
   size 1280x800
   tap "sign-toggle"
   type "sign-name" "Ada"
@@ -35,6 +35,16 @@ test "a treat is eaten one at a time and counted, and the box opens on something
   clock data
   clock +1300
   expect state creature.fed == 2
+  tap "give-treat" drag 74 -20
+  clock data
+  clock +1300
+  expect state creature.fed == 3
+  expect state treatHeld == false
+  tap "give-treat" drag -10 120
+  clock data
+  clock +1300
+  expect state creature.fed == 3
+  expect state treatHeld == false
   tap "open-box"
   clock settle
   expect tree has "box-window"

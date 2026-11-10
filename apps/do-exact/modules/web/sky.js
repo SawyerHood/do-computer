@@ -89,7 +89,8 @@ export function create(element, props, event) {
       // Where it goes is looked for until it has stopped moving about, as welcome's `landing` does.
       const found = document.querySelector(`[data-testid="${CSS.escape(flight.target)}"]`);
       const rect = found?.getBoundingClientRect(), base = element.getBoundingClientRect();
-      const there = rect && rect.width > 0 ? { left: rect.left - base.left, top: rect.top - base.top, width: rect.width } : null;
+      // The page's picture is drawn 12% past its box (do-creature `overscan`), and so is this one.
+      const there = rect && rect.width > 0 ? { left: rect.left - base.left - rect.width * 0.12, top: rect.top - base.top - rect.width * 0.12, width: rect.width * 1.24 } : null;
       const still = there && flight.last && there.left === flight.last.left && there.top === flight.last.top;
       flight.last = there;
       if (still || time - flight.since > LOOK_MS) {

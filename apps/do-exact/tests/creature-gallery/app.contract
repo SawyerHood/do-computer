@@ -16,6 +16,11 @@ component App
   state show = true
   state opened = false
   state shake = false
+  state fed = 0
+  state talked = 0
+  state glowed = 0
+  state skyOut = false
+  state fly = ""
   action pressed
     presses = presses + 1
   action heard(value: string)
@@ -50,6 +55,18 @@ component App
     opened = true
   action remove
     show = not show
+  action feed
+    fed = fed + 1
+  action talk
+    talked = talked + 1
+    glowed = glowed + 1
+  action skyHeard(value: string)
+    sceneLast = value
+    if value == "hatched"
+      skyOut = true
+  action flyAway
+    scrollIntoView("sky")
+    fly = "landing"
   view
     column padding=16 gap=12
       h1 "Doods"
@@ -66,13 +83,15 @@ component App
           text "Hatch"
         button press=remove testId="remove"
           text "Mount / remove"
+        button press=feed testId="feed"
+          text "Feed"
       row gap=12
         text presses.toString() testId="presses"
         text last testId="last"
       if show
         row gap=12 flex-wrap="wrap" align-items="center"
           column
-            do-creature seed=seed colour=color state=mood hat=hat side="240" dark=dark.toString() reduced=reduced.toString() pettable="true" press=pressed message=heard width=240 height=240 aria-label="Pet Pip" role="button" testId="hero"
+            do-creature seed=seed colour=color state=mood hat=hat side="240" dark=dark.toString() reduced=reduced.toString() pettable="true" feed=`${fed}` crumb="#dba968" press=pressed message=heard width=240 height=240 aria-label="Pet Pip" role="button" testId="hero"
             text "Live, dressed, pettable"
           for state in ["idle", "listening", "thinking", "working", "speaking", "waiting", "asking", "done", "error", "asleep", "egg"] key=state
             column align-items="center"
@@ -110,11 +129,17 @@ component App
             column align-items="center"
               do-wardrobe seed="pip0" colour="moss" item=item side="100" width=100 height=100 aria-label=item testId=`wear-${item}`
               text item
-        do-sky seed="pip0" colour="moss" hatching=skyHatch.toString() reduced=reduced.toString() dawn="1" message=sceneHeard width=480 max-width="100%" height=360 aria-label="Egg arriving on its island" id="sky" testId="sky"
+        do-sky seed="pip0" colour="moss" hatching=skyHatch.toString() out=skyOut.toString() state=(skyOut ? "speaking" : "idle") talk=`${talked}` glow=`${glowed}` fly=fly
+          reduced=reduced.toString() dawn="1" message=skyHeard width=480 max-width="100%" height=360 aria-label="Egg arriving on its island" id="sky" testId="sky"
 
         row gap=12
           button press=skyHatchIt testId="sky-hatch"
             text "Hatch on island"
+          button press=talk testId="sky-talk"
+            text "Talk"
+          button press=flyAway testId="sky-fly"
+            text "Fly to its place"
+          do-creature seed="pip0" colour="moss" state="idle" side="96" width=96 height=96 aria-label="Where it lands" testId="landing"
           text sceneLast testId="scene-last"
           text giftLast testId="gift-last"
           text eggLast testId="egg-last"

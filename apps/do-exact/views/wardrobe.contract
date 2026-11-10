@@ -150,7 +150,7 @@ component WardrobeWindow
                       column position="absolute" left=10 right=10 bottom=0 height=3 background-color=t.color aria-hidden=true
                   else
                     column aria-label=`Not found yet: ${t.rarity.toLowerCase()}` class=Tile justify-content="center" border="1px dashed var(--border)" color="ink.muted"
-                      text "?" width="3.5rem" height="3.5rem" display="flex" align-items="center" justify-content="center" font-size="1.5rem" font-weight=600 color=t.color opacity=0.8
+                      text "?" aria-hidden=true width="3.5rem" height="3.5rem" display="flex" align-items="center" justify-content="center" font-size="1.5rem" font-weight=600 color=t.color opacity=0.8
                       row align-items="center" gap=4
                         image "symbol:icon.lock" font-size="0.75rem" aria-hidden=true
                         text t.rarity

@@ -60,6 +60,8 @@ export class Creature {
       if (props.cheer !== old.cheer && props.cheer) { orb.paused = false; orb.cheer(); }
       if (props.talk !== old.talk && props.talk) { orb.paused = false; orb.feed('token'); }
       if (props.key !== old.key && props.key) { orb.paused = false; orb.feed('key'); }
+      // A treat held out near its mouth: it opens for it, and closes when it is taken away.
+      if (props.offer !== old.offer && !this.timeline.length) { orb.paused = false; orb.offer(flag(props.offer)); }
     }
     // Let a held picture reach its expression, as AgentAvatar's still does.
     if (orb.paused) for (let n = 0; n < 12; n++) orb.update(1 / 30);
@@ -80,7 +82,10 @@ export class Creature {
     if (this.gone) return;
     const rect = this.element.getBoundingClientRect();
     this.side = number(this.props.side, Math.min(rect.width || 160, rect.height || rect.width || 160), 16, 600);
-    this.orb.resize(this.side);
+    // Drawn a little past its box, as AgentAvatar's canvas is: room for hops and rings.
+    const over = flag(this.props.overscan);
+    this.canvas.style.cssText = over ? 'position:absolute;left:-12%;top:-12%;width:124%;height:124%;max-width:none;max-height:none' : '';
+    this.orb.resize(over ? Math.min(600, Math.round(this.side * 1.24)) : this.side);
     if (this.orb.getState() !== 'hatching') this.orb.paused = flag(this.props.still, this.side <= 64) || this.orb.reduced;
     this.orb.rect = null;
     this.orb.render();
