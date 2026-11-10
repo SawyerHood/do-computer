@@ -104,7 +104,7 @@ component SkillsScreen
               input type="checkbox" role="switch" checked=s.enabled change=changeSkill(s.name, false) disabled=skillsBusy aria-label=`Use ${s.name}` testId=`skill-toggle-${s.name}`
               text "In use" class=PageLead
           text s.description font-size="0.875rem"
-          row gap=8
+          row gap=8 flex-wrap="wrap"
             button press=openSkill(s.name) class=OutlineButton testId=`skill-read-${s.name}`
               image (skillOpen == s.name ? "symbol:icon.caret-down" : "symbol:icon.caret-right") aria-hidden=true font-size="0.875rem"
               text (skillOpen == s.name ? "Hide" : "Read")

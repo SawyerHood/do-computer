@@ -1,7 +1,7 @@
 use Page, Session, Dood, Workspace from "./shapes.contract"
 use doodOf, nameOf from "./shell.contract"
 use DoodFace from "./creature.contract"
-use WorkspaceSettingsFrame, workspaceOf, SettingsCard, SettingsRow, SettingsEmpty, OutlineButton, SettingsField, Hint, SmallHint, FieldName, Confirm from "./settings-kit.contract"
+use WorkspaceSettingsFrame, SettingsCard, SettingsRow, SettingsEmpty, OutlineButton, SettingsField, Hint, SmallHint, FieldName, Confirm from "./settings-kit.contract"
 use PrimaryButton, Screen, IconButton from "./styles.contract"
 use Select, Choice from "./select.contract"
 
@@ -72,7 +72,7 @@ members App
   derive computersPanelOn = wide and panelOpen and (onRoute == "dood" or onRoute == "chat")
   derive computerWorkspaceId = onRoute == "workspaceComputers" or onRoute == "workspaceSettings" ? top(nav).params.workspaceId : openDood.workspaceId
   // The page is open: its own routes, or a workspace's settings that open at it (one's own, not a team's).
-  derive computersPageOn = onRoute == "computers" or onRoute == "workspaceComputers" or (onRoute == "workspaceSettings" and workspaceOf(workspaceList, computerWorkspaceId).kind != "team")
+  derive computersPageOn = onRoute == "computers" or onRoute == "workspaceComputers" or (onRoute == "workspaceSettings" and workspaceList.filter(w => w.id == computerWorkspaceId and w.kind != "team").length > 0)
   resource computers = loadComputers(session.owner, computersPageOn or computersPanelOn ? computerWorkspaceId : "", computersPageOn) with pulse.asks.tools as shape Computers else empty()
   resource pairingAddress = pairingCodeFromAddress(onRoute == "pair" ? top(nav).url : "") as shape PairingCode else empty()
   state pairingTypedCode = ""
@@ -295,9 +295,9 @@ component ComputerCommand
     // The React app's command box: the command on one line that scrolls, its copy button beside it.
     column gap=4
       text label class=Hint
+      // It wraps where React's scrolls sideways: a phone or the largest text has no room for it.
       row gap=8 align-items="center" padding="6px 6px 6px 12px" border-radius=8 border="1px solid var(--border)" background-color="canvas"
-        scroll overflow-x="auto" flex=1 min-width=0
-          text command white-space="nowrap" font-family="Geist Mono" font-size="0.75rem" testId=testId
+        text command flex=1 min-width=0 white-space="pre-wrap" overflow-wrap="break-word" font-family="Geist Mono" font-size="0.75rem" testId=testId
         button press=copy aria-label=(copied ? "Copied" : "Copy command") title=(copied ? "Copied" : "Copy command") class=IconButton flex-shrink=0 testId=`${testId}-copy`
           image (copied ? "symbol:icon.check" : "symbol:icon.copy") font-size="0.875rem"
 
@@ -398,7 +398,7 @@ component ComputerFact
   view
     row gap=12 align-items="center" flex-wrap="wrap" testId=testId
       text label class=Hint width="5.5rem" flex-shrink=0
-      row flex=1 min-width="10rem" gap=6 align-items="center" flex-wrap="wrap"
+      row flex="1 1 10rem" min-width=0 gap=6 align-items="center" flex-wrap="wrap"
         children
 
 // The Doods connected to it, each a chip with its face, its folder there, and a way to disconnect it.
@@ -456,10 +456,10 @@ component PairComputerScreen
             link href="/" color="ink.muted" font-size="0.875rem" testId="pair-back"
               text "Your Doods"
           if pairingDone
-            text "Connected" role="heading" aria-level=1 font-size="1.5rem" font-weight=600 testId="pair-connected"
+            text "Connected" role="heading" aria-level=1 font-size="1.5rem" font-weight=600 overflow-wrap="break-word" testId="pair-connected"
             text `${pairing.name} is connected. The daemon in your terminal will connect in a moment; you can close this page. ${pairingSelected.length == 0 ? "No Dood can use it yet: connect one under Computers, or let a Dood ask." : "Your chosen Doods can work on it."}` class=Hint
           else
-            text "Connect this computer?" role="heading" aria-level=1 font-size="1.5rem" font-weight=600 hyphens="auto"
+            text "Connect this computer?" role="heading" aria-level=1 font-size="1.5rem" font-weight=600 overflow-wrap="break-word"
             text "Check that this is the machine you just ran the command on." class=Hint
             text "Pairing code" class=FieldName
             input value=pairingCode input=editPairingCode aria-label="Pairing code" autocomplete="off" class=SettingsField testId="pair-code"

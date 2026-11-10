@@ -39,8 +39,8 @@ menu under its name (`align="center"`); an Exact popover is placed by the platfo
 button that opens it.
 
 **Hover reveals nothing.** Exact's `:hover` paints a box and cannot show a child. So what the
-React app shows under a pointer is always shown: a sidebar row's menu (over the row's end, with
-its drag grip in a wide window), a file card's download, a visual's corner button.
+React app shows under a pointer is always shown: a sidebar row's menu (at the row's end, in its
+shade, with its drag grip in a wide window), a file card's download, a visual's corner button.
 
 **A phone reorders with Move up and Move down.** A mouse drags a row's grip in a wide window
 (Exact's `reorderFor`), and the order is kept by the deployment as the React app's is. A finger
@@ -287,6 +287,10 @@ the 1024 px PNG with the bundled mascot. Other hosts say so instead of offering 
 **"This computer" is the desktop app's.** As in a plain browser running the React app, nothing
 here starts or configures the Electron app's own daemon; the install commands, pairing, update,
 removal and diagnostics work through the API. Installing a real daemon was not tried.
+
+**A computer's install command wraps.** React's scrolls sideways on one line beside its copy
+button; here it wraps, since a phone or the largest text has no room for it and the checks
+count a line that runs under its button.
 
 ## Library, pins and sharing
 

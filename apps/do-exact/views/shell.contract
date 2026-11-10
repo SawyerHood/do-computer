@@ -240,17 +240,18 @@ component DoodRow
     now: number
     utcOffset: number
   inject
-    wide: bool
     hereOthers: HerePlace[]
     hereMembers: TeamMember[]
   // Who else is with it now, in the team on screen (agent-list.tsx `with_`).
   derive with = peopleIn(hereOthers.filter(p => p.agentId == dood.id), hereMembers)
   view
-    row position="relative" align-items="center"
-      // The row's menu (and its grip, in a wide window) sit inside the row, over its end: the
-      // React app shows its menu there under a pointer, which Exact cannot (GAPS.md, "Hover").
+    // The row's menu (and its grip, in a wide window) are part of the row, at its end, in its
+    // shade: the React app shows its menu there under a pointer, which Exact cannot (GAPS.md, "Hover").
+    row position="relative" align-items="center" border-radius="0.7rem" background-color=(current ? "wash" : "transparent")
+      :hover
+        background-color="wash"
       link href=path("dood", dood.id) aria-label=`Talk to ${nameOf(dood)}` aria-current=(current ? "page" : "false") aria-selected=current class=SidebarRow flex=1 min-width=0
-        padding-right=(wide ? 56 : 36) testId=`dood-${dood.id}`
+        padding-right=4 testId=`dood-${dood.id}`
         column position="relative" flex-shrink=0
           DoodFace(seed=dood.seed, color=dood.color, state=stateOf(dood), name=nameOf(dood), size=40)
           if dood.asking
@@ -274,7 +275,7 @@ component DoodRow
                 overflow="hidden" text-overflow="ellipsis" white-space="nowrap" testId=`dood-latest-${dood.id}`
               if dood.unread
                 column width=8 height=8 border-radius=4 background-color="notice" flex-shrink=0 role="img" aria-label="Something new" testId=`dood-unread-${dood.id}`
-      column position="absolute" top=0 bottom=0 right=4 justify-content="center"
+      column flex-shrink=0 padding-right=4
         SidebarDoodMenu(dood=dood)
 
 // The person's own menu, at the foot of the sidebar: signing out.
