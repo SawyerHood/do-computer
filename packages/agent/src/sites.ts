@@ -6,7 +6,7 @@ import {
   type SiteSummary,
   siteTitleFor,
 } from "@do-computer/protocol"
-import { Type } from "@earendil-works/pi-ai"
+import { Type } from "typebox"
 import { defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
 import { LIBRARY_FOLDER, type LibraryBackend } from "./library-store.ts"
 

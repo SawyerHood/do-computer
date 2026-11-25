@@ -1,5 +1,5 @@
 import { type ChatState, type ChatUsage, toolSummary, type ToolPart } from "@do-computer/protocol"
-import type { Context } from "@earendil-works/chord"
+import type { Context } from "@earendil-works/chord/context"
 import type { AssistantMessage } from "@earendil-works/pi-ai"
 import {
   defineDocFamily,
@@ -10,7 +10,7 @@ import {
   type Harness,
   hook,
 } from "@earendil-works/pi-durable"
-import { Type } from "@earendil-works/pi-ai"
+import { Type } from "typebox"
 import { PROGRESS_TOOL } from "./project.ts"
 
 export type JudgeOptions = {
@@ -147,7 +147,9 @@ export class KeepGoing {
                 answer,
                 context.abortSignal,
               )
-              return go ? { continue: [{ type: "text" as const, text: NUDGE }] } : undefined
+              return go
+                ? { kind: "continue" as const, continue: [{ type: "text" as const, text: NUDGE }] }
+                : undefined
             } catch (error) {
               // Failing to ask must never cost the user their answer: the run just ends.
               this.#options.onError(

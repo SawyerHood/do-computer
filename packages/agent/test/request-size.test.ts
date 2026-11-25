@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { createAgentActor } from "../src/index.ts"
 
 type Body = {
+  thread?: { type: string; previous_message_id?: string }
   system?: { text: string }[]
   tools?: { name: string }[]
   messages?: { role: string; content: unknown }[]
@@ -201,10 +202,14 @@ describe("the first request of a main chat", () => {
       count === 1 ? callingTool("load_tools", { names: ["visual"] }) : turnedDown(),
     )
     const [first, second] = (await firstRequests(world, "draw me something", 2)) as [Body, Body]
-    // The list at the top, which the cache holds, is the same; the tool comes after it, and the
-    // rules every page is held to with it.
-    expect(second.tools).toEqual(first.tools)
-    expect(second.system).toEqual(first.system)
+    // The second request continues the first's thread, which pi-ai does only while the list of
+    // tools and the system prompt at the top, which the cache holds, are as they were: Anthropic
+    // keeps the thread's own, and neither is sent again. The tool comes after them, and the rules
+    // every page is held to with it.
+    expect(first.thread).toEqual({ type: "create" })
+    expect(second.thread).toEqual({ type: "continue", previous_message_id: "msg_1" })
+    expect(second.tools).toBeUndefined()
+    expect(second.system).toBeUndefined()
     const later = JSON.stringify(second.messages)
     expect(later).toContain('"type":"tool_addition"')
     expect(later).toContain('"name":"visual"')

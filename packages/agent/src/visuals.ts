@@ -31,7 +31,7 @@ import {
   PreviewError,
   type PreviewRequest,
 } from "@do-computer/runtime"
-import { Type } from "@earendil-works/pi-ai"
+import { Type } from "typebox"
 import { defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
 import { LIBRARY_FOLDER, type LibraryBackend, LibraryError } from "./library-store.ts"
 

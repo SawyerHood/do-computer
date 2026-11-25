@@ -11,8 +11,8 @@ import {
   type SecretRequest,
 } from "@do-computer/protocol"
 import { SandboxEnv } from "@do-computer/sandbox"
-import type { Context } from "@earendil-works/chord"
-import { Type } from "@earendil-works/pi-ai"
+import type { Context } from "@earendil-works/chord/context"
+import { Type } from "typebox"
 import {
   type Conversation,
   type ConversationId,

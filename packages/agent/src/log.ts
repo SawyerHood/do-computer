@@ -1,5 +1,5 @@
 import { LOG_TOOL } from "@do-computer/protocol"
-import { Type } from "@earendil-works/pi-ai"
+import { Type } from "typebox"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { ChatsDoc } from "./docs.ts"
 import { JournalDoc, recordDone } from "./journal.ts"

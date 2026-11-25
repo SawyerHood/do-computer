@@ -485,6 +485,7 @@ describe("agent actor", () => {
       return {
         exec: (text) => unless(() => sql.exec(text)),
         run: (text, ...params) => unless(() => sql.run(text, ...params)),
+        runCounted: (text, ...params) => unless(() => sql.runCounted(text, ...params)),
         get: (text, ...params) => unless(() => sql.get(text, ...params)),
         all: (text, ...params) => unless(() => sql.all(text, ...params)),
         transaction: (callback) => unless(() => sql.transaction(callback)),

@@ -15,7 +15,7 @@ import {
   fauxProvider,
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux"
-import { Type } from "@earendil-works/pi-ai"
+import { Type } from "typebox"
 import { defineExtension, defineTool } from "@earendil-works/pi-durable"
 import { afterEach, describe, expect, it } from "vitest"
 import type { ImageLimits } from "../src/limits.ts"
@@ -474,9 +474,8 @@ const LONG = 45_000
 /**
  * A main chat whose last request filled `share` of the model's window: a short exchange, then
  * two long messages, the second sent once the window is set so that its request comes to
- * `share` of it. The scripted model counts a request's input as its whole prompt and what it
- * newly caches again, so a request with one more long message than the one before comes to
- * that one and `LONG` more. Resolves with the chat and its last request's input.
+ * `share` of it. The scripted model counts a request's input as its whole prompt, each token
+ * read from its cache or written to it. Resolves with the chat and its last request's input.
  */
 async function fill(
   world: World,
@@ -503,18 +502,17 @@ async function fill(
   ])
   // In the main chat each of these is two requests: the answer, and the one reminder a run that
   // sent the person nothing is given, which the scripted model answers quietly. The reminder's
-  // prompt is the answer's and a few words more, all but those few read from the cache. So
-  // where a message of `LONG` makes a turn's answer P + 2 LONG, its reminder is P + LONG, and
-  // the turn comes to 2P + 3 LONG; the next turn's reminder, the chat's last request, is the
-  // P + 2 LONG this one's answer was.
+  // prompt is the answer's and a few words more. So where a message of `LONG` comes after a
+  // prompt of P, the turn's answer and its reminder are each P + LONG, and the turn comes to
+  // 2P + 2 LONG; the next turn's reminder, the chat's last request, is P + 2 LONG.
   const hello = await say(world, main.id, "hi")
   const first = await say(world, main.id, words(LONG, "first"))
-  const expected = (first.usage.inputTokens - hello.usage.inputTokens + LONG) / 2
+  const expected = (first.usage.inputTokens - hello.usage.inputTokens) / 2 + LONG
   world.faux.models[0].contextWindow = Math.round(expected / share)
   const second = await say(world, main.id, words(LONG, last))
   // What the chat's last request was sent: the reminder's.
   const sent = world.faux.requests.at(-1)!.messages
-  const input = Math.round((second.usage.inputTokens - first.usage.inputTokens - LONG) / 2)
+  const input = Math.round((second.usage.inputTokens - first.usage.inputTokens) / 2)
   return { main, input, sent }
 }
 

@@ -1,6 +1,7 @@
 import type { IdleCompactionRecord } from "@do-computer/protocol"
 import type { ActorDatabase } from "@do-computer/runtime"
-import { type Context, copyJson } from "@earendil-works/chord"
+import type { Context } from "@earendil-works/chord/context"
+import { copyJson } from "@earendil-works/chord/json"
 import type {
   AssistantMessage,
   CacheRetention,
@@ -432,6 +433,9 @@ export const CompactionsDoc = defineDoc<{ records: IdleCompactionRecord[] }>({
 
 /** What a compaction's hook keeps of its summary, so that a task taken up again asks once. */
 type Memo = { summary: string | null }
+
+/** A summary that `beforeCompact` places in place of pi-durable's own. */
+type Summary = { readonly kind: "summary"; readonly summary: string }
 const MEMO = "dc.idle-summary"
 
 type Row = { chat_id: string; due: number; deferred_since: number | null }
@@ -698,11 +702,11 @@ export class IdleCompaction {
     compaction: Parameters<CompactionHooks["beforeCompact"]>[0],
     api: HookApi,
     context: Context,
-  ): Promise<{ summary: string } | { decline: true } | undefined> {
+  ): Promise<Summary | { readonly kind: "decline" } | undefined> {
     if (compaction.reason === "manual" && compaction.instructions === IDLE_INSTRUCTIONS) {
       // Where there is no summary, an idle compaction does nothing: the chat is not in the way of
       // anything, and pi-durable's summarizer would send the whole chat uncached.
-      return (await this.#idleSummary(compaction, api, context)) ?? { decline: true }
+      return (await this.#idleSummary(compaction, api, context)) ?? { kind: "decline" }
     }
     if (compaction.reason !== "threshold") return undefined
     // A chat at its threshold needs the room, so anything that goes wrong here leaves it to
@@ -720,13 +724,15 @@ export class IdleCompaction {
     compaction: Parameters<CompactionHooks["beforeCompact"]>[0],
     api: HookApi,
     context: Context,
-  ): Promise<{ summary: string } | undefined> {
+  ): Promise<Summary | undefined> {
     const harness = this.#harness
     if (harness === undefined) return undefined
     // Asked once for a task: one taken up again after a restart uses what it was told.
     const remembered = await api.memo<Memo>(MEMO, context)
     if (remembered !== undefined) {
-      return remembered.summary === null ? undefined : { summary: remembered.summary }
+      return remembered.summary === null
+        ? undefined
+        : { kind: "summary", summary: remembered.summary }
     }
     const conversation = await harness.conversation(api.conversationId, context)
     if (conversation === undefined) return undefined
@@ -749,7 +755,7 @@ export class IdleCompaction {
     compaction: Parameters<CompactionHooks["beforeCompact"]>[0],
     api: HookApi,
     context: Context,
-  ): Promise<{ summary: string } | undefined> {
+  ): Promise<Summary | undefined> {
     const harness = this.#harness
     if (harness === undefined) return undefined
     const conversation = await harness.conversation(api.conversationId, context)
@@ -760,7 +766,9 @@ export class IdleCompaction {
     if (model === undefined || cacheLifetimeMs(model) === undefined) return undefined
     const remembered = await api.memo<Memo>(MEMO, context)
     if (remembered !== undefined) {
-      return remembered.summary === null ? undefined : { summary: remembered.summary }
+      return remembered.summary === null
+        ? undefined
+        : { kind: "summary", summary: remembered.summary }
     }
     const chatId = String(api.conversationId)
     if (failedLately(await this.records(context), chatId, this.#options.now())) return undefined
@@ -810,7 +818,7 @@ export class IdleCompaction {
     main: boolean,
     api: HookApi,
     context: Context,
-  ): Promise<{ summary: string } | undefined> {
+  ): Promise<Summary | undefined> {
     const idle = compaction.reason === "manual"
     let outcome: { summary: string } | { failure: string }
     try {
@@ -830,7 +838,7 @@ export class IdleCompaction {
     }
     const summary = "summary" in outcome ? outcome.summary : null
     await api.memo<Memo>(MEMO, { summary }, context)
-    if ("summary" in outcome) return { summary: outcome.summary }
+    if ("summary" in outcome) return { kind: "summary", summary: outcome.summary }
     this.#options.onReport(
       new Error(
         `Chat ${String(api.conversationId)}: the summary asked for from the cache (task ${String(api.taskId)}) failed, so ${idle ? "the chat was left as it is" : "pi-durable's own summarizer writes it"}: ${outcome.failure}`,
@@ -870,6 +878,9 @@ export class IdleCompaction {
         // room left in the window.
         maxTokens: model.maxTokens,
         ...(provider?.sessionId === undefined ? {} : { sessionId: provider.sessionId }),
+        // It repeats the chat's last request with one more message: it must neither continue
+        // the chat's thread with the provider (Anthropic's message threads) nor take its place.
+        disableContinuation: true,
         ...(context.abortSignal === undefined ? {} : { signal: context.abortSignal }),
         ...(asking.thinking === "off" ? {} : { reasoning: asking.thinking }),
       },

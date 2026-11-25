@@ -10,7 +10,6 @@ import {
   type CallLinesRequest,
   type CallWorkRequest,
   type CallWorkResponse,
-  type ChatMessage,
   type ChatState,
   type ChatSummary,
   type ChatUsage,
@@ -56,7 +55,7 @@ import type {
   PagePreviewer,
 } from "@do-computer/runtime"
 import type { Sandbox } from "@do-computer/sandbox"
-import type { Context } from "@earendil-works/chord"
+import type { Context } from "@earendil-works/chord/context"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { Usage } from "@earendil-works/pi-ai"
 import type { Models } from "@earendil-works/pi-ai/models"
@@ -162,7 +161,7 @@ import { SkillError, Skills, SkillsDoc } from "./skills.ts"
 import { SlackChats, type SlackDirectory, SlackError, type SlackMessage } from "./slack.ts"
 import { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
 import { preview } from "./preview.ts"
-import { addUsage, projectChat } from "./project.ts"
+import { addUsage, projectChat, readChat, watchChat } from "./project.ts"
 import { JobError, Jobs, JobsDoc } from "./jobs.ts"
 import { UseError, Uses } from "./uses.ts"
 import { vault } from "./vault.ts"
@@ -190,6 +189,7 @@ const REOPEN_MS = 1_000
 const keptOpen = (sql: ActorDatabase): ActorDatabase => ({
   exec: (text) => sql.exec(text),
   run: (text, ...params) => sql.run(text, ...params),
+  runCounted: (text, ...params) => sql.runCounted(text, ...params),
   get: (text, ...params) => sql.get(text, ...params),
   all: (text, ...params) => sql.all(text, ...params),
   transaction: (callback) => sql.transaction(callback),
@@ -1116,12 +1116,7 @@ export class AgentActor implements Actor {
     const harness = await this.#harness
     const conversation = await harness?.conversation(Number(chatId) as ConversationId, context)
     if (conversation === undefined) return undefined
-    const view = await conversation.viewState(context)
-    try {
-      return projectChat(view.value)
-    } finally {
-      view.dispose()
-    }
+    return readChat(conversation, context)
   }
 
   /** The address people reach the app at, where that is known. */
@@ -1381,7 +1376,7 @@ export class AgentActor implements Actor {
           models: this.#options.models,
           registry,
           now: () => this.#host.now(),
-          onReport: (error) => this.#options.onReport?.(error),
+          onReport: (report) => this.#options.onReport?.(report.error),
           // The alarm wakes the agent for a task's sleep (a retry's backoff, a deferred reply's
           // poll), so pi-durable keeps no timer for it: a timer would hold the agent in memory
           // until then, and one that was unloaded would never fire. Told whenever what
@@ -1435,7 +1430,7 @@ export class AgentActor implements Actor {
       // refused. The agent is then put away as `close()` does, and woken to pick up from
       // what is stored, which is whole, since nothing is stored by halves.
       void harness.closed.then(async (end) => {
-        if (end.reason !== "failed" || this.#harness !== opening) return
+        if (end.kind !== "failed" || this.#harness !== opening) return
         try {
           await this.#putAway()
           await this.#host.setAlarm(this.#host.now() + REOPEN_MS)
@@ -2251,13 +2246,7 @@ export class AgentActor implements Actor {
         if ((await harness.snapshot(ChatsDoc, context))?.main !== input.chatId) {
           throw new HttpError(409, "A call is held in the main chat.")
         }
-        const view = await (await this.#chat(harness, input.chatId)).viewState(context)
-        let messages: ChatMessage[]
-        try {
-          messages = projectChat(view.value).messages
-        } finally {
-          view.dispose()
-        }
+        const { messages } = await readChat(await this.#chat(harness, input.chatId), context)
         const call = await this.#calls.start(
           { chatId: input.chatId, sdp: input.sdp },
           caller,
@@ -2312,12 +2301,7 @@ export class AgentActor implements Actor {
         const conversation = await this.#chat(harness, chatId)
         const rest = segments[2]
         if (rest === undefined && method === "GET") {
-          const view = await conversation.viewState(context)
-          try {
-            return json(projectChat(view.value))
-          } finally {
-            view.dispose()
-          }
+          return json(await readChat(conversation, context))
         }
         if (rest === undefined && method === "PATCH") {
           return this.#updateChat(harness, chatId, await body<UpdateChatRequest>(request))
@@ -3582,11 +3566,12 @@ export class AgentActor implements Actor {
     const chatId = String(conversation.id)
     return eventStream(async (emit, close) => {
       this.#watchers.set(chatId, (this.#watchers.get(chatId) ?? 0) + 1)
-      const watch = await conversation.watch(context)
+      const watch = await watchChat(conversation, context)
       let state = projectChat(watch.value)
       await emit({ type: "snapshot", state })
-      watch.start(async (value) => {
-        const next = projectChat(value)
+      watch.start(async (call) => {
+        if (call.kind !== "value") return
+        const next = projectChat(call.value)
         const events = diffChat(state, next)
         state = next
         for (const event of events) await emit(event)

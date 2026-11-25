@@ -13,7 +13,7 @@ import {
 import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
 import { justBashSandbox, type Sandbox } from "@do-computer/sandbox"
 import { createLocalProcessSandbox } from "@do-computer/sandbox/testing"
-import { Type } from "@earendil-works/pi-ai"
+import { Type } from "typebox"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {
   fauxAssistantMessage,

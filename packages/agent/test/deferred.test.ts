@@ -3,7 +3,8 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { ChatState, ChatSummary, ToolPart } from "@do-computer/protocol"
 import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
-import { getCurrentTools, Type, type Context as ModelContext } from "@earendil-works/pi-ai"
+import { getCurrentTools, type Context as ModelContext } from "@earendil-works/pi-ai"
+import { Type } from "typebox"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {
   fauxAssistantMessage,

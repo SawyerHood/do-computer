@@ -2,8 +2,8 @@ import { computerSandbox } from "@do-computer/computers"
 import { boundedAdapterStatus, type ComputerAdapterStatus } from "@do-computer/protocol"
 import type { ActorNamespace } from "@do-computer/runtime"
 import { type Sandbox, SandboxEnv } from "@do-computer/sandbox"
-import type { Context } from "@earendil-works/chord"
-import { Type } from "@earendil-works/pi-ai"
+import type { Context } from "@earendil-works/chord/context"
+import { Type } from "typebox"
 import {
   type Conversation,
   type ConversationId,
@@ -14,6 +14,7 @@ import {
   type Harness,
   section,
   type ToolExecutionResult,
+  type ToolPark,
   type ToolRegistration,
   wrapTool,
 } from "@earendil-works/pi-durable"
@@ -231,7 +232,10 @@ const READ_DESCRIPTION = `Read the contents of a file. Supports text files and i
  * A file read is sent whole up to the cap (`output-cap.ts`), and past it its start and end, with
  * the lines left out between them to read next. The file is where all of it is.
  */
-function capRead<R extends ToolExecutionResult>(result: R, args: Record<string, unknown>): R {
+function capRead<R extends ToolExecutionResult | ToolPark>(
+  result: R,
+  args: Record<string, unknown>,
+): R {
   const output = result.output
   if (output === undefined || !output.some((item) => item.type === "text")) return result
   const path = typeof args.path === "string" ? args.path : "the file"
@@ -337,10 +341,16 @@ export class Computers {
       wrapTool(tool as ToolRegistration, (inner) => ({
         ...inner,
         ...(inner.name === "read" ? { description: READ_DESCRIPTION } : {}),
-        parameters: Type.Object({
-          ...(inner.parameters as unknown as { properties: Record<string, never> }).properties,
-          computer: PARAMETER,
-        }) as unknown as typeof inner.parameters,
+        // The tool's own JSON Schema with one more property: its `required` and the rest stand.
+        // (pi-durable's tools are built with pi-schema, whose optional properties TypeBox's
+        // `Type.Object` would take for required ones.)
+        parameters: {
+          ...inner.parameters,
+          properties: {
+            ...(inner.parameters as { properties?: Record<string, unknown> }).properties,
+            computer: PARAMETER,
+          },
+        } as typeof inner.parameters,
         // The inner tool validates its own arguments shape; drop ours before it sees them.
         prepareArguments: undefined,
         execute: async (args, api, context) => {
