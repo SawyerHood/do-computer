@@ -48,7 +48,10 @@ describe("Better Auth's comparison of the tables", () => {
     // This is the promise that is never finished on Workers. If this fails, Better Auth no
     // longer keeps one, and the constant may no longer be needed.
     expect(check).toBeTypeOf("function")
-    expect(check!()).toBe(check!())
+    const comparison = check!()
+    expect(check!()).toBe(comparison)
+    // These tables were never made, which the comparison says by failing.
+    await expect(comparison).rejects.toThrow("Database schema mismatch")
   })
 
   it("is not made at all as the app sets Better Auth up", async () => {

@@ -20,16 +20,16 @@
     "@earendil-works/pi-ai": "catalog:",
     "@earendil-works/pi-durable": "catalog:",
     "@earendil-works/pi-mcp": "1.6.1",
-    "croner": "^10.0.1",
+    "croner": "^11.0.1",
     "typebox": "^1.4.7"
   },
   "devDependencies": {
-    "@cloudflare/vitest-plugin": "^1.4.0",
-    "@cloudflare/workers-types": "^5.20261011.1",
+    "@cloudflare/vitest-plugin": "^1.9.2",
+    "@cloudflare/workers-types": "^5.20261124.1",
     "@types/node": "catalog:",
     "@typescript/native": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
-    "wrangler": "^4.149.0"
+    "wrangler": "^4.168.0"
   }
 }

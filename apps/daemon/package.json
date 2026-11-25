@@ -18,11 +18,11 @@
   "dependencies": {
     "@do-computer/computers": "workspace:*",
     "@do-computer/protocol": "workspace:*",
-    "ws": "^8"
+    "ws": "^8.23.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "@types/ws": "^8",
+    "@types/ws": "^8.18.2",
     "@typescript/native": "catalog:",
     "esbuild": "^0.28.2",
     "typescript": "catalog:",
