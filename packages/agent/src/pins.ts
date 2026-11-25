@@ -8,7 +8,7 @@ import {
   pinOf,
   pinTitle,
 } from "@do-computer/protocol"
-import { Type } from "@earendil-works/pi-ai"
+import { Type } from "typebox"
 import { defineDoc, defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { LIBRARY_FOLDER, type LibraryBackend } from "./library-store.ts"
 

@@ -1,4 +1,5 @@
-import { type Credential, Type, type Usage } from "@earendil-works/pi-ai"
+import { type Credential, type Usage } from "@earendil-works/pi-ai"
+import { Type } from "typebox"
 import { defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"

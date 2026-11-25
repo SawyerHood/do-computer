@@ -8,8 +8,9 @@ import {
   signInSite,
   type UsingAgent,
 } from "@do-computer/protocol"
-import type { Context } from "@earendil-works/chord"
-import { type ToolCall, Type } from "@earendil-works/pi-ai"
+import type { Context } from "@earendil-works/chord/context"
+import { type ToolCall } from "@earendil-works/pi-ai"
+import { Type } from "typebox"
 import {
   defineExtension,
   defineTool,

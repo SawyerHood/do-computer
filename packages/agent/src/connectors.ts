@@ -15,8 +15,8 @@ import {
   readMcpAppCsp,
 } from "@do-computer/protocol"
 import type { BlobStore, SqliteDatabase } from "@do-computer/runtime"
-import type { Context } from "@earendil-works/chord"
-import { Type } from "@earendil-works/pi-ai"
+import type { Context } from "@earendil-works/chord/context"
+import { Type } from "typebox"
 import { BlockedAddressError, checkAddress, guardedFetch } from "./guarded-fetch.ts"
 import {
   McpClient,

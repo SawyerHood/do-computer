@@ -7,8 +7,8 @@ import {
   type SandboxJobs,
   shellJobs,
 } from "@do-computer/sandbox"
-import type { Context } from "@earendil-works/chord"
-import { Type } from "@earendil-works/pi-ai"
+import type { Context } from "@earendil-works/chord/context"
+import { Type } from "typebox"
 import {
   type Conversation,
   type ConversationId,
@@ -20,6 +20,7 @@ import {
   section,
   type ToolExecutionApi,
   type ToolExecutionResult,
+  type ToolPark,
   type ToolRegistration,
 } from "@earendil-works/pi-durable"
 import { createBashTool } from "@earendil-works/pi-durable/tools"
@@ -101,7 +102,7 @@ type Execute<Args> = (
   args: Args,
   api: ToolExecutionApi,
   context: Context,
-) => Promise<ToolExecutionResult>
+) => Promise<ToolExecutionResult | ToolPark>
 
 /**
  * `bash` as the agent is sent it: what a command printed whole up to the cap, and past it its
@@ -134,7 +135,9 @@ function capped<Args>(execute: Execute<Args>): Execute<Args> {
       return { ...result, output: [{ type: "text" as const, text: cap.capped(marker)! }] }
     }
     try {
-      return await cut(await execute(args, api, context))
+      const returned = await execute(args, api, context)
+      // A park has no output yet: the call runs again once woken, and is cut then.
+      return returned.kind === undefined ? await cut(returned) : returned
     } catch (error) {
       // A command that failed after printing a lot is sent the same start and end.
       if (!cap.over || context.abortSignal?.aborted) throw error
@@ -911,11 +914,13 @@ export class Jobs {
         // As it was before there were jobs: the call is the command. What pi-durable's own
         // gives to programs is left out, as this `bash` declares nothing for them.
         const plainly = async () => {
-          const { structuredOutput: _programs, ...result } = await this.#plain.execute(
+          const returned = await this.#plain.execute(
             { command, ...(timeout === undefined ? {} : { timeout }) },
             api as never,
             context,
           )
+          if (returned.kind !== undefined) return returned
+          const { structuredOutput: _programs, ...result } = returned
           return result
         }
         if (target === undefined || runner === undefined) {

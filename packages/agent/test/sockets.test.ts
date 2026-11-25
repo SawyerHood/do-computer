@@ -356,6 +356,7 @@ describe("following an agent over a socket", () => {
     const world = open(200, (sql) => ({
       exec: (text) => sql.exec(text),
       run: (text, ...params) => sql.run(text, ...params),
+      runCounted: (text, ...params) => sql.runCounted(text, ...params),
       get: (text, ...params) => sql.get(text, ...params),
       all: (text, ...params) => sql.all(text, ...params),
       transaction: (callback) =>

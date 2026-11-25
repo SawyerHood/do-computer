@@ -1,6 +1,6 @@
 import { IMAGE_MAX_EDGE, IMAGE_MAX_PIXELS, type ImageLimits } from "@do-computer/protocol"
 import type { Sandbox } from "@do-computer/sandbox"
-import type { Context } from "@earendil-works/chord"
+import type { Context } from "@earendil-works/chord/context"
 import type { ToolExecutionApi, ToolExecutionResult } from "@earendil-works/pi-durable"
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env"
 

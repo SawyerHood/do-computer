@@ -1,6 +1,6 @@
 import { type ChatState, DEFAULT_THINKING, type SubagentStatus } from "@do-computer/protocol"
-import type { Context } from "@earendil-works/chord"
-import { Type } from "@earendil-works/pi-ai"
+import type { Context } from "@earendil-works/chord/context"
+import { Type } from "typebox"
 import {
   type Conversation,
   type ConversationId,

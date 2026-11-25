@@ -4,7 +4,7 @@ packages:
   # An Exact app, built with Bun and Cargo (apps/do-exact/README.md): no part of this workspace.
   - "!apps/do-exact"
 
-# pi 1.4.0 was published on 2026-10-21; let it through the release-age gate.
+# pi 1.6.1 was published on 2026-11-25; let it through the release-age gate.
 minimumReleaseAgeExclude:
   - "@earendil-works/*"
 
@@ -27,6 +27,6 @@ catalog:
   "@typescript/native": npm:typescript@^7.0.2
   vitest: ^5.0.3
   "@types/node": ^24
-  "@earendil-works/pi-durable": 1.4.0
-  "@earendil-works/pi-ai": 1.4.0
-  "@earendil-works/chord": 1.4.0
+  "@earendil-works/pi-durable": 1.6.1
+  "@earendil-works/pi-ai": 1.6.1
+  "@earendil-works/chord": 1.6.1

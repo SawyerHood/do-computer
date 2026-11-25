@@ -37,6 +37,7 @@ export async function inStore<T>(
         const kept: ActorDatabase = {
           exec: (text) => sql.exec(text),
           run: (text, ...params) => sql.run(text, ...params),
+          runCounted: (text, ...params) => sql.runCounted(text, ...params),
           get: (text, ...params) => sql.get(text, ...params),
           all: (text, ...params) => sql.all(text, ...params),
           transaction: (callback) => sql.transaction(callback),

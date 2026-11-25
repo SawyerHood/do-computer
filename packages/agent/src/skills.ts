@@ -1,7 +1,7 @@
 import type { SkillDetail, SkillSource, SkillSummary } from "@do-computer/protocol"
-import type { Context } from "@earendil-works/chord"
+import type { Context } from "@earendil-works/chord/context"
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env"
-import { Type } from "@earendil-works/pi-ai"
+import { Type } from "typebox"
 import {
   defineDoc,
   defineDocFamily,

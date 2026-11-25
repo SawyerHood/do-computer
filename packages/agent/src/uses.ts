@@ -18,8 +18,9 @@ import {
   VIEW_WAIT_MS,
 } from "@do-computer/protocol"
 import type { BlobStore } from "@do-computer/runtime"
-import type { Context } from "@earendil-works/chord"
-import { type Message, StringEnum, Type } from "@earendil-works/pi-ai"
+import type { Context } from "@earendil-works/chord/context"
+import { type Message, StringEnum } from "@earendil-works/pi-ai"
+import { Type } from "typebox"
 import {
   defineExtension,
   defineTool,

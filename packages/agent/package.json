@@ -19,8 +19,9 @@
     "@earendil-works/chord": "catalog:",
     "@earendil-works/pi-ai": "catalog:",
     "@earendil-works/pi-durable": "catalog:",
-    "@earendil-works/pi-mcp": "1.4.0",
-    "croner": "^10.0.1"
+    "@earendil-works/pi-mcp": "1.6.1",
+    "croner": "^10.0.1",
+    "typebox": "^1.4.7"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.4.0",

@@ -22,12 +22,14 @@ import type {
   UserMessage,
 } from "@earendil-works/pi-ai"
 import type {
+  Conversation,
   ConversationView,
   EntryRecord,
   InboxState,
   LiveState,
   UsageState,
 } from "@earendil-works/pi-durable"
+import type { Context } from "@earendil-works/chord/context"
 import {
   APPROVAL_ENTRY,
   ASKED_ENTRY,
@@ -922,9 +924,51 @@ export function entryText(
   }
 }
 
+/** A window of a conversation's view that never lets an entry go. */
+const WHOLE_WINDOW = 1_000_000_000
+
 /**
- * What a client renders for one conversation, derived from pi-durable's committed view: the active
- * transcript, then the answer being generated. Pure, so two views of the same commit are equal.
+ * A watch of a chat whose window holds its active transcript: from where the newest head marker
+ * starts it (or the transcript's start) on, never dropping an entry. `projectChat` takes the
+ * active transcript out of it, also after a later compaction or fresh start.
+ */
+export async function watchChat(conversation: Conversation, context: Context) {
+  const from = (await conversation.context(context)).head?.head
+  return conversation.watch(context, {
+    ...(from === undefined ? {} : { from }),
+    min: WHOLE_WINDOW,
+    max: WHOLE_WINDOW,
+  })
+}
+
+/** A chat as `projectChat` makes it of the chat's view now, read once. */
+export async function readChat(conversation: Conversation, context: Context): Promise<ChatState> {
+  const watch = await watchChat(conversation, context)
+  try {
+    return projectChat(watch.value)
+  } finally {
+    await watch.stop()
+  }
+}
+
+/**
+ * The active transcript within a window of pi-durable's conversation view, which holds the
+ * transcript in entry order with its head markers (compaction summaries, fresh starts) in place:
+ * the newest head marker, then the entries from where it starts on that are not head markers, as
+ * `Conversation.context()` gives them. Without a marker, every entry. The window has to begin at
+ * or before where the newest marker starts, as `watchChat`'s does.
+ */
+export function activeEntries(window: readonly EntryRecord[]): readonly EntryRecord[] {
+  const head = window.findLast((entry) => entry.head !== undefined)
+  if (head === undefined) return window
+  const from = head.head!
+  return [head, ...window.filter((entry) => entry.head === undefined && entry.id >= from)]
+}
+
+/**
+ * What a client renders for one conversation, derived from pi-durable's committed view (a window
+ * of it from `watchChat`): the active transcript, then the answer being generated. Pure, so two
+ * views of the same commit are equal.
  */
 export function projectChat(view: ConversationView): ChatState {
   const live = view.docs["pi.live"] as LiveState | undefined
@@ -934,10 +978,9 @@ export function projectChat(view: ConversationView): ChatState {
   // An old side chat carries the messages of the chat it branched off. They are in front of the
   // agent, and are that chat's to show.
   const carried = view.conversation.parent?.at
+  const active = activeEntries(view.entries)
   const entries =
-    carried === undefined
-      ? view.entries
-      : view.entries.filter((entry) => Number(entry.id) > Number(carried))
+    carried === undefined ? active : active.filter((entry) => Number(entry.id) > Number(carried))
   const { messages, inBus, tools, register, lastEntryId, bus } = projectEntries(
     entries,
     // A side chat starts where it branched off, and the bus is never on in one.

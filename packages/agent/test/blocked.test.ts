@@ -3,7 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { ChatSummary } from "@do-computer/protocol"
 import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
-import { Type } from "@earendil-works/pi-ai"
+import { Type } from "typebox"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {
   fauxAssistantMessage,

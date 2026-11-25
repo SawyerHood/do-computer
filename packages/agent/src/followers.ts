@@ -10,7 +10,7 @@ import {
   MAX_FOLLOWED_CHATS,
 } from "@do-computer/protocol"
 import type { ActorHost, ActorSocket } from "@do-computer/runtime"
-import type { Context } from "@earendil-works/chord"
+import type { Context } from "@earendil-works/chord/context"
 import type {
   Conversation,
   DocumentWatch,
@@ -18,7 +18,7 @@ import type {
   JsonObject,
   SessionDocToken,
 } from "@earendil-works/pi-durable"
-import { projectChat } from "./project.ts"
+import { projectChat, watchChat } from "./project.ts"
 
 type Told = Extract<AgentEvent, { type: "changed" }>["what"]
 type Doc = SessionDocToken<JsonObject>
@@ -102,8 +102,9 @@ export class Followers {
       if (watch === undefined) continue
       const entry = { watch, at: digest(watch.value) }
       this.#docs.set(what, entry)
-      watch.start(async (value) => {
-        entry.at = digest(value)
+      watch.start(async (call) => {
+        if (call.kind !== "value") return
+        entry.at = digest(call.value)
         const frame = JSON.stringify({
           type: "agent",
           event: { type: "changed", what },
@@ -121,11 +122,12 @@ export class Followers {
     if (watching !== undefined) return watching
     const conversation = await this.#options.chat(harness, chatId)
     if (conversation === undefined) return undefined
-    const watch = await conversation.watch(this.#options.context)
+    const watch = await watchChat(conversation, this.#options.context)
     const entry = { watch, state: projectChat(watch.value) }
     this.#chats.set(chatId, entry)
-    watch.start(async (value) => {
-      const next = projectChat(value)
+    watch.start(async (call) => {
+      if (call.kind !== "value") return
+      const next = projectChat(call.value)
       const events = diffChat(entry.state, next)
       entry.state = next
       if (events.length === 0) return
@@ -140,7 +142,7 @@ export class Followers {
     // It ended by itself: the chat was deleted. One that was let go of is no longer kept here,
     // and one that ended with the harness is followed again by whoever opens the agent next.
     void watch.closed.then((end) => {
-      if (end.reason === "session_closed" || end.reason === "session_failed") return
+      if (end.kind === "ended" || end.kind === "failed") return
       if (this.#chats.get(chatId) !== entry) return
       this.#chats.delete(chatId)
       for (const socket of this.#sockets()) this.#drop(socket, chatId, true)

@@ -5,8 +5,8 @@ import {
   THINKING_LEVELS,
   type ThinkingLevel,
 } from "@do-computer/protocol"
-import type { Context } from "@earendil-works/chord"
-import { Type } from "@earendil-works/pi-ai"
+import type { Context } from "@earendil-works/chord/context"
+import { Type } from "typebox"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 
 const TOOL = "settings"

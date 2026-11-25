@@ -1,5 +1,6 @@
-import type { Context } from "@earendil-works/chord"
-import { type AssistantMessage, type ToolResultMessage, Type } from "@earendil-works/pi-ai"
+import type { Context } from "@earendil-works/chord/context"
+import { type AssistantMessage, type ToolResultMessage } from "@earendil-works/pi-ai"
+import { Type } from "typebox"
 import {
   type ConversationId,
   defineDocFamily,
@@ -561,7 +562,9 @@ function busHooks(options: BusOptions) {
           .conversation(api.conversationId as ConversationId, context)
         if (conversation === undefined) return undefined
         const { entries } = await conversation.context(context)
-        return unsent(entries) ? { continue: [{ type: "text" as const, text: UNSENT }] } : undefined
+        return unsent(entries)
+          ? { kind: "continue" as const, continue: [{ type: "text" as const, text: UNSENT }] }
+          : undefined
       } catch (error) {
         // Not being able to look must never cost the run its end.
         options.onError(error)
@@ -572,7 +575,7 @@ function busHooks(options: BusOptions) {
 }
 
 /** `send` takes files, so the model is not offered `send_file`. It is still there for `send` to call. */
-const sendFileForTools = { tool: SEND_FILE_TOOL, wrap: forToolsOnly }
+const sendFileForTools = { kind: "tool" as const, tool: SEND_FILE_TOOL, wrap: forToolsOnly }
 
 /**
  * The bus's part of the agent: the `send` tool, what the main chat is told about the bus and its
