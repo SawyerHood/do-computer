@@ -23,7 +23,7 @@
     "@trycua/cua-driver": "0.34.1",
     "@types/node": "catalog:",
     "@typescript/native": "catalog:",
-    "electron": "^45.4.1",
+    "electron": "^44.7.0",
     "electron-builder": "^26.18.0",
     "electron-updater": "^6.8.11",
     "esbuild": "^0.28.2",

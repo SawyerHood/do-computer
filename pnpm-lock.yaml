@@ -97,8 +97,8 @@ importers:
         specifier: 'catalog:'
         version: typescript@7.0.2
       electron:
-        specifier: ^45.4.1
-        version: 45.4.1(supports-color@10.2.2)
+        specifier: ^44.7.0
+        version: 44.11.6(supports-color@10.2.2)
       electron-builder:
         specifier: ^26.18.0
         version: 26.18.0(electron-builder-squirrel-windows@26.18.0)(supports-color@10.2.2)
@@ -5139,8 +5139,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@45.4.1:
-    resolution: {integrity: sha512-DjsJ/eQhovkjf1vYFFyh5GB8NMx+L5bdYaonvGOlWselg3DQ0fwIF0N/+2hrPsoS4whmmNswh21ym/8dgt1y5Q==}
+  electron@44.11.6:
+    resolution: {integrity: sha512-ntR909wtKzZhmxmJXONDfoEC0rzVm1LPtC8TKhwPgpY9dhaET1eS1If7HseDo6ALbd2jyWxqgJ1QcQ67dhZNfw==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -14886,7 +14886,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@45.4.1(supports-color@10.2.2):
+  electron@44.11.6(supports-color@10.2.2):
     dependencies:
       '@electron-internal/extract-zip': 1.0.9
       '@electron/get': 5.1.0(supports-color@10.2.2)
