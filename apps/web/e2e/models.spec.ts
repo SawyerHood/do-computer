@@ -98,7 +98,7 @@ test.describe("signing in to model providers", () => {
 
     const row = page.getByRole("listitem").filter({ hasText: "Anthropic" })
     await expect(row).toContainText("Signed in")
-    await expect(row).toContainText("A key · by you, today · 17 models")
+    await expect(row).toContainText("A key · by you, today · 18 models")
     // The key is on the server and nowhere on the page.
     await expect(page.getByText("not-a-real-key")).toHaveCount(0)
     expect(await page.content()).not.toContain("not-a-real-key")
